@@ -62,8 +62,11 @@ def make_app():
 
 
 """
-GET /step/{step}  - retrieve data associated with {step} or greater
-POST /step/{step} - expect a map in the body, update the entry 
+GET /step/{step}  - returns a JSON map of { step: <entry> } structure, for all steps
+                    greater than or equal to step
+                    
+POST /step/{step} - expect a map in the request body.   update or augment the entry 
+                    associated with step
 GET /init/{key}   - retrieve the entry associated with {key}, or None if not exists
 POST /init/{key}  - add or update entry associated with {key}
 """
