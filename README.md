@@ -3,7 +3,7 @@
 This is a small repo that allows you to design custom visualizations using the Bokeh
 library, and define how they update with periodic arrivals of new data.
 
-![Demo](demo.webm)
+![Demo](demo.gif)
 
 # Setup
 
