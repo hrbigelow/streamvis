@@ -1,13 +1,15 @@
 # test the init endpoint
-echo POST ycols
-curl -s -X POST http://localhost:8080/init/ycols -H 'Content-Type: application/json' -d '{ "mu": [ "x1", "x2", "x3" ] }'
-curl -s http://localhost:8080/init/ycols | jq
-curl -s -X POST http://localhost:8080/step/clear
+set -x
+curl -s -X POST http://localhost:8080/init/diffusion -d '{ "mu": [ "x1", "x2", "x3" ] }'
+curl -s http://localhost:8080/init/diffusion | jq
+curl -s -X POST http://localhost:8080/clear/diffusion
 
-# test the step endpoint
-curl -s -X POST http://localhost:8080/step/3 -H 'Content-Type: application/json' -d '{"x": 5, "y": { "z": [] } }'
-curl -s -X POST http://localhost:8080/step/5 -H 'Content-Type: application/json' -d '{"x": 5, "y": 8}'
-curl -s http://localhost:8080/step/0 | jq
-curl -s http://localhost:8080/step/3 | jq
-curl -s http://localhost:8080/step/5 | jq
+# test the update endpoint
+curl -s -X POST http://localhost:8080/update/diffusion/3/plot -d '{"x": 5, "y": { "z": [] } }'
+curl -s -X POST http://localhost:8080/update/diffusion/5/plot -d '{"x": 5, "y": 8}'
+curl -s -X POST http://localhost:8080/update/diffusion/3/graph -d '{"a": 5, "b": 8}'
+curl -s http://localhost:8080/update/diffusion/0 | jq
+curl -s http://localhost:8080/update/diffusion/3 | jq
+curl -s http://localhost:8080/update/diffusion/5 | jq
 
+curl -s -X POST http://localhost:8080/clear/diffusion

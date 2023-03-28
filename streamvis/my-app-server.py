@@ -41,17 +41,14 @@ def update_page(doc, new_data):
         if 'main_plot' in data:
             cds.stream(data['main_plot'])
 
-def main(rest_host, rest_port, app_name):
+def main(rest_host, rest_port, run_name):
     """
     rest_host: REST service host
     rest_port: REST service port
-    app_name: name which links this server with its client
+    run_name: name to scope this run 
     """
-    init_url = f'http://{rest_host}:{rest_port}/init'
-    update_url = f'http://{rest_host}:{rest_port}/step'
-
     doc = curdoc()
-    server = Server(doc, app_name, init_url, update_url, init_page, update_page) 
+    server = Server(doc, run_name, rest_host, rest_port, init_page, update_page) 
     server.start()
 
 # This is naked here since script is launched using 'bokeh serve'
