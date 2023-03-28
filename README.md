@@ -141,6 +141,14 @@ After three calls, the data on the REST server might look like:
 }
 ```
 
+In this example, there is only one key, `main_plot`.  More generally, any number of
+different Bokeh visualizations can use any of the data organized by `key`.  One
+common pattern could be to have one visualization associated with each `key`.
+However, one could have two separate visualizations for one `key`, which would
+provide two different ways of viewing with the same data.  Or, you could do some
+further munging of data together in the server from two separate `key`s, and show
+that in one visualization.
+
 On the Bokeh server, your `update_page` function is periodically called (default once
 per second) on any step data that arrived since the last call, and incorporates it
 into the ColumnDataSources instantiated in the `init_page` function.
