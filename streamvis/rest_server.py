@@ -71,11 +71,12 @@ GET /init/{key}   - retrieve the entry associated with {key}, or None if not exi
 POST /init/{key}  - add or update entry associated with {key}
 """
 
-if __name__ == "__main__":
+def main():
     port = int(sys.argv[1])
     app = make_app()
     app.listen(port)
-    print("Server is running on http://localhost:8888")
+    print(f'Server is running on http://localhost:{port}')
     tornado.ioloop.IOLoop.current().start()
 
-
+if __name__ == "__main__":
+    main()
