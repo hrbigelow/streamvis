@@ -3,6 +3,8 @@
 This is a small repo that allows you to design custom visualizations using the Bokeh
 library, and define how they update with periodic arrivals of new data.
 
+![Demo](demo.gif)
+
 # Setup
 
 ```bash
@@ -10,6 +12,8 @@ library, and define how they update with periodic arrivals of new data.
 # or, launch on a separate machine
 REST_HOST=localhost
 REST_PORT=8080
+APP_NAME=demo
+
 python rest-server.py $REST_PORT &
 
 # launch the bokeh server
