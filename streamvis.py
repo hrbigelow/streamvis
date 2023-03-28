@@ -31,7 +31,7 @@ class Server:
         # print(f'in __call__ with config_data={config_data}')
         wrapped = partial(self.init, self.doc, config_data)
         self.doc.add_next_tick_callback(wrapped)
-        self.doc.add_periodic_callback(self.run_update, 3000)
+        self.doc.add_periodic_callback(self.run_update, 500)
 
     def run_update(self):
         resp = requests.get(f'{self.update_uri}/{self.next_step}')

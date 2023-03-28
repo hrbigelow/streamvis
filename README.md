@@ -3,7 +3,7 @@
 This is a small repo that allows you to design custom visualizations using the Bokeh
 library, and define how they update with periodic arrivals of new data.
 
-![Demo](demo.gif)
+![Demo](demo.webm)
 
 # Setup
 
@@ -27,15 +27,17 @@ python my-app-client.py $REST_HOST $REST_PORT $APP_NAME &
 
 # Detail
 
-Streamvis allows you to design a dashboard of interactive visualizations which
-automatically update as new data is produced from a separate process.  For example, a
+Streamvis allows you to design a browser based dashboard of interactive
+visualizations (using the [bokeh](https://github.com/bokeh/bokeh) package) which
+automatically update as new data is produced from a separate process; for example, a
 process training a machine learning model that produces various metrics at each
 gradient descent step.
 
 Streamvis provides a Client and Server class which communicate through a REST
 endpoint (also provided).  The client can send your metrics to the REST endpoint via
 a POST request.  The server sends GET requests to the same endpoint and updates the
-interactive visualizations.
+interactive visualizations.  Because of this decoupling, the client and server may
+reside on separate machines.
 
 As the author, you are responsible for writing two functions which will run inside
 the Bokeh server: `init_page` and `update_page`.  `init_page` is called once when the
