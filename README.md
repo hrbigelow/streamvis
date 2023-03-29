@@ -73,13 +73,23 @@ Client App ------> REST Endpoint -------> Bokeh Server
 
 Client App:
   - create a `streamvis.Client` instance
-  - call `Client.init(app_name, page_config_data)` once
-  - periodically call `Client.send(step, key, data)`. updates the `{key: data}` entry map
+  - periodically call `Client.update(step, key, data)` to send more data
 
 Bokeh Server (see my-app-server.py example)
-  - write an `init_page(doc, page_config_data)` function to build the page
-  - write an `update_page(doc, entry)` to process new entries
+  - write an `init_page(doc, schema)` function to build the page
+  - write an `update_page(doc, step_data)` to process new steps
 
+`step_data` has the nested map structure: `(step => (data_source_name => (colname =>
+coldata)))`.  It is not required for each step to have the same set of
+`data_source_name`s, but it is required that each `data_source_name` have the same
+set of columns each time it appears.
+
+The earliest step seen in `step_data` will be used to extract the `schema` as:
+
+`(data_source_name => [colname, ...])`
+
+This step must contain all of the data source names that will appear in any
+subsequent step.
 
 Streamvis lets you define your own data layer, and adapter to associate and update
 that data into Bokeh ColumnDataSources through custom `update_page` that you write.

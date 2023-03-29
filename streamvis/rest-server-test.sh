@@ -13,3 +13,6 @@ curl -s http://localhost:8080/update/diffusion/3 | jq
 curl -s http://localhost:8080/update/diffusion/5 | jq
 
 curl -s -X POST http://localhost:8080/clear/diffusion
+
+set +x
+

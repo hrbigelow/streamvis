@@ -10,11 +10,6 @@ def main(rest_host, rest_port, run_name):
     # clear the data on the REST server
     client.clear()
 
-    # send initialization data to the REST server, to be used by
-    # bokeh-server init_page method
-    ycolumns = [ 'y1', 'y2', 'y3' ]
-    client.init(ycolumns)
-
     for step in range(10000):
         sleep(0.2)
         new_data = {
