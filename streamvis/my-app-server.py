@@ -9,7 +9,7 @@ def init_page(doc, schema):
     """
     streamvis calls this function once when the first data arrives
     doc: bokeh.io.Document object
-    schema: structure extracted from first step data
+    schema: map of (data_source_name => [column_name, column_name, ...]) 
     """
 
     cols = { k: [] for k in schema['main_plot'] }
@@ -21,7 +21,7 @@ def init_page(doc, schema):
             fig.line(x='x', y=y, source=cds)
     doc.add_root(fig)
 
-def update_page(doc, new_data):
+def update_page(doc, run_data):
     """
     Every three seconds, streamvis checks if new data has been POSTed to the
     REST service.  If any is available, streamvis calls this function with
@@ -32,13 +32,9 @@ def update_page(doc, new_data):
     """
     # retrieve the ColumnDataSource by name given in the init_page function
     cds = doc.get_model_by_name('main_plot')
-    for step in sorted(new_data.keys(), key=int):
-        step_data = new_data[step]
-
-        # 'main_plot' corresponds with the 'key' argument in the client sendl
-        # call.
-        if 'main_plot' in step_data:
-            cds.stream(step_data['main_plot'])
+    step_data = run_data['main_plot']
+    for step in sorted(step_data.keys(), key=int):
+        cds.stream(step_data[step])
 
 def main(rest_host, rest_port, run_name):
     """

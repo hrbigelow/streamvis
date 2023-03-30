@@ -18,7 +18,6 @@ class Server:
         self.run = run_name
         self.uri = f'http://{rest_host}:{rest_port}'
         self.doc = doc
-        self.next_step = 0
         self.init = init_func
         self.update_data = update_func
 
@@ -26,29 +25,36 @@ class Server:
         self.doc.add_next_tick_callback(self.init_page)
         self.doc.add_periodic_callback(self.run_update, 1000)
 
+    @staticmethod
+    def run_data_empty(run_data):
+        return all(len(v) == 0 for v in run_data.values())
+
     def init_page(self):
         """ Run this once, in a next_tick callback """
 
         while True:
-            resp = requests.get(f'{self.uri}/update/{self.run}/{self.next_step}')
-            new_data = resp.json()
-            if new_data is not None and len(new_data) > 0:
+            resp = requests.get(f'{self.uri}/{self.run}')
+            run_data = resp.json()
+            if run_data is not None and all(len(v) > 0 for v in run_data.values()):
                 break
             sleep(1)
-
-        first_step = next(k for k in sorted(new_data.keys(), key=int))
-        step_data = new_data[first_step]
-        schema = { k: list(v.keys()) for k, v in step_data.items() }
+        
+        schema = {}
+        for cds, ent in run_data.items():
+            schema[cds] = list(next(iter(ent.values())))
         self.init(self.doc, schema)
 
     def run_update(self):
-        resp = requests.get(f'{self.uri}/update/{self.run}/{self.next_step}')
-        new_data = resp.json()
-        if new_data is None or len(new_data) == 0:
+        resp = requests.get(f'{self.uri}/{self.run}')
+        run_data = resp.json()
+        if self.run_data_empty(run_data):
             return
 
-        self.update_data(self.doc, new_data)
-        self.next_step = max((int(k) + 1 for k in new_data.keys()))
+        self.update_data(self.doc, run_data)
+
+        for cds, entry in run_data.items():
+            for step in entry.keys():
+                requests.delete(f'{self.uri}/{self.run}/{cds}/{step}')
 
     def start(self):
         """
@@ -69,21 +75,28 @@ class Client:
         self.run = run_name
 
     def clear(self):
-        requests.post(f'{self.uri}/clear/{self.run}')
+        requests.delete(f'{self.uri}/{self.run}')
 
-    def update(self, step, key, data):
+    def init(self, *cds_names):
+        """
+        Create an empty container of cds_names 
+        """
+        requests.post(f'{self.uri}/{self.run}', json=cds_names)
+
+    def update(self, cds_name, step, data):
         """
         Sends data to the server.  
         The receiver maintains nested map of step => (key => data).
         sending a (step, key) pair more than once overwrites the existing data.
         """
         # print('data: ', data)
-        requests.post(f'{self.uri}/update/{self.run}/{step}/{key}', json=data)
+        requests.patch(f'{self.uri}/{self.run}/{cds_name}/{step}', json=data)
 
-    def updatel(self, step, key, data):
+    def updatel(self, cds_name, step, data):
         """
         Same as send, but wraps any non-list data item as a one-element list
         """
         data = { k: v if isinstance(v, list) else [v] for k, v in data.items() }
-        return self.update(step, key, data)
+        return self.update(cds_name, step, data)
+
 
