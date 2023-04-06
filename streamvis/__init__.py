@@ -1,60 +1,76 @@
 from time import sleep
 from tornado.ioloop import IOLoop
+from bokeh.io import curdoc
+from bokeh.layouts import column
 from functools import partial
+from threading import Thread
 import logging
 import requests
 
 class Server:
-    def __init__(self, doc, run_name, rest_host, rest_port, init_func, update_func):
+    def __init__(self, run_name, rest_host, rest_port, init_page, update_data):
         """
-        doc: the bokeh Document object
         run_name: a name to scope this run
         rest_host: host of the REST endpoint
         rest_port: port of the REST endpoint
-        init_func: function called as init(doc, config) once after the first 
-        update_func: function called as update(self.doc, new_data)
+        init_page: function called as init(schema) if there is a signal to
+                   reconfigure the page.  should return either an instance or
+                   tuple of instances of 
+
+        update_data: function called as update_data(self.doc, new_data)
                      each time there is new data received
         """
         self.run = run_name
-        self.uri = f'http://{rest_host}:{rest_port}'
-        self.doc = doc
-        self.init = init_func
-        self.update_data = update_func
-
-    def __call__(self):
-        self.doc.add_next_tick_callback(self.init_page)
-        self.doc.add_periodic_callback(self.run_update, 1000)
+        self.data_uri = f'http://{rest_host}:{rest_port}/data'
+        self.ctrl_uri = f'http://{rest_host}:{rest_port}/ctrl'
+        self.doc = curdoc()
+        self.column = column()
+        self.doc.add_root(self.column)
+        self.init_page = init_page
+        self.update_data = update_data
+        self.page_initialized = False
 
     @staticmethod
     def run_data_empty(run_data):
-        return all(len(v) == 0 for v in run_data.values())
+        return run_data is None or all(len(v) == 0 for v in run_data.values())
 
-    def init_page(self):
-        """ Run this once, in a next_tick callback """
-
-        while True:
-            resp = requests.get(f'{self.uri}/{self.run}')
-            run_data = resp.json()
-            if run_data is not None and all(len(v) > 0 for v in run_data.values()):
-                break
-            sleep(1)
-        
+    def init_callback(self, run_data):
+        """
+        Called if self.ctrl_uri contains a refresh signal 
+        Updates the document column with new Bokeh models which are
+        produced by self.init_page
+        """
         schema = {}
         for cds, ent in run_data.items():
             schema[cds] = list(next(iter(ent.values())))
-        self.init(self.doc, schema)
+        figs = self.init_page(schema)
+        self.column.children.clear()
+        if not isinstance(figs, tuple):
+            figs = (figs,)
+        self.column.children.extend(figs)
+        self.page_initialized = True
 
-    def run_update(self):
-        resp = requests.get(f'{self.uri}/{self.run}')
-        run_data = resp.json()
-        if self.run_data_empty(run_data):
-            return
-
+    def update_callback(self, run_data):
         self.update_data(self.doc, run_data)
-
         for cds, entry in run_data.items():
             for step in entry.keys():
-                requests.delete(f'{self.uri}/{self.run}/{cds}/{step}')
+                requests.delete(f'{self.data_uri}/{self.run}/{cds}/{step}')
+
+    def work(self):
+        refresh = requests.get(f'{self.ctrl_uri}/{self.run}')
+        if refresh.json() == 'refresh':
+            requests.delete(f'{self.ctrl_uri}/{self.run}')
+            self.page_initialized = False
+
+        resp = requests.get(f'{self.data_uri}/{self.run}')
+        run_data = resp.json()
+
+        if not self.page_initialized:
+            if run_data is None or any(len(v) == 0 for v in run_data.values()):
+                return
+            self.doc.add_next_tick_callback(partial(self.init_callback, run_data))
+        else:
+            self.doc.add_next_tick_callback(partial(self.update_callback, run_data))
 
     def start(self):
         """
@@ -62,8 +78,7 @@ class Server:
         This starts the receiver listening for data updates from the
         sender.
         """
-        # logging.getLogger('tornado.access').setLevel(logging.ERROR)
-        IOLoop.current().spawn_callback(self)
+        curdoc().add_periodic_callback(self.work, 100)
 
 class Client:
     """
@@ -71,17 +86,20 @@ class Client:
     a bokeh server.
     """
     def __init__(self, host, port, run_name):
-        self.uri = f'http://{host}:{port}'
+        self.data_uri = f'http://{host}:{port}/data'
+        self.ctrl_uri = f'http://{host}:{port}/ctrl'
         self.run = run_name
 
     def clear(self):
-        requests.delete(f'{self.uri}/{self.run}')
+        requests.delete(f'{self.data_uri}/{self.run}')
+        requests.delete(f'{self.ctrl_uri}/{self.run}')
 
     def init(self, *cds_names):
         """
         Create an empty container of cds_names 
         """
-        requests.post(f'{self.uri}/{self.run}', json=cds_names)
+        requests.post(f'{self.data_uri}/{self.run}', json=cds_names)
+        requests.post(f'{self.ctrl_uri}/{self.run}', json='refresh')
 
     def update(self, cds_name, step, data):
         """
@@ -90,7 +108,7 @@ class Client:
         sending a (step, key) pair more than once overwrites the existing data.
         """
         # print('data: ', data)
-        requests.patch(f'{self.uri}/{self.run}/{cds_name}/{step}', json=data)
+        requests.patch(f'{self.data_uri}/{self.run}/{cds_name}/{step}', json=data)
 
     def updatel(self, cds_name, step, data):
         """

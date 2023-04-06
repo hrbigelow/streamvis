@@ -5,7 +5,7 @@ import sys
 
 class RunHandler(tornado.web.RequestHandler):
     """
-    GET {run}?min_step=10 - retrieve run data for step 10 onwards
+    GET {run}
     POST {run} - set run resource
     """
     def initialize(self, data):
@@ -80,12 +80,38 @@ class StepHandler(tornado.web.RequestHandler):
             entry[step] = json.loads(self.request.body)
             self.set_status(200)
 
+class ControlHandler(tornado.web.RequestHandler):
+    """
+    Handles non-data configuration signals 
+    """
+    def initialize(self, cfg):
+        self.config = cfg
+
+    def get(self, run):
+        if run in self.config:
+            self.write(json.dumps(self.config[run]))
+        else:
+            self.write(json.dumps(None))
+        self.set_status(200)
+
+    def delete(self, run):
+        if run in self.config:
+            del self.config[run]
+            self.set_status(200)
+
+    def post(self, run):
+        self.config[run] = json.loads(self.request.body)
+        self.set_status(200)
+
+            
 def make_app():
     data = {}   # (run => {})
+    config = {} # non-data configuration signals
     return tornado.web.Application([
-        (r"/(\w+)", RunHandler, dict(data=data)),
-        (r"/(\w+)/(\w+)", CDSHandler, dict(data=data)),
-        (r"/(\w+)/(\w+)/([0-9]+)", StepHandler, dict(data=data)),
+        (r"/data/(\w+)", RunHandler, dict(data=data)),
+        (r"/data/(\w+)/(\w+)", CDSHandler, dict(data=data)),
+        (r"/data/(\w+)/(\w+)/([0-9]+)", StepHandler, dict(data=data)),
+        (r"/ctrl/(\w+)", ControlHandler, dict(cfg=config))
     ])
 
 def main():
