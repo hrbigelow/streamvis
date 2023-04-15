@@ -1,18 +1,26 @@
 # test the init endpoint
 set -x
-curl -s -X POST http://localhost:8080/init/diffusion -d '{ "mu": [ "x1", "x2", "x3" ] }'
-curl -s http://localhost:8080/init/diffusion | jq
-curl -s -X POST http://localhost:8080/clear/diffusion
+BASE=http://localhost:8080
+RUN=diffusion
 
-# test the update endpoint
-curl -s -X POST http://localhost:8080/update/diffusion/3/plot -d '{"x": 5, "y": { "z": [] } }'
-curl -s -X POST http://localhost:8080/update/diffusion/5/plot -d '{"x": 5, "y": 8}'
-curl -s -X POST http://localhost:8080/update/diffusion/3/graph -d '{"a": 5, "b": 8}'
-curl -s http://localhost:8080/update/diffusion/0 | jq
-curl -s http://localhost:8080/update/diffusion/3 | jq
-curl -s http://localhost:8080/update/diffusion/5 | jq
+curl -s -X POST ${BASE}/${RUN}/cfg/mu -d '{ "kind": "scatter" }'
+curl -s -X POST ${BASE}/${RUN}/cfg/sigma -d '{ "kind": "multi_line" }'
+curl -s -X GET  ${BASE}/${RUN}/cfg | jq
+curl -s -X DELETE ${BASE}/${RUN}/cfg/mu
+curl -s -X GET  ${BASE}/${RUN}/cfg | jq
 
-curl -s -X POST http://localhost:8080/clear/diffusion
+curl -s -X GET  ${BASE}/${RUN}/cfg/sigma | jq
+
+curl -s -X DELETE ${BASE}/${RUN}/cfg
+
+# echo 'Should be empty: '
+curl -s -X GET  ${BASE}/${RUN}/cfg | jq
+
+curl -s -X POST ${BASE}/${RUN}/data/mu -d '[ [1,2,3], [4,5,6] ]'
+curl -s -X POST ${BASE}/${RUN}/data/mu -d '[ [7,5,3], [2,5,1] ]'
+curl -s -X GET ${BASE}/${RUN}/data/mu | jq
+
+curl -s -X DELETE ${BASE}/${RUN}
 
 set +x
 

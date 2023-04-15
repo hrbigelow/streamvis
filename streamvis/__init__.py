@@ -1,76 +1,80 @@
-from time import sleep
-from tornado.ioloop import IOLoop
 from bokeh.io import curdoc
 from bokeh.layouts import column
+from bokeh.plotting.figure import Figure
 from functools import partial
-from threading import Thread
-import logging
 import requests
+from . import plots
 
 class Server:
-    def __init__(self, run_name, rest_host, rest_port, init_page, update_data):
+    def __init__(self, doc, rest_uri, run_name):
         """
         run_name: a name to scope this run
-        rest_host: host of the REST endpoint
-        rest_port: port of the REST endpoint
-        init_page: function called as init(schema) if there is a signal to
-                   reconfigure the page.  should return either an instance or
-                   tuple of instances of 
-
-        update_data: function called as update_data(self.doc, new_data)
-                     each time there is new data received
+        host: host of the REST endpoint
+        port: port of the REST endpoint
         """
-        self.run = run_name
-        self.data_uri = f'http://{rest_host}:{rest_port}/data'
-        self.ctrl_uri = f'http://{rest_host}:{rest_port}/ctrl'
-        self.doc = curdoc()
+        self.uri = f'http://{rest_uri}/{run_name}'
+        self.doc = doc 
         self.column = column()
         self.doc.add_root(self.column)
-        self.init_page = init_page
-        self.update_data = update_data
-        self.page_initialized = False
+        self.plot_config = {} 
 
-    @staticmethod
-    def run_data_empty(run_data):
-        return run_data is None or all(len(v) == 0 for v in run_data.values())
+    def get_figure(self, cds_name):
+        return self.doc.select({ 'type': Figure, 'name': cds_name })
 
-    def init_callback(self, run_data):
+    def init_callback(self, layout, cfg):
         """
-        Called if self.ctrl_uri contains a refresh signal 
-        Updates the document column with new Bokeh models which are
-        produced by self.init_page
+        Called when new cfg data is available
         """
-        schema = {}
-        for cds, ent in run_data.items():
-            schema[cds] = list(next(iter(ent.values())))
-        figs = self.init_page(schema)
+        # cfg may be left over from a previously aborted run, so not
+        # congruent with the current layout.  in this case, it is ignored.
+        # during a client run, the client ensures that all POSTs to cfg
+        # endpoint are keys present in layout
+        if any(k not in layout for k in cfg.keys()):
+            return
+
+        grid = []
+        for cds_name, plot_cfg in cfg.items():
+            if len(plot_cfg) == 0:
+                fig = self.get_figure(cds_name)
+            else:
+                fig = plots.make_figure(cds_name, plot_cfg)
+                self.plot_config[cds_name] = plot_cfg
+
+            coords = layout[cds_name]
+            grid.append(tuple(fig, *coords))
+        plot = gridplot(children=grid)
         self.column.children.clear()
-        if not isinstance(figs, tuple):
-            figs = (figs,)
-        self.column.children.extend(figs)
-        self.page_initialized = True
+        self.column.children.append(plot)
 
-    def update_callback(self, run_data):
-        self.update_data(self.doc, run_data)
-        for cds, entry in run_data.items():
-            for step in entry.keys():
-                requests.delete(f'{self.data_uri}/{self.run}/{cds}/{step}')
+    def update_callback(self, all_data):
+        for cds_name, data in all_data.items():
+            cds = self.doc.get_model_by_name(cds_name)
+            if cds is None:
+                continue
+            plot_cfg = self.plot_config[cds_name]
+            plots.update_data(cds, plot_cfg)
 
-    def work(self):
-        refresh = requests.get(f'{self.ctrl_uri}/{self.run}')
-        if refresh.json() == 'refresh':
-            requests.delete(f'{self.ctrl_uri}/{self.run}')
-            self.page_initialized = False
+    def work_callback(self):
+        cfg = requests.get(f'{self.uri}/cfg').json()
+        if cfg is None:
+            # no run has been initialized
+            return
 
-        resp = requests.get(f'{self.data_uri}/{self.run}')
-        run_data = resp.json()
+        if len(cfg) != 0:
+            layout = requests.get(f'{self.uri}/layout').json()
+            self.doc.add_next_tick_callback(partial(self.init_callback, layout, cfg))
+            requests.delete(f'{self.uri}/cfg')
+            return
 
-        if not self.page_initialized:
-            if run_data is None or any(len(v) == 0 for v in run_data.values()):
-                return
-            self.doc.add_next_tick_callback(partial(self.init_callback, run_data))
+        data = requests.get(f'{self.uri}/data').json()
+        if data is None:
+            return
+        elif all(len(v) == 0 for v in data.values()):
+            # no new data to process
+            return
         else:
-            self.doc.add_next_tick_callback(partial(self.update_callback, run_data))
+            self.doc.add_next_tick_callback(partial(self.update_callback, data))
+            requests.delete(f'{self.uri}/data')
 
     def start(self):
         """
@@ -78,7 +82,7 @@ class Server:
         This starts the receiver listening for data updates from the
         sender.
         """
-        curdoc().add_periodic_callback(self.work, 100)
+        self.doc.add_periodic_callback(self.work_callback, 1000)
 
 class Client:
     """
@@ -86,35 +90,43 @@ class Client:
     a bokeh server.
     """
     def __init__(self, host, port, run_name):
-        self.data_uri = f'http://{host}:{port}/data'
-        self.ctrl_uri = f'http://{host}:{port}/ctrl'
-        self.run = run_name
+        self.uri = f'http://{host}:{port}/{run_name}'
 
     def clear(self):
-        requests.delete(f'{self.data_uri}/{self.run}')
-        requests.delete(f'{self.ctrl_uri}/{self.run}')
+        requests.delete(f'{self.uri}')
 
-    def init(self, *cds_names):
+    def set_layout(self, grid_map):
         """
-        Create an empty container of cds_names 
+        Specify the layout of plots on the page.
+        grid_map is a map of plot_name => (beg_row, beg_col, end_row, end_col)
         """
-        requests.post(f'{self.data_uri}/{self.run}', json=cds_names)
-        requests.post(f'{self.ctrl_uri}/{self.run}', json='refresh')
+        if not (isinstance(grid_map, dict) and
+                all(isinstance(v, tuple) and len(v) == 4 for v in grid_map.values())):
+            raise RuntimeError(
+                f'set_layout: grid_map must be a map of: '
+                f'plot_name => (beg_row, beg_col, end_row, end_col)')
+        for plot_name, coords in grid_map.items():
+            requests.post(f'{self.uri}/layout/{plot_name}', json=coords)
 
-    def update(self, cds_name, step, data):
+    def scatter(self, plot_name, data, append=True, fig_kwargs):
         """
-        Sends data to the server.  
-        The receiver maintains nested map of step => (key => data).
-        sending a (step, key) pair more than once overwrites the existing data.
+        Visualize data in a scatter plot 
+        plot_name: identifier for this plot
+        data: numpy.ndarray or object with a .numpy() method.  data to be visualized
+        append: if True, appends this data to the visualization, otherwise replaces it
+        kwargs: arguments for bokeh to configure the plot
         """
-        # print('data: ', data)
-        requests.patch(f'{self.data_uri}/{self.run}/{cds_name}/{step}', json=data)
+        cfg = { 'kind': 'scatter', 'append': append, 'fig_kwargs': kwargs }
+        requests.post(f'{self.uri}/cfg/{plot_name}', json=cfg)
+        requests.post(f'{self.uri}/data/{plot_name}', json=data)
 
-    def updatel(self, cds_name, step, data):
+    def multi_line(self, plot_name, data, append=True, **kwargs):
         """
-        Same as send, but wraps any non-list data item as a one-element list
+        Visualize data in a multi_line plot
+        plot_name: identifier for this plot
+        data: numpy.ndarray or object with a .numpy() method.  data to be visualized
+        append: if True, appends this data to the visualization, otherwise replaces it
+        kwargs: arguments for bokeh to configure the plot
         """
-        data = { k: v if isinstance(v, list) else [v] for k, v in data.items() }
-        return self.update(cds_name, step, data)
-
+        pass
 
