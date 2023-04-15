@@ -1,5 +1,6 @@
 from bokeh.io import curdoc
 from bokeh.layouts import column
+from bokeh.models import GridBox
 from bokeh.plotting.figure import Figure
 from functools import partial
 import requests
@@ -41,8 +42,8 @@ class Server:
                 self.plot_config[cds_name] = plot_cfg
 
             coords = layout[cds_name]
-            grid.append(tuple(fig, *coords))
-        plot = gridplot(children=grid)
+            grid.append((fig, *coords))
+        plot = GridBox(children=grid)
         self.column.children.clear()
         self.column.children.append(plot)
 
@@ -52,7 +53,7 @@ class Server:
             if cds is None:
                 continue
             plot_cfg = self.plot_config[cds_name]
-            plots.update_data(cds, plot_cfg)
+            plots.update_data(data, cds, plot_cfg)
 
     def work_callback(self):
         cfg = requests.get(f'{self.uri}/cfg').json()
@@ -89,8 +90,9 @@ class Client:
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self, host, port, run_name):
-        self.uri = f'http://{host}:{port}/{run_name}'
+    def __init__(self, rest_uri, run_name):
+        self.uri = f'http://{rest_uri}/{run_name}'
+        self.configured_plots = set()
 
     def clear(self):
         requests.delete(f'{self.uri}')
@@ -98,7 +100,7 @@ class Client:
     def set_layout(self, grid_map):
         """
         Specify the layout of plots on the page.
-        grid_map is a map of plot_name => (beg_row, beg_col, end_row, end_col)
+        grid_map is a map of plot_name => (top, left, height, width)
         """
         if not (isinstance(grid_map, dict) and
                 all(isinstance(v, tuple) and len(v) == 4 for v in grid_map.values())):
@@ -108,7 +110,13 @@ class Client:
         for plot_name, coords in grid_map.items():
             requests.post(f'{self.uri}/layout/{plot_name}', json=coords)
 
-    def scatter(self, plot_name, data, append=True, fig_kwargs):
+    def _post(self, plot_name, data, cfg):
+        requests.post(f'{self.uri}/data/{plot_name}', json=data)
+        if plot_name not in self.configured_plots:
+            requests.post(f'{self.uri}/cfg/{plot_name}', json=cfg)
+            self.configured_plots.add(plot_name)
+
+    def scatter(self, plot_name, data, spatial_dim, append=True, fig_kwargs={}):
         """
         Visualize data in a scatter plot 
         plot_name: identifier for this plot
@@ -116,17 +124,16 @@ class Client:
         append: if True, appends this data to the visualization, otherwise replaces it
         kwargs: arguments for bokeh to configure the plot
         """
-        cfg = { 'kind': 'scatter', 'append': append, 'fig_kwargs': kwargs }
-        requests.post(f'{self.uri}/cfg/{plot_name}', json=cfg)
-        requests.post(f'{self.uri}/data/{plot_name}', json=data)
+        cfg = dict(item_shape='bs', append=append, kind='scatter', fig_kwargs=fig_kwargs)
+        self._post(plot_name, data, cfg)
 
-    def multi_line(self, plot_name, data, append=True, **kwargs):
+    def tandem_lines(self, plot_name, data, fig_kwargs={}):
         """
         Visualize data in a multi_line plot
         plot_name: identifier for this plot
-        data: numpy.ndarray or object with a .numpy() method.  data to be visualized
-        append: if True, appends this data to the visualization, otherwise replaces it
-        kwargs: arguments for bokeh to configure the plot
+        data: [x, y1, y2, ..., yk]
+        fig_kwargs: arguments for bokeh to configure the plot
         """
-        pass
+        cfg = dict(item_shape='m', append=True, kind='multi_line', fig_kwargs=fig_kwargs)
+        self._post(plot_name, data, cfg)
 

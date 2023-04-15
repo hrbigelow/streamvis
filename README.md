@@ -12,32 +12,27 @@ library, and define how they update with periodic arrivals of new data.
 # Setup
 
 ```bash
-# launch the REST server (test with rest-server-test.sh)
-# or, launch on a separate machine
-
-PKG_DIR=$(pip show streamvis | grep Location | cut -f 2 -d ' ')
-REST_HOST=localhost
-REST_PORT=8080
-APP_NAME=demo
-
-streamvis_rest $REST_PORT &
+# launch the REST server
+# sv_rest_server <host> <port> 
+$ sv_rest_server localhost 8080 &
 
 # launch the bokeh server
-bokeh serve ${PKG_DIR}/my-app-server.py --args $REST_HOST $REST_PORT $APP_NAME &
+# sv_server <rest_uri> <run_name> bokeh_server_port
+$ sv_server localhost:8080 my_run 5006 &
 
 # start your data-producing application
-python ${PKG_DIR}/my-app-client.py $REST_HOST $REST_PORT $APP_NAME &
+python my-app-client.py localhost:8080 my_run &
 
-# watch your data at localhost:5006/my-app-server
+# watch and interact with your data at localhost:5006
 ```
 
 # Overview
 
 Streamvis allows you to design a browser based dashboard of interactive
 visualizations (using the [bokeh](https://github.com/bokeh/bokeh) package) which
-automatically update as new data is produced from a separate process; for example, a
-process training a machine learning model that produces various metrics at each
-gradient descent step.
+automatically update and re-configure as new data is produced from a separate
+process; for example, a process training a machine learning model that produces
+various metrics at each gradient descent step.
 
 Streamvis provides a Client and Server class which communicate through a REST
 endpoint (also provided).  The client can send your metrics to the REST endpoint via
@@ -45,128 +40,47 @@ a POST request.  The server sends GET requests to the same endpoint and updates 
 interactive visualizations.  Because of this decoupling, the client and server may
 reside on separate machines.
 
-As the author, you are responsible for writing two functions which will run inside
-the Bokeh server: `init_page` and `update_page`.  `init_page` is called once when the
-Bokeh server starts.  It defines the structure of the page, which visualizations are
-in it and how they are laid out, and the structure of the data sources.  The
-`update_page` function updates the contents of these data sources with new data as
-it is produced by your client app.
-
-In your client app (the script training your machine learning model, for example),
-you call Client.init with any app-specific configuration data that the structure of
-the page depends on.  Then, within the training loop, you call Client.send (or
-Client.sendl) to periodically send metrics for a given training step.
-
-You can then access the visualizations in your browser at
-`localhost:5006/my-app-server` for example.  The visualizations are both interactive
-(allowing you to zoom in/out, select points, and generally any interactions that
-Bokeh allows), but also will automatically update as new data arrives.
-
-This is much like a TensorBoard session or a `wandb` setup, except that you have more
-control over how to set up the visualizations.
-
-# Design
-
-The overall design of this setup is:
-
-Client App ------> REST Endpoint -------> Bokeh Server
-
-Client App:
-  - create a `streamvis.Client` instance
-  - periodically call `Client.update(step, key, data)` to send more data
-
-Bokeh Server (see my-app-server.py example)
-  - write an `init_page(doc, schema)` function to build the page
-  - write an `update_page(doc, step_data)` to process new steps
-
-`step_data` has the nested map structure: `(step => (data_source_name => (colname =>
-coldata)))`.  It is not required for each step to have the same set of
-`data_source_name`s, but it is required that each `data_source_name` have the same
-set of columns each time it appears.
-
-The earliest step seen in `step_data` will be used to extract the `schema` as:
-
-`(data_source_name => [colname, ...])`
-
-This step must contain all of the data source names that will appear in any
-subsequent step.
-
-Streamvis lets you define your own data layer, and adapter to associate and update
-that data into Bokeh ColumnDataSources through custom `update_page` that you write.
-The only structure it imposes is that each entry is assigned to an integer `step`
-value, and the entry must be a `{key: data}` map.  The Streamvis Server object (which
-runs in Bokeh server) internally maintains a `next_step` value and updates it to the
-highest value seen plus one.  At regular intervals, it will request more data from
-the REST server and process it as it arrives.
-
-For example, a `client.init` call:
+In your client app (for example, `my-app-client.py`):
 
 ```python
-page_config = ['y1', 'y2', 'y3']
-client = streamvis.Client(init_url, update_url)
-client.init('my_app', page_config) 
+from streamvis import Client
+
+# point your client to the running sv_rest_server service
+client = Client(rest_uri, run_name)
+
+# clear the data on the REST server associated with run_name
+client.clear()
+
+# specifies rectangular packing layout of plots
+grid_map = dict(
+        top_plot=(0,0,1,2), # (top,left,height,width)
+        low_left_plot=(1,0,2,1),
+        low_right_plot=(1,1,2,2)
+        )
+
+# set the physical layout in the page for your plots
+client.set_layout(grid_map)
+
+# Generate some data 
+N = 1000
+left_data = np.random.randn(N, 2)
+
+for step in range(10000):
+    sleep(0.2)
+    top_data = [
+            step,
+            math.sin(1 + step / 10),
+            0.5 * math.sin(1.5 + step / 20),
+            1.5 * math.sin(2 + step / 15) 
+            ]
+
+    left_data = left_data + np.random.randn(N, 2) * 0.1
+
+    client.tandem_lines('top_plot', top_data) 
+    client.scatter('low_left_plot', left_data.tolist(), spatial_dim=1, append=False)
 ```
 
-Once this call is made in the client, the `streamvis.Server` instance on the server
-passes this information into your custom `init_page` function to build the Bokeh
-`Document` object.
-
-Then, the client periodically calls `send(step, key, data)` with new pieces of data.
-After three calls, the data on the REST server might look like:
-
-```json
-{
-  "0": {
-    "main_plot": {
-      "x": [
-        0
-      ],
-      "y1": [
-        0.8414709848078965
-      ],
-      "y2": [
-        0.4987474933020272
-      ],
-      "y3": [
-        1.3639461402385225
-      ]
-    }
-  },
-  "1": {
-    "main_plot": {
-      "x": [
-        1
-      ],
-      "y1": [
-        0.8912073600614354
-      ],
-      "y2": [
-        0.4998918820946785
-      ],
-      "y3": [
-        1.3193324064263425
-      ]
-    }
-  }
-}
-```
-
-In this example, there is only one key, `main_plot`.  More generally, any number of
-different Bokeh visualizations can use any of the data organized by `key`.  One
-common pattern could be to have one visualization associated with each `key`.
-However, one could have two separate visualizations for one `key`, which would
-provide two different ways of viewing with the same data.  Or, you could do some
-further munging of data together in the server from two separate `key`s, and show
-that in one visualization.
-
-On the Bokeh server, your `update_page` function is periodically called (default once
-per second) on any step data that arrived since the last call, and incorporates it
-into the ColumnDataSources instantiated in the `init_page` function.
-
-Some features include:
-
-* The Bokeh host and your data-producer client process host may be different
-* The data model is `{step: {key: data} }`, where `data` can be arbitrary JSON
-* You define how your data is used to update ColumnDataSources
-
+You can then access the visualizations in your browser at `localhost:5006` for
+example.  The visualizations are both interactive (allowing you to zoom in/out, etc),
+and automatically update as new data arrives.
 

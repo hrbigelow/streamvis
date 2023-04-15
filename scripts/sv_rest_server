@@ -64,7 +64,7 @@ class CdsHandler(tornado.web.RequestHandler):
 
         if mode == 'data':
             ary = run.data.setdefault(cds, [])
-            ary.extend(data)
+            ary.append(data)
             self.set_status(200)
         elif mode == 'cfg':
             run.cfg[cds] = data
@@ -112,13 +112,14 @@ class RunHandler(tornado.web.RequestHandler):
 
     def delete(self, run_name, mode):
         run = self.state.get(run_name, None)
-        if run is not None:
-            if mode == 'data':
-                run.data.clear()
-            elif mode == 'cfg':
-                run.cfg.clear()
-            elif mode == 'layout':
-                run.layout.clear()
+        if run is None:
+            return
+        if mode == 'data':
+            run.data.clear()
+        elif mode == 'cfg':
+            run.cfg.clear()
+        elif mode == 'layout':
+            run.layout.clear()
 
 class TopHandler(tornado.web.RequestHandler):
 

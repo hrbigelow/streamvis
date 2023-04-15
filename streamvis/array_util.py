@@ -62,12 +62,24 @@ def dim_to_data(data, dim):
     vals = t.arange(D).reshape(*bcast).expand(*data.shape[:-1], 1)
     return t.cat((data, vals), data.ndim-1)
 
+
+def to_list_of_list(data, point_dim):
+    """
+    Return a list of lists of dimension (N, data.shape[point_dim])
+    """
+    if point_dim >= data.ndim:
+        raise RuntimeError(
+            f'to_list_of_list: got point_dim={point_dim}, '
+            f'not valid for data.ndim = {data.ndim}')
+    point_dim_size = data.shape[point_dim]
+    return data.moveaxis(point_dim, -1).reshape(-1, point_dim_size).aslist()
+
 def to_dict(data, key_dim, val_dims=(), key_string='xy'):
     """
-    data has an unspecified shape but contains key_dim, val_dims.
-    data is first permuted to shape key_dim, *other_dims, *val_dims
-    other_dims are collapsed, and each slice along key_dim is packaged into
-    C, *val_dims list of lists.
+    - data has an unspecified shape but contains key_dim, val_dims.
+    - data is first permuted to shape (key_dim, *other_dims, *val_dims)
+    - other_dims are collapsed, and each slice along key_dim is packaged into
+        C, *val_dims list of lists.
     Returns: { key_string[key_dim] => list: C x *val_dims }
     """
     if not all(d < data.ndim for d in val_dims + (key_dim,)):
