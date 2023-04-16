@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+
+import fire
+from tornado.ioloop import IOLoop
+import tornado.web
+
+from bokeh.server.server import Server
+from bokeh.application import Application
+from bokeh.application.handlers.function import FunctionHandler
+from streamvis import Server as SvServer
+
+import json
+from dataclasses import dataclass, field
+
+
+@dataclass
+class RunState:
+    # cds => data to put into the ColumnDataSource object
+    data: dict = field(default_factory=dict)
+
+    # cds => plot configuration data
+        cfg: dict = field(default_factory=dict)
+
+        # cds => (row_start, col_start, row_end, col_end)
+        layout: dict = field(default_factory=dict)
+        
+
+    class CdsHandler(tornado.web.RequestHandler):
+
+        def initialize(self, state):
+            self.state = state 
+
+        def post(self, run_name, mode, cds):
+            
+            run = self.state.setdefault(run_name, RunState())
+            data = json.loads(self.request.body) 
+
+            if mode == 'data':
+                ary = run.data.setdefault(cds, [])
+                ary.append(data)
+                self.set_status(200)
+            elif mode == 'cfg':
+                run.cfg[cds] = data
+                self.set_status(200)
+            elif mode == 'layout':
+                run.layout[cds] = data
+            else:
+                raise RuntimeError('impossible error')
+
+    class TopHandler(tornado.web.RequestHandler):
+
+        def initialize(self, state):
+            self.state = state
+
+        def delete(self, run_name):
+            if run_name in self.state:
+                del self.state[run_name]
+            self.set_status(200)
+
+    class BokehHandler(tornado.web.RequestHandler):
+
+        def initialize(self):
+            pass
+
+        def 
+
+    def main(rest_port, bokeh_port, run_name):
+        state = {} # run -> RunState
+        rest_app = tornado.web.Application([
+            (r"/(\w+)/(data|cfg|layout)/(\w+)", CdsHandler, dict(state=state)),
+            (r"/(\w+)", TopHandler, dict(state=state))
+        ])
+
+        def app_function(doc):
+            print(f'doc request: {doc.session_context.request}')
+            sv_server = SvServer(doc, state, run_name)
+            sv_server.start()
+        handler = FunctionHandler(app_function)
+        bokeh_app = Application(handler)
+    bokeh_server = Server({'/': bokeh_app}, port=bokeh_port, io_loop=IOLoop.current())
+    rest_app.listen(rest_port)
+    print(f'Server is running on http://localhost:{bokeh_port}')
+    IOLoop.current().start()
+
+if __name__ == "__main__":
+    fire.Fire(main)
+

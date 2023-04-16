@@ -14,17 +14,16 @@ def make_figure(cds_name, cfg):
     """
     kind = cfg['kind']
     fig_kwargs = cfg['fig_kwargs']
-    cmap_range = cfg.get('cmap_range', None)
+    color_mode = cfg['color_mode']
 
     fig = figure(title=cds_name, **fig_kwargs)
-    colnames = 'xy' if cmap_range is None else 'xyz'
+    colnames = 'xy' if color_mode is None else 'xyz'
     col_map = { col: [] for col in colnames }
     cds = ColumnDataSource(col_map, name=cds_name)
 
     vis_kwargs = { 'source': cds }
-    if cmap_range is not None:
-        low, high = cmap_range
-        cmap = linear_cmap('z', palette='Viridis256', low=low, high=high)
+    if color_mode is not None:
+        cmap = linear_cmap('z', palette=cfg['palette'], low=0, high=1)
         if kind == 'multi_line':
             vis_kwargs['line_color'] = cmap 
         else:
@@ -50,18 +49,17 @@ s: dimension of size 2 representing x,y values
 m: dimension of size k+1 representing x,y1,y2,...,yk values
 """
 
-def update_data(raw_data, cds, plot_cfg):
+def update_data(raw_data, cds, cfg):
     """
-    Incorporate `data` into cds, according to rules specified by plot_cfg
+    Incorporate `data` into cds, according to rules specified by cfg
     """
     pre_data = np.array(raw_data)
-    item_shape = plot_cfg['item_shape']
-    append = plot_cfg['append']
+    item_shape = cfg['item_shape']
+    append = cfg['append']
     if item_shape == 'bs':
         data = pre_data.reshape(-1, pre_data.shape[-1])
         data = data.transpose().tolist()
         cdata = dict(zip(cds.column_names, data))
-        # print(f'cdata = {cdata}')
         if append: 
             cds.stream(cdata)
         else:

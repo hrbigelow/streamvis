@@ -3,17 +3,17 @@ from bokeh.layouts import column
 from bokeh.models import GridBox
 from bokeh.plotting.figure import Figure
 from functools import partial
+from copy import deepcopy
 import requests
 from . import plots
 
 class Server:
-    def __init__(self, doc, rest_uri, run_name):
+    def __init__(self, doc, run_state, run_name):
         """
         run_name: a name to scope this run
-        host: host of the REST endpoint
-        port: port of the REST endpoint
         """
-        self.uri = f'http://{rest_uri}/{run_name}'
+        self.run_state = run_state
+        self.run_name = run_name
         self.doc = doc 
         self.column = column()
         self.doc.add_root(self.column)
@@ -21,6 +21,9 @@ class Server:
 
     def get_figure(self, cds_name):
         return self.doc.select({ 'type': Figure, 'name': cds_name })
+
+    def get_state(self):
+        return self.run_state.get(self.run_name, None)
 
     def init_callback(self, layout, cfg):
         """
@@ -56,26 +59,26 @@ class Server:
             plots.update_data(data, cds, plot_cfg)
 
     def work_callback(self):
-        cfg = requests.get(f'{self.uri}/cfg').json()
-        if cfg is None:
-            # no run has been initialized
+        state = self.get_state()
+        if state is None or state.cfg is None:
             return
 
-        if len(cfg) != 0:
-            layout = requests.get(f'{self.uri}/layout').json()
-            self.doc.add_next_tick_callback(partial(self.init_callback, layout, cfg))
-            requests.delete(f'{self.uri}/cfg')
+        if len(state.cfg) != 0:
+            layout = state.layout
+            wrap = partial(self.init_callback, deepcopy(layout), deepcopy(state.cfg))
+            self.doc.add_next_tick_callback(wrap)
+            state.cfg.clear()
             return
 
-        data = requests.get(f'{self.uri}/data').json()
-        if data is None:
+        if state.data is None:
             return
-        elif all(len(v) == 0 for v in data.values()):
+        elif all(len(v) == 0 for v in state.data.values()):
             # no new data to process
             return
         else:
-            self.doc.add_next_tick_callback(partial(self.update_callback, data))
-            requests.delete(f'{self.uri}/data')
+            wrap = partial(self.update_callback, deepcopy(state.data))
+            self.doc.add_next_tick_callback(wrap)
+            state.data.clear()
 
     def start(self):
         """
@@ -83,7 +86,7 @@ class Server:
         This starts the receiver listening for data updates from the
         sender.
         """
-        self.doc.add_periodic_callback(self.work_callback, 1000)
+        self.doc.add_periodic_callback(self.work_callback, 500)
 
 class Client:
     """
@@ -116,24 +119,13 @@ class Client:
             requests.post(f'{self.uri}/cfg/{plot_name}', json=cfg)
             self.configured_plots.add(plot_name)
 
-    def scatter(self, plot_name, data, spatial_dim, append=True, fig_kwargs={}):
-        """
-        Visualize data in a scatter plot 
-        plot_name: identifier for this plot
-        data: numpy.ndarray or object with a .numpy() method.  data to be visualized
-        append: if True, appends this data to the visualization, otherwise replaces it
-        kwargs: arguments for bokeh to configure the plot
-        """
-        cfg = dict(item_shape='bs', append=append, kind='scatter', fig_kwargs=fig_kwargs)
+    def scatter(self, plot_name, data, spatial_dim, color_mode, palette='Viridis', 
+            append=True, fig_kwargs={}):
+        cfg = dict(item_shape='bs', color_mode=color_mode, palette=palette,
+                append=append, kind='scatter', fig_kwargs=fig_kwargs)
         self._post(plot_name, data, cfg)
 
     def tandem_lines(self, plot_name, data, fig_kwargs={}):
-        """
-        Visualize data in a multi_line plot
-        plot_name: identifier for this plot
-        data: [x, y1, y2, ..., yk]
-        fig_kwargs: arguments for bokeh to configure the plot
-        """
         cfg = dict(item_shape='m', append=True, kind='multi_line', fig_kwargs=fig_kwargs)
         self._post(plot_name, data, cfg)
 

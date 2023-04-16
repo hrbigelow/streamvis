@@ -12,16 +12,11 @@ library, and define how they update with periodic arrivals of new data.
 # Setup
 
 ```bash
-# launch the REST server
-# sv_rest_server <host> <port> 
-$ sv_rest_server localhost 8080 &
-
-# launch the bokeh server
-# sv_server <rest_uri> <run_name> bokeh_server_port
-$ sv_server localhost:8080 my_run 5006 &
+# launch the server 
+streamvis_server --rest_port 8080 --bokeh_port 5006 --run_name myapp &
 
 # start your data-producing application
-python my-app-client.py localhost:8080 my_run &
+python my-app-client.py localhost:8080 myapp &
 
 # watch and interact with your data at localhost:5006
 ```
@@ -34,11 +29,8 @@ automatically update and re-configure as new data is produced from a separate
 process; for example, a process training a machine learning model that produces
 various metrics at each gradient descent step.
 
-Streamvis provides a Client and Server class which communicate through a REST
-endpoint (also provided).  The client can send your metrics to the REST endpoint via
-a POST request.  The server sends GET requests to the same endpoint and updates the
-interactive visualizations.  Because of this decoupling, the client and server may
-reside on separate machines.
+Streamvis provides a Client which POSTs your data to the REST endpoint provided by
+`streamvis_server`, which then creates visualizations from this data.
 
 In your client app (for example, `my-app-client.py`):
 
