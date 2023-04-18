@@ -1,6 +1,6 @@
 # streamvis - interactive visualizations of streaming data with Bokeh
 
-This is a small repo that allows you to design custom visualizations using the Bokeh
+Streamvis allows you to design custom visualizations using the Bokeh
 library, and define how they update with periodic arrivals of new data.
 
 ![Demo](data/demo.gif)
