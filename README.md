@@ -51,6 +51,9 @@ client.set_layout(grid_map)
 # update (or replace) data in visualizations at each step
 for step in range(10000):
 
+    # Perform SGD step ...
+    # ...
+
     # loss_vis.shape: timestep
     # graph a collection of y values against a shared x scalar
     # each call adds another point to each line in tandem
