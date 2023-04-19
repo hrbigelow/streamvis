@@ -1,7 +1,12 @@
+import numpy as np
 from bokeh.models import GridBox
 from bokeh.layouts import column
 from bokeh.plotting import figure
-from . import plots
+from bokeh.application import Application
+from bokeh.application.handlers.function import FunctionHandler
+from tornado.ioloop import IOLoop
+from bokeh.server.server import Server as BokehServer
+from . import plots, endpoint
 
 class Server:
     def __init__(self, doc, run_state, run_name):
@@ -16,11 +21,58 @@ class Server:
         self.column = column()
         self.doc.add_root(self.column)
 
+        # cds => ndarray.  The ndarray contains the full contents to be mirrored to
+        # the cds.
+        self.nddata = {}
+
     def get_figure(self, cds_name):
         return self.doc.select({ 'type': figure, 'name': cds_name })
 
     def get_state(self):
         return self.run_state.get(self.run_name, None)
+
+    def add_new_data(self, cds_name, data, append_dim, **kwargs):
+        """
+        Incorporate new data into the nddata store
+        data: N, *item_shape; N is a number of new streaming data points
+        append_dim: the dimension of data to append along, or -1 if replacing
+        """
+        if append_dim == -1:
+            # if not appending, skip old updates accumulated in REST endpoint
+            data = data[-1:]
+
+        for item in data:
+            new_nd = np.array(item)
+
+            if cds_name not in self.nddata:
+                empty_shape = list(new_nd.shape)
+                empty_shape[append_dim] = 0
+                self.nddata[cds_name] = np.empty(empty_shape)
+            cur_nd = self.nddata[cds_name]
+
+            if append_dim != -1:
+                # print(f'shapes for {cds_name}: cur: {cur_nd.shape}, new: {new_nd.shape}')
+                cur_nd = np.concatenate((cur_nd, new_nd), axis=append_dim)
+                self.nddata[cds_name] = cur_nd
+            else:
+                self.nddata[cds_name] = new_nd 
+
+    def update_cds(self, cds_name, nd_columns, zmode, **kwargs):
+        """
+        Transfer the nddata into the cds
+        zmode: an identifier instructing how to populate the z column if needed
+        """
+        cds = self.doc.get_model_by_name(cds_name)
+        if cds is None:
+            return
+        ary = self.nddata[cds_name]
+        cdata = dict(zip(nd_columns, ary.tolist()))
+        if zmode == 'linecolor':
+            k = ary.shape[1]
+            cdata['z'] = np.linspace(0, 1, k).tolist()
+        cds.data = cdata
+        # print(f'cds_name={cds_name}, nd_columns={nd_columns}, zmode={zmode}, cdata:\n',
+                # ",".join(f'{k}: {len(v)}' for k, v in cdata.items()))
 
     def init_callback(self):
         """
@@ -53,11 +105,9 @@ class Server:
         state = self.get_state()
         # print(f'in update with keys {state.data.keys()}')
         for cds_name, data in state.data.items():
-            cds = self.doc.get_model_by_name(cds_name)
-            if cds is None:
-                continue
             update_cfg = state.update_cfg[cds_name]
-            plots.update_data(data, cds, **update_cfg)
+            self.add_new_data(cds_name, data, **update_cfg)
+            self.update_cds(cds_name, **update_cfg)
         state.data.clear()
 
     def work_callback(self):
@@ -86,4 +136,20 @@ class Server:
         sender.
         """
         self.doc.add_periodic_callback(self.work_callback, 1000)
+
+def make_server(rest_port, bokeh_port, run_name):
+    state = {} # run -> RunState
+
+    def app_function(doc):
+        # print(f'doc request: {doc.session_context.request}')
+        sv_server = Server(doc, state, run_name)
+        sv_server.start()
+
+    handler = FunctionHandler(app_function)
+    bokeh_app = Application(handler)
+    bsrv = BokehServer({'/': bokeh_app}, port=bokeh_port, io_loop=IOLoop.current())
+    rest_app = endpoint.make_app(state)
+    rest_app.listen(rest_port)
+    print(f'Server is running on http://localhost:{bokeh_port}\n')
+    IOLoop.current().start()
 

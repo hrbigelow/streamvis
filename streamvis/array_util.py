@@ -72,3 +72,13 @@ def to_list_of_list(data, point_dim):
     point_dim_size = data.shape[point_dim]
     return np.moveaxis(data, point_dim, -1).reshape(-1, point_dim_size).tolist()
 
+def axes_to_front(ary, *front_axes):
+    """
+    Permute the array, moving axes to the front
+    """
+    axes = list(front_axes)
+    axes += [i for i in range(ary.ndim) if i not in front_axes]
+    front_shape = (ary.shape[a] for a in front_axes)
+    ary = np.transpose(ary, axes).reshape(*front_shape, -1)
+    return ary
+

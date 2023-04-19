@@ -80,6 +80,44 @@ class Client:
                 f'Plots registered in layout are:\n{plots}'
                 )
 
+    @staticmethod
+    def _maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg):
+        if color is None:
+            init_cfg['with_color'] = False
+            init_cfg['palette'] = None
+            update_cfg['nd_columns'] = 'xy'
+        else:
+            init_cfg['with_color'] = True
+            init_cfg['palette'] = color.palette
+            update_cfg['nd_columns'] = 'xyz'
+            if color.dim is not None:
+                if color.dim == spatial_dim:
+                    raise RuntimeError(
+                        f'color.dim, if provided, must not be equal to spatial_dim.  '
+                        f'Both were equal to {color.dim}')
+                if color.dim not in range(data.ndim):
+                    raise RuntimeError(
+                        f'color.dim = {color.dim} but data.ndim = {data.ndim}')
+
+                data = array_util.dim_to_data(data, color.dim, spatial_dim, (0,1))
+        return data
+
+    @staticmethod
+    def _maybe_apply_grid(data, grid, spatial_dim):
+        if grid is not None:
+            if grid.dim == spatial_dim:
+                raise RuntimeError(
+                    f'Error: Got spatial_dim = {spatial_dim} and '
+                    f'grid.dim = {grid.dim}.  grid cannot be along '
+                    f'spatial dimension')
+            if grid.dim not in range(data.ndim):
+                raise RuntimeError(
+                    f'Error: Got grid.dim = {grid_spce.dim} which is not a valid '
+                    f'dimension of data with {data.ndim} dimensions')
+            data = array_util.make_grid(data, spatial_dim, grid.dim, grid.num_columns, 
+                    grid.padding_factor)
+        return data
+
 
     def scatter(self, plot_name, data, spatial_dim, append, color=None, grid=None,
             fig_kwargs={}):
@@ -100,41 +138,13 @@ class Client:
         data = self.get_numpy(data)
         
         init_cfg = dict(kind='scatter', fig_kwargs=fig_kwargs)
-        update_cfg = dict(item_shape='bs', append=append)
+        update_cfg = dict(append_dim=(1 if append else -1), zmode=None)
 
-        if color is None:
-            init_cfg['with_color'] = False
-            init_cfg['palette'] = None
-        else:
-            init_cfg['with_color'] = True
-            init_cfg['palette'] = color.palette
-            if color.dim is not None:
-                if color.dim == spatial_dim:
-                    raise RuntimeError(
-                        f'color.dim, if provided, must not be equal to spatial_dim.  '
-                        f'Both were equal to {color.dim}')
-                if color.dim not in range(data.ndim):
-                    raise RuntimeError(
-                        f'color.dim = {color.dim} but data.ndim = {data.ndim} '
-                        f'color.dim must be a valid dimension of the data')
+        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg)
+        data = self._maybe_apply_grid(data, grid, spatial_dim)
 
-                data = array_util.dim_to_data(data, color.dim, spatial_dim, (0,1))
-
-        if grid is not None:
-            if grid.dim == spatial_dim:
-                raise RuntimeError(
-                    f'Error: Got spatial_dim = {spatial_dim} and '
-                    f'grid.dim = {grid.dim}.  grid cannot be along '
-                    f'spatial dimension')
-            if grid.dim not in range(data.ndim):
-                raise RuntimeError(
-                    f'Error: Got grid.dim = {grid_spce.dim} which is not a valid '
-                    f'dimension of data with {data.ndim} dimensions')
-            data = array_util.make_grid(data, spatial_dim, grid.dim, grid.num_columns, 
-                    grid.padding_factor)
-
-        # print(f'data.shape = {data.shape}')
-        data = array_util.to_list_of_list(data, spatial_dim)
+        data = array_util.axes_to_front(data, spatial_dim)
+        data = data.tolist()
         self._post(plot_name, data, init_cfg, update_cfg)
 
     def tandem_lines(self, plot_name, x, ys, palette=None, fig_kwargs={}):
@@ -151,8 +161,40 @@ class Client:
             init_cfg['with_color'] = True
 
         ys = self.get_numpy(ys)
-        data = [x, *ys.tolist()]
-        update_cfg = dict(item_shape='m', append=True)
+        xs = np.full(ys.shape[0], x)
+        data = np.expand_dims(np.stack((xs, ys), axis=0), -1)
+        data = data.tolist()
+        zmode = None if palette is None else 'linecolor'
+        update_cfg = dict(append_dim=2, nd_columns='xy', zmode=zmode)
         self._post(plot_name, data, init_cfg, update_cfg)
 
+    def multi_lines(self, plot_name, data, line_dims, spatial_dim, append, color=None,
+            grid=None, fig_kwargs={}):
+        """
+        Plot multiple lines from data
+        - line_dims: int or tuple of ints indexing the separate lines
+        - spatial_dim: int indexing the x,y or x,y,z values
+        - z must be present if color=ColorSpec(palette, None), otherwise absent
+        """
+        self._check_name(plot_name)
+        data = self.get_numpy(data)
+
+        if isinstance(line_dims, int):
+            line_dims = (line_dims,)
+
+        init_cfg = dict(kind='multi_line', fig_kwargs=fig_kwargs)
+        append_dim = 2 if append else -1
+        update_cfg = dict(append_dim=append_dim, zmode=None)
+
+        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg)
+        data = self._maybe_apply_grid(data, grid, spatial_dim)
+
+        # permute to: spatial_dim, *line_dims, other
+        data = array_util.axes_to_front(data, spatial_dim, *line_dims)
+        # collapse line_dims
+        num_spatial = data.shape[0]
+        num_lines = np.prod(data.shape[1:1+len(line_dims)])
+        data = data.reshape(num_spatial, num_lines, -1)
+        data = data.tolist()
+        self._post(plot_name, data, init_cfg, update_cfg)
 
