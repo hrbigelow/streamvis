@@ -153,3 +153,7 @@ def make_server(rest_port, bokeh_port, run_name):
     print(f'Server is running on http://localhost:{bokeh_port}\n')
     IOLoop.current().start()
 
+def run():
+    import fire
+    fire.Fire(make_server)
+
