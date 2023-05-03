@@ -14,7 +14,7 @@ library, and define how they update with periodic arrivals of new data.
 streamvis_server --rest_port 8080 --bokeh_port 5006 --run_name myapp &
 
 # start your data-producing application
-python my-app-client.py localhost:8080 myapp &
+streamvis_test_client --rest_uri localhost:8080 --run_name myapp
 
 # watch and interact with your data at localhost:5006
 ```

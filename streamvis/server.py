@@ -150,7 +150,8 @@ def make_server(rest_port, bokeh_port, run_name):
     bsrv = BokehServer({'/': bokeh_app}, port=bokeh_port, io_loop=IOLoop.current())
     rest_app = endpoint.make_app(state)
     rest_app.listen(rest_port)
-    print(f'Server is running on http://localhost:{bokeh_port}\n')
+    print(f'Web server is running on http://localhost:{bokeh_port}')
+    print(f'Rest endpoint is listening on http://localhost:{rest_port}')
     IOLoop.current().start()
 
 def run():

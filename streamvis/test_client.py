@@ -1,4 +1,3 @@
-import fire
 import numpy as np
 import math
 from time import sleep
@@ -57,6 +56,7 @@ def main(rest_uri, run_name):
         client.scatter(plot_name='bottom_right', data=data4, spatial_dim=1,
                 append=False, color=ColorSpec('Viridis256'))
 
-if __name__ == '__main__':
+def run():
+    import fire
     fire.Fire(main)
 
