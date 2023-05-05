@@ -4,12 +4,11 @@ from time import sleep
 from random import randint
 from streamvis import Client, ColorSpec, GridSpec
 
-def main(rest_uri, run_name):
-    # point your client to the running sv_rest_server service
-    client = Client(rest_uri, run_name)
+def pubsub(project_id, topic_id):
+    client = Client()
+    client.init_pubsub(project_id, topic_id)
 
-    # clear the data on the REST server associated with run_name
-    client.clear()
+    # client.clear()
 
     # specifies rectangular packing layout of plots
     grid_map = dict(
@@ -27,7 +26,7 @@ def main(rest_uri, run_name):
     left_data = np.random.randn(N, 2)
 
     for step in range(10000):
-        sleep(0.2)
+        sleep(1.0)
         top_data = [
                 math.sin(1 + step / 10),
                 0.5 * math.sin(1.5 + step / 20),
@@ -58,5 +57,6 @@ def main(rest_uri, run_name):
 
 def run():
     import fire
-    fire.Fire(main)
+    cmds = dict(pubsub=pubsub)
+    fire.Fire(cmds)
 

@@ -1,7 +1,8 @@
 import numpy as np
-import requests
-from bokeh import palettes
 from dataclasses import dataclass
+import json
+import pickle
+from bokeh import palettes
 from . import array_util
 
 @dataclass
@@ -27,11 +28,17 @@ class Client:
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self, rest_uri, run_name):
-        self.uri = f'http://{rest_uri}/{run_name}'
+    def __init__(self):
         self.layout_plots = set()
         self.configured_plots = set()
+        self.pub = None
 
+    def init_pubsub(self, project_id, topic_id):
+        from google.cloud import pubsub_v1
+        self.pub = pubsub_v1.PublisherClient()
+        self.topic_path = self.pub.topic_path(project_id, topic_id)
+
+    # what to do about this?
     def clear(self):
         requests.delete(f'{self.uri}')
 
@@ -46,24 +53,32 @@ class Client:
                 f'set_layout: grid_map must be a map of: '
                 f'plot_name => (beg_row, beg_col, end_row, end_col)')
         for plot_name, coords in grid_map.items():
-            requests.post(f'{self.uri}/layout/{plot_name}', json=coords)
+            self._publish(plot_name, 'layout', coords)
+            # requests.post(f'{self.uri}/layout/{plot_name}', json=coords)
             self.layout_plots.add(plot_name)
 
-    def _post(self, plot_name, data, init_cfg, update_cfg):
-        requests.post(f'{self.uri}/data/{plot_name}', json=data)
-        if plot_name not in self.configured_plots:
-            requests.post(f'{self.uri}/init_config/{plot_name}', json=init_cfg)
-            requests.post(f'{self.uri}/update_config/{plot_name}', json=update_cfg)
-            self.configured_plots.add(plot_name)
+    def _publish(self, plot_name, field, data):
+        # data = json.dumps(data).encode('utf-8')
+        data = pickle.dumps(data)
+        future = self.pub.publish(self.topic_path, data, cds=plot_name, field=field) 
+        future.result()
+
+    def _send(self, plot_name, data, init_cfg, update_cfg):
+        if self.pub is not None:
+            self._publish(plot_name, 'data', data)
+            if plot_name not in self.configured_plots:
+                self._publish(plot_name, 'init', init_cfg)
+                self._publish(plot_name, 'update', update_cfg)
+                self.configured_plots.add(plot_name)
 
     @staticmethod
     def get_numpy(data):
         try:
-            data = data.detach().numpy()
+            data = data.detach().numpy().astype(np.float32)
         except BaseException:
             pass
         try:
-            data = np.array(data)
+            data = np.array(data, dtype=np.float32)
         except BaseException as ex:
             raise RuntimeError(
                 f'exception {ex}:\n'
@@ -145,7 +160,7 @@ class Client:
 
         data = array_util.axes_to_front(data, spatial_dim)
         data = data.tolist()
-        self._post(plot_name, data, init_cfg, update_cfg)
+        self._send(plot_name, data, init_cfg, update_cfg)
 
     def tandem_lines(self, plot_name, x, ys, palette=None, fig_kwargs={}):
         """
@@ -166,7 +181,7 @@ class Client:
         data = data.tolist()
         zmode = None if palette is None else 'linecolor'
         update_cfg = dict(append_dim=2, nd_columns='xy', zmode=zmode)
-        self._post(plot_name, data, init_cfg, update_cfg)
+        self._send(plot_name, data, init_cfg, update_cfg)
 
     def multi_lines(self, plot_name, data, line_dims, spatial_dim, append, color=None,
             grid=None, fig_kwargs={}):
@@ -196,5 +211,5 @@ class Client:
         num_lines = np.prod(data.shape[1:1+len(line_dims)])
         data = data.reshape(num_spatial, num_lines, -1)
         data = data.tolist()
-        self._post(plot_name, data, init_cfg, update_cfg)
+        self._send(plot_name, data, init_cfg, update_cfg)
 

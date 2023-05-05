@@ -1,4 +1,9 @@
+import threading
 import numpy as np
+import json
+import pickle
+import uuid
+from dataclasses import dataclass, field
 from bokeh.models import GridBox
 from bokeh.layouts import column
 from bokeh.plotting import figure
@@ -6,24 +11,119 @@ from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
-from . import plots, endpoint
+from . import plots
+
+@dataclass
+class RunState:
+    # cds => data to put into the ColumnDataSource object
+    data: dict = field(default_factory=dict)
+
+    # cds => plot configuration data for the init_callback
+    init_cfg: dict = field(default_factory=dict)
+
+    # cds => plot configuration data for the update_callback
+    update_cfg: dict = field(default_factory=dict)
+
+    # cds => (row_start, col_start, row_end, col_end)
+    layout: dict = field(default_factory=dict)
+
+    def __repr__(self):
+        return (
+                f'init_cfg: {self.init_cfg}\n'
+                f'update_cfg: {self.update_cfg}\n'
+                f'layout: {self.layout}\n'
+                )
+
 
 class Server:
-    def __init__(self, doc, run_state, run_name):
+    def __init__(self, run_name):
         """
-        run_state: an empty map to be shared with a REST endpoint.
-                   will populate as (run => data)
         run_name: a name to scope this run
         """
-        self.run_state = run_state
+        # TODO: Semantics of using pubsub are different
+        self.run_state = { run_name: RunState() }
         self.run_name = run_name
-        self.doc = doc 
-        self.column = column()
-        self.doc.add_root(self.column)
+        self.update_lock = threading.Lock()
+        self.is_pubsub = False
 
         # cds => ndarray.  The ndarray contains the full contents to be mirrored to
         # the cds.
         self.nddata = {}
+
+    def shutdown(self):
+        # TODO: how to deploy this?
+        if self.is_pubsub:
+            with pubsub_v1.PublisherClient() as pub:
+                pub.delete_topic(request={'topic': self.topic_path})
+            self.sub_client.delete_subscription(request={'subscription': self.sub_path})
+
+    def pull_callback(self, message):
+        # run is unused currently (will be needed to scope individual runs)
+        # acknowledge even though we don't yet know if processing will be successful
+        # because there is no fallback anyway
+        message.ack()
+        try:
+            run = message.attributes.get('run')
+            cds = message.attributes.get('cds')
+            field = message.attributes.get('field')
+        except Exception as e:
+            print(f'Got exception during pull_callback: {e} (ignoring)')
+            return
+        try:
+            data = pickle.loads(message.data)
+        except Exception as e:
+            print(f'pull_callback: exception when unpickling data: {e}\n'
+                    f'Context: run={run}, cds={cds}, field={field}'
+                    f'len(data) = {len(message.data)}.\n')
+            return
+
+        # print(f'boof: {message.size}, {field}, {cds}', flush=True)
+
+        with self.update_lock:
+            state = self.get_state()
+            if field == 'init':
+                state.init_cfg[cds] = data
+            elif field == 'update':
+                state.update_cfg[cds] = data 
+            elif field == 'layout':
+                state.layout[cds] = data 
+            else: # field == 'data'
+                ary = state.data.setdefault(cds, [])
+                ary.append(data)
+
+    def init_pubsub(self, project_id, topic_id=None): 
+        """
+        Set up the server to use Pub/Sub.  If topic_id is provided,
+        Returns the created topic_id
+        """
+        print('Starting...', flush=True)
+        from google.cloud import pubsub_v1
+        from concurrent.futures import TimeoutError
+        self.is_pubsub = True
+        self.project_id = project_id
+        if topic_id is None:
+            topic_id = 'topic-streamvis-{}'.format(str(uuid.uuid4())[:8])
+        subscription_id = 'subscription-streamvis-{}'.format(str(uuid.uuid4())[:8])
+
+        # we can get away without managing the publisher client
+
+        # the subscriber client object must exist during the subscription
+        self.sub_client = pubsub_v1.SubscriberClient()
+        self.topic_path = self.sub_client.topic_path(project_id, topic_id)
+        with pubsub_v1.PublisherClient() as client:
+            client.create_topic(request = {'name': self.topic_path})
+
+        self.sub_path = self.sub_client.subscription_path(project_id, subscription_id)
+        req = dict(name=self.sub_path, topic=self.topic_path)
+        self.sub_client.create_subscription(request=req)
+
+        # TODO: validate project_id
+
+        # the future is not needed since we wait indefinitely
+        _ = self.sub_client.subscribe(self.sub_path, callback=self.pull_callback)
+
+        print(f'Created topic: {topic_id}')
+        print(f'Created subscription: {subscription_id}')
 
     def get_figure(self, cds_name):
         return self.doc.select({ 'type': figure, 'name': cds_name })
@@ -111,6 +211,11 @@ class Server:
         state.data.clear()
 
     def work_callback(self):
+        if self.update_lock.acquire(blocking=False):
+            self._work()
+            self.update_lock.release()
+
+    def _work(self):
         state = self.get_state()
         # print(f'in work with state = \n{state}\n')
         if state is None or state.init_cfg is None:
@@ -129,29 +234,33 @@ class Server:
         else:
             self.doc.add_next_tick_callback(self.update_callback)
 
-    def start(self):
+    def start(self, doc):
         """
         Call this in the bokeh server code at the end of the script.
         This starts the receiver listening for data updates from the
         sender.
         """
+        print(f'Current state:\n{self.get_state()}')
+        self.doc = doc 
+        self.column = column()
+        self.doc.add_root(self.column)
         self.doc.add_periodic_callback(self.work_callback, 1000)
 
-def make_server(rest_port, bokeh_port, run_name):
-    state = {} # run -> RunState
+def make_server(bokeh_port, run_name, project_id, topic_id=None):
+    sv_server = Server(run_name)
+    sv_server.init_pubsub(project_id, topic_id)
 
-    def app_function(doc):
+    # def app_function(doc):
         # print(f'doc request: {doc.session_context.request}')
-        sv_server = Server(doc, state, run_name)
-        sv_server.start()
+        # sv_server.start(doc)
 
-    handler = FunctionHandler(app_function)
+    handler = FunctionHandler(sv_server.start)
     bokeh_app = Application(handler)
     bsrv = BokehServer({'/': bokeh_app}, port=bokeh_port, io_loop=IOLoop.current())
-    rest_app = endpoint.make_app(state)
-    rest_app.listen(rest_port)
+    # rest_app = endpoint.make_app(state)
+    # rest_app.listen(rest_port)
     print(f'Web server is running on http://localhost:{bokeh_port}')
-    print(f'Rest endpoint is listening on http://localhost:{rest_port}')
+    # print(f'Rest endpoint is listening on http://localhost:{rest_port}')
     IOLoop.current().start()
 
 def run():
