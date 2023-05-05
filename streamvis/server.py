@@ -4,6 +4,7 @@ import json
 import pickle
 import uuid
 from dataclasses import dataclass, field
+from contextlib import contextmanager
 from bokeh.models import GridBox
 from bokeh.layouts import column
 from bokeh.plotting import figure
@@ -50,47 +51,6 @@ class Server:
         # the cds.
         self.nddata = {}
 
-    def shutdown(self):
-        # TODO: how to deploy this?
-        if self.is_pubsub:
-            with pubsub_v1.PublisherClient() as pub:
-                pub.delete_topic(request={'topic': self.topic_path})
-            self.sub_client.delete_subscription(request={'subscription': self.sub_path})
-
-    def pull_callback(self, message):
-        # run is unused currently (will be needed to scope individual runs)
-        # acknowledge even though we don't yet know if processing will be successful
-        # because there is no fallback anyway
-        message.ack()
-        try:
-            run = message.attributes.get('run')
-            cds = message.attributes.get('cds')
-            field = message.attributes.get('field')
-        except Exception as e:
-            print(f'Got exception during pull_callback: {e} (ignoring)')
-            return
-        try:
-            data = pickle.loads(message.data)
-        except Exception as e:
-            print(f'pull_callback: exception when unpickling data: {e}\n'
-                    f'Context: run={run}, cds={cds}, field={field}'
-                    f'len(data) = {len(message.data)}.\n')
-            return
-
-        # print(f'boof: {message.size}, {field}, {cds}', flush=True)
-
-        with self.update_lock:
-            state = self.get_state()
-            if field == 'init':
-                state.init_cfg[cds] = data
-            elif field == 'update':
-                state.update_cfg[cds] = data 
-            elif field == 'layout':
-                state.layout[cds] = data 
-            else: # field == 'data'
-                ary = state.data.setdefault(cds, [])
-                ary.append(data)
-
     def init_pubsub(self, project_id, topic_id=None): 
         """
         Set up the server to use Pub/Sub.  If topic_id is provided,
@@ -125,11 +85,69 @@ class Server:
         print(f'Created topic: {topic_id}')
         print(f'Created subscription: {subscription_id}')
 
+    def shutdown(self):
+        # TODO: how to deploy this?
+        if self.is_pubsub:
+            with pubsub_v1.PublisherClient() as pub:
+                pub.delete_topic(request={'topic': self.topic_path})
+            self.sub_client.delete_subscription(request={'subscription': self.sub_path})
+
+    def pull_callback(self, message):
+        # runs in side thread managed by PubSub, so blocking call to get_state is okay
+        # run is unused currently (will be needed to scope individual runs)
+        # acknowledge even though we don't yet know if processing will be successful
+        # because there is no fallback anyway
+        message.ack()
+        attrs = {}
+        try:
+            for key in message.attributes:
+                val = message.attributes[key]
+                attrs[key] = val
+        except Exception as e:
+            print(f'Got exception during pull_callback: {e} (ignoring)')
+            return
+        try:
+            data = pickle.loads(message.data)
+        except Exception as e:
+            print(f'pull_callback: exception when unpickling data: {e}\n'
+                    f'Context: {attrs}\n'
+                    f'len(data) = {len(message.data)}.\n')
+            return
+
+        if any(k not in attrs for k in ('run', 'field', 'cds')):
+            print(f'pull_callback: message is missing one or more attributes: '
+                    f'\'run\', \'field\', or \'cds\'. '
+                    f'Found {attrs} (ignoring)')
+            return
+        # print(f'boof: {message.size}, {field}, {cds}', flush=True)
+        field = attrs['field']
+        cds = attrs['cds']
+
+        with self.get_state(blocking=True) as state:
+            if field == 'init':
+                state.init_cfg[cds] = data
+            elif field == 'update':
+                state.update_cfg[cds] = data 
+            elif field == 'layout':
+                state.layout[cds] = data 
+            else: # field == 'data'
+                ary = state.data.setdefault(cds, [])
+                ary.append(data)
+
     def get_figure(self, cds_name):
         return self.doc.select({ 'type': figure, 'name': cds_name })
 
-    def get_state(self):
-        return self.run_state.get(self.run_name, None)
+    @contextmanager
+    def get_state(self, blocking=False):
+        locked = self.update_lock.acquire(blocking=blocking)
+        try:
+            if locked:
+                yield self.run_state.get(self.run_name, None)
+            else:
+                yield None
+        finally:
+            if locked:
+                self.update_lock.release()
 
     def add_new_data(self, cds_name, data, append_dim, **kwargs):
         """
@@ -182,57 +200,57 @@ class Server:
         # congruent with the current layout.  in this case, it is ignored.
         # during a client run, the client ensures that all POSTs to cfg
         # endpoint are keys present in layout
-        state = self.get_state()
-        # print(f'in init with state = \n{state}\n')
-        if any(k not in state.layout for k in state.init_cfg.keys()):
-            return
+        with self.get_state(blocking=False) as state:
+            if state is None:
+                return
+            
+            # print(f'in init with state = \n{state}\n')
+            if any(k not in state.layout for k in state.init_cfg.keys()):
+                return
 
-        grid = []
-        for cds_name, cfg in state.init_cfg.items():
-            if len(cfg) == 0:
-                fig = self.get_figure(cds_name)
-            else:
-                fig = plots.make_figure(cds_name, **cfg)
+            grid = []
+            for cds_name, cfg in state.init_cfg.items():
+                if len(cfg) == 0:
+                    fig = self.get_figure(cds_name)
+                else:
+                    fig = plots.make_figure(cds_name, **cfg)
 
-            coords = state.layout[cds_name]
-            grid.append((fig, *coords))
-        plot = GridBox(children=grid)
-        self.column.children.clear()
-        self.column.children.append(plot)
-        state.init_cfg.clear()
+                coords = state.layout[cds_name]
+                grid.append((fig, *coords))
+            plot = GridBox(children=grid)
+            self.column.children.clear()
+            self.column.children.append(plot)
+            state.init_cfg.clear()
 
     def update_callback(self):
-        state = self.get_state()
-        # print(f'in update with keys {state.data.keys()}')
-        for cds_name, data in state.data.items():
-            update_cfg = state.update_cfg[cds_name]
-            self.add_new_data(cds_name, data, **update_cfg)
-            self.update_cds(cds_name, **update_cfg)
-        state.data.clear()
+        with self.get_state(blocking=False) as state:
+            if state is None:
+                return
+            # print(f'in update with keys {state.data.keys()}')
+            for cds_name, data in state.data.items():
+                update_cfg = state.update_cfg[cds_name]
+                self.add_new_data(cds_name, data, **update_cfg)
+                self.update_cds(cds_name, **update_cfg)
+            state.data.clear()
 
     def work_callback(self):
-        if self.update_lock.acquire(blocking=False):
-            self._work()
-            self.update_lock.release()
+        with self.get_state(blocking=False) as state:
+            # print(f'in work with state = \n{state}\n')
+            if state is None or state.init_cfg is None:
+                return
 
-    def _work(self):
-        state = self.get_state()
-        # print(f'in work with state = \n{state}\n')
-        if state is None or state.init_cfg is None:
-            return
+            if len(state.init_cfg) != 0:
+                self.doc.add_next_tick_callback(self.init_callback)
+                return
 
-        if len(state.init_cfg) != 0:
-            self.doc.add_next_tick_callback(self.init_callback)
-            return
+            if state.data is None:
+                return
 
-        if state.data is None:
-            return
-
-        elif all(len(v) == 0 for v in state.data.values()):
-            # no new data to process
-            return
-        else:
-            self.doc.add_next_tick_callback(self.update_callback)
+            elif all(len(v) == 0 for v in state.data.values()):
+                # no new data to process
+                return
+            else:
+                self.doc.add_next_tick_callback(self.update_callback)
 
     def start(self, doc):
         """
@@ -240,13 +258,14 @@ class Server:
         This starts the receiver listening for data updates from the
         sender.
         """
-        print(f'Current state:\n{self.get_state()}')
+        with self.get_state(blocking=True) as state:
+            print(f'Current state:\n{state}')
         self.doc = doc 
         self.column = column()
         self.doc.add_root(self.column)
         self.doc.add_periodic_callback(self.work_callback, 1000)
 
-def make_server(bokeh_port, run_name, project_id, topic_id=None):
+def make_server(bokeh_port, project_id, run_name, topic_id=None):
     sv_server = Server(run_name)
     sv_server.init_pubsub(project_id, topic_id)
 

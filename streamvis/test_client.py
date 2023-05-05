@@ -4,8 +4,8 @@ from time import sleep
 from random import randint
 from streamvis import Client, ColorSpec, GridSpec
 
-def pubsub(project_id, topic_id):
-    client = Client()
+def pubsub(project_id, run_name, topic_id):
+    client = Client(run_name)
     client.init_pubsub(project_id, topic_id)
 
     # client.clear()

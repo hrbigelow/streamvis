@@ -28,10 +28,11 @@ class Client:
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self):
+    def __init__(self, run_name):
         self.layout_plots = set()
         self.configured_plots = set()
         self.pub = None
+        self.run_name = run_name
 
     def init_pubsub(self, project_id, topic_id):
         from google.cloud import pubsub_v1
@@ -60,7 +61,8 @@ class Client:
     def _publish(self, plot_name, field, data):
         # data = json.dumps(data).encode('utf-8')
         data = pickle.dumps(data)
-        future = self.pub.publish(self.topic_path, data, cds=plot_name, field=field) 
+        future = self.pub.publish(self.topic_path, data, run=self.run_name, 
+                cds=plot_name, field=field) 
         future.result()
 
     def _send(self, plot_name, data, init_cfg, update_cfg):
