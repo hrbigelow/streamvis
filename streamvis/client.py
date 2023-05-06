@@ -41,7 +41,7 @@ class Client:
 
     # what to do about this?
     def clear(self):
-        self._publish(None, 'clear', None)
+        self._publish('', 'clear', '')
 
     def set_layout(self, grid_map):
         """

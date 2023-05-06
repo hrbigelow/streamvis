@@ -31,6 +31,17 @@ class RunState:
     # cds => (row_start, col_start, row_end, col_end)
     layout: dict = field(default_factory=dict)
 
+    def init_ready(self):
+        return (
+                len(self.init_cfg) == len(self.update_cfg) and
+                len(self.init_cfg) == len(self.layout) and
+                len(self.layout) > 0)
+
+    def update_ready(self):
+        return (
+                len(self.data) == len(self.update_cfg) and
+                len(self.data) > 0)
+
     def __repr__(self):
         return (
                 f'init_cfg: {self.init_cfg}\n'
@@ -42,6 +53,9 @@ class Cleanup(Handler):
     def __init__(self, sv_server):
         super().__init__()
         self.sv_server = sv_server
+
+    def modify_document(self, doc):
+        pass
 
     def on_server_unloaded(self, server_context):
         self.sv_server.shutdown()
@@ -144,6 +158,7 @@ class Server:
 
         with self.get_state(blocking=True) as state:
             if field == 'clear':
+                print(f'clearing state')
                 state.init_cfg.clear()
                 state.update_cfg.clear()
                 state.layout.clear()
@@ -228,10 +243,6 @@ class Server:
             if state is None:
                 return
             
-            # print(f'in init with state = \n{state}\n')
-            if any(k not in state.layout for k in state.init_cfg.keys()):
-                return
-
             grid = []
             for cds_name, cfg in state.init_cfg.items():
                 if len(cfg) == 0:
@@ -263,7 +274,8 @@ class Server:
             if state is None or state.init_cfg is None:
                 return
 
-            if len(state.init_cfg) != 0:
+            # hack to make sure we're ready to init
+            if state.init_ready():
                 self.doc.add_next_tick_callback(self.init_callback)
                 return
 
@@ -273,14 +285,12 @@ class Server:
             elif all(len(v) == 0 for v in state.data.values()):
                 # no new data to process
                 return
-            else:
+            elif state.update_ready():
                 self.doc.add_next_tick_callback(self.update_callback)
 
     def start(self, doc):
         """
-        Call this in the bokeh server code at the end of the script.
-        This starts the receiver listening for data updates from the
-        sender.
+        Called once for each page refresh, as part of the application handlers
         """
         with self.get_state(blocking=True) as state:
             print(f'Current state:\n{state}')
@@ -297,17 +307,8 @@ def make_server(bokeh_port, project_id, run_name, topic_id=None):
     handler = FunctionHandler(sv_server.start)
     cleanup = Cleanup(sv_server)
     bokeh_app = Application(handler, cleanup)
-    # bokeh_app.on_server_unloaded(sv_server.shutdown)
     bsrv = BokehServer({'/': bokeh_app}, port=bokeh_port, io_loop=IOLoop.current())
 
-    def stop_server(sig, frame):
-        print(f'in stop_server')
-        bsrv.stop()
-        IOLoop.current().stop()
-        sys.exit(0)
-
-    # signal.signal(signal.SIGINT, stop_server)
-    # bsrv.start()
     print(f'Web server is running on http://localhost:{bokeh_port}')
     bsrv.run_until_shutdown()
     # IOLoop.current().start()
