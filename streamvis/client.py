@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import json
 import pickle
 from bokeh import palettes
-from . import array_util
+from . import array_util, util
 
 @dataclass
 class GridSpec:
@@ -37,6 +37,10 @@ class Client:
     def init_pubsub(self, project_id, topic_id):
         from google.cloud import pubsub_v1
         self.pub = pubsub_v1.PublisherClient()
+        if not util.topic_exists(self.pub, project_id, topic_id):
+            raise RuntimeError(
+                f'Cannot initialize client since topic {topic_id} does not exist. '
+                f'Launch streamvis_server first, and provide the topic it returns')
         self.topic_path = self.pub.topic_path(project_id, topic_id)
 
     # what to do about this?

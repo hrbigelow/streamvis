@@ -15,7 +15,7 @@ from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
-from . import plots
+from . import plots, util
 
 @dataclass
 class RunState:
@@ -30,6 +30,9 @@ class RunState:
 
     # cds => (row_start, col_start, row_end, col_end)
     layout: dict = field(default_factory=dict)
+
+    # cds => ndarray data
+    nddata: dict = field(default_factory=dict)
 
     def init_ready(self):
         return (
@@ -71,10 +74,6 @@ class Server:
         self.update_lock = threading.Lock()
         self.is_pubsub = False
 
-        # cds => ndarray.  The ndarray contains the full contents to be mirrored to
-        # the cds.
-        self.nddata = {}
-
     def init_pubsub(self, project_id, topic_id=None): 
         """
         Set up the server to use Pub/Sub.  If topic_id is provided,
@@ -95,9 +94,7 @@ class Server:
         self.sub_client = pubsub_v1.SubscriberClient()
         self.topic_path = self.sub_client.topic_path(project_id, topic_id)
         with pubsub_v1.PublisherClient() as client:
-            project_path = f'projects/{project_id}'
-            gen = (tx.name for tx in client.list_topics(project=project_path))
-            if self.topic_path in gen:
+            if util.topic_exists(client, project_id, topic_id):
                 topic_req = {'topic': self.topic_path}
                 for sub in client.list_topic_subscriptions(request=topic_req):
                     sub_req = {'subscription': sub}
@@ -163,6 +160,7 @@ class Server:
                 state.update_cfg.clear()
                 state.layout.clear()
                 state.data.clear()
+                state.nddata.clear()
             elif field == 'init':
                 state.init_cfg[cds] = data
             elif field == 'update':
@@ -188,7 +186,7 @@ class Server:
             if locked:
                 self.update_lock.release()
 
-    def add_new_data(self, cds_name, data, append_dim, **kwargs):
+    def add_new_data(self, state, cds_name, data, append_dim, **kwargs):
         """
         Incorporate new data into the nddata store
         data: N, *item_shape; N is a number of new streaming data points
@@ -201,20 +199,20 @@ class Server:
         for item in data:
             new_nd = np.array(item)
 
-            if cds_name not in self.nddata:
+            if cds_name not in state.nddata:
                 empty_shape = list(new_nd.shape)
                 empty_shape[append_dim] = 0
-                self.nddata[cds_name] = np.empty(empty_shape)
-            cur_nd = self.nddata[cds_name]
+                state.nddata[cds_name] = np.empty(empty_shape)
+            cur_nd = state.nddata[cds_name]
 
             if append_dim != -1:
                 # print(f'shapes for {cds_name}: cur: {cur_nd.shape}, new: {new_nd.shape}')
                 cur_nd = np.concatenate((cur_nd, new_nd), axis=append_dim)
-                self.nddata[cds_name] = cur_nd
+                state.nddata[cds_name] = cur_nd
             else:
-                self.nddata[cds_name] = new_nd 
+                state.nddata[cds_name] = new_nd 
 
-    def update_cds(self, cds_name, nd_columns, zmode, **kwargs):
+    def update_cds(self, state, cds_name, nd_columns, zmode, **kwargs):
         """
         Transfer the nddata into the cds
         zmode: an identifier instructing how to populate the z column if needed
@@ -222,7 +220,7 @@ class Server:
         cds = self.doc.get_model_by_name(cds_name)
         if cds is None:
             return
-        ary = self.nddata[cds_name]
+        ary = state.nddata[cds_name]
         cdata = dict(zip(nd_columns, ary.tolist()))
         if zmode == 'linecolor':
             k = ary.shape[1]
@@ -264,8 +262,11 @@ class Server:
             # print(f'in update with keys {state.data.keys()}')
             for cds_name, data in state.data.items():
                 update_cfg = state.update_cfg[cds_name]
-                self.add_new_data(cds_name, data, **update_cfg)
-                self.update_cds(cds_name, **update_cfg)
+                # adds this data to the nddata store
+                self.add_new_data(state, cds_name, data, **update_cfg)
+
+                # synchs the cds's contents from the nddata store
+                self.update_cds(state, cds_name, **update_cfg)
             state.data.clear()
 
     def work_callback(self):
