@@ -8,7 +8,7 @@ def pubsub(project_id, run_name, topic_id):
     client = Client(run_name)
     client.init_pubsub(project_id, topic_id)
 
-    # client.clear()
+    client.clear()
 
     # specifies rectangular packing layout of plots
     grid_map = dict(

@@ -1,4 +1,6 @@
 import threading
+import sys
+import signal
 import numpy as np
 import json
 import pickle
@@ -10,6 +12,7 @@ from bokeh.layouts import column
 from bokeh.plotting import figure
 from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
+from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
 from . import plots
@@ -35,7 +38,14 @@ class RunState:
                 f'layout: {self.layout}\n'
                 )
 
+class Cleanup(Handler):
+    def __init__(self, sv_server):
+        super().__init__()
+        self.sv_server = sv_server
 
+    def on_server_unloaded(self, server_context):
+        self.sv_server.shutdown()
+    
 class Server:
     def __init__(self, run_name):
         """
@@ -71,7 +81,15 @@ class Server:
         self.sub_client = pubsub_v1.SubscriberClient()
         self.topic_path = self.sub_client.topic_path(project_id, topic_id)
         with pubsub_v1.PublisherClient() as client:
-            client.create_topic(request = {'name': self.topic_path})
+            project_path = f'projects/{project_id}'
+            gen = (tx.name for tx in client.list_topics(project=project_path))
+            if self.topic_path in gen:
+                topic_req = {'topic': self.topic_path}
+                for sub in client.list_topic_subscriptions(request=topic_req):
+                    sub_req = {'subscription': sub}
+                    self.sub_client.delete_subscription(request=sub_req)
+                client.delete_topic(request = topic_req)
+            client.create_topic(request = {'name': self.topic_path} )
 
         self.sub_path = self.sub_client.subscription_path(project_id, subscription_id)
         req = dict(name=self.sub_path, topic=self.topic_path)
@@ -86,8 +104,9 @@ class Server:
         print(f'Created subscription: {subscription_id}')
 
     def shutdown(self):
-        # TODO: how to deploy this?
         if self.is_pubsub:
+            print('Deleting topic and subscription')
+            from google.cloud import pubsub_v1
             with pubsub_v1.PublisherClient() as pub:
                 pub.delete_topic(request={'topic': self.topic_path})
             self.sub_client.delete_subscription(request={'subscription': self.sub_path})
@@ -106,13 +125,6 @@ class Server:
         except Exception as e:
             print(f'Got exception during pull_callback: {e} (ignoring)')
             return
-        try:
-            data = pickle.loads(message.data)
-        except Exception as e:
-            print(f'pull_callback: exception when unpickling data: {e}\n'
-                    f'Context: {attrs}\n'
-                    f'len(data) = {len(message.data)}.\n')
-            return
 
         if any(k not in attrs for k in ('run', 'field', 'cds')):
             print(f'pull_callback: message is missing one or more attributes: '
@@ -122,9 +134,21 @@ class Server:
         # print(f'boof: {message.size}, {field}, {cds}', flush=True)
         field = attrs['field']
         cds = attrs['cds']
+        try:
+            data = pickle.loads(message.data)
+        except Exception as e:
+            print(f'pull_callback: exception when unpickling data: {e}\n'
+                    f'Context: {attrs}\n'
+                    f'len(data) = {len(message.data)}.\n')
+            return
 
         with self.get_state(blocking=True) as state:
-            if field == 'init':
+            if field == 'clear':
+                state.init_cfg.clear()
+                state.update_cfg.clear()
+                state.layout.clear()
+                state.data.clear()
+            elif field == 'init':
                 state.init_cfg[cds] = data
             elif field == 'update':
                 state.update_cfg[cds] = data 
@@ -265,22 +289,28 @@ class Server:
         self.doc.add_root(self.column)
         self.doc.add_periodic_callback(self.work_callback, 1000)
 
+
 def make_server(bokeh_port, project_id, run_name, topic_id=None):
     sv_server = Server(run_name)
     sv_server.init_pubsub(project_id, topic_id)
 
-    # def app_function(doc):
-        # print(f'doc request: {doc.session_context.request}')
-        # sv_server.start(doc)
-
     handler = FunctionHandler(sv_server.start)
-    bokeh_app = Application(handler)
+    cleanup = Cleanup(sv_server)
+    bokeh_app = Application(handler, cleanup)
+    # bokeh_app.on_server_unloaded(sv_server.shutdown)
     bsrv = BokehServer({'/': bokeh_app}, port=bokeh_port, io_loop=IOLoop.current())
-    # rest_app = endpoint.make_app(state)
-    # rest_app.listen(rest_port)
+
+    def stop_server(sig, frame):
+        print(f'in stop_server')
+        bsrv.stop()
+        IOLoop.current().stop()
+        sys.exit(0)
+
+    # signal.signal(signal.SIGINT, stop_server)
+    # bsrv.start()
     print(f'Web server is running on http://localhost:{bokeh_port}')
-    # print(f'Rest endpoint is listening on http://localhost:{rest_port}')
-    IOLoop.current().start()
+    bsrv.run_until_shutdown()
+    # IOLoop.current().start()
 
 def run():
     import fire

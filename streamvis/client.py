@@ -41,7 +41,7 @@ class Client:
 
     # what to do about this?
     def clear(self):
-        requests.delete(f'{self.uri}')
+        self._publish(None, 'clear', None)
 
     def set_layout(self, grid_map):
         """
