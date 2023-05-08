@@ -67,6 +67,7 @@ class RunState:
             self.update_cfg[log_entry.cds] = log_entry.data 
         elif log_entry.action == 'add-data':
             ary = self.new_data.setdefault(log_entry.cds, [])
+            ary.append(log_entry.data)
         else: 
             raise RuntimeError(f'Unknown action in log_entry: {log_entry.action}')
 
@@ -217,9 +218,9 @@ class Server:
         """
         if append_dim == -1:
             # if not appending, skip old updates accumulated in REST endpoint
-            data = data[-1:]
+            new_data = new_data[-1:]
 
-        for item in data:
+        for item in new_data:
             new_nd = np.array(item)
 
             if cds not in nddata:

@@ -1,2 +1,2 @@
 from .server import Server
-from .client import Client, ColorSpec, GridSpec 
+from .logger import DataLogger, ColorSpec, GridSpec 

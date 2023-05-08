@@ -9,87 +9,132 @@ library, and define how they update with periodic arrivals of new data.
 
 # Setup
 
+Streamvis provides a server and a `DataLogger` class to be used with a data-producing
+application.  The server consumes data streamed from the application, and provides
+the interactive visualization of that data.  The server + application pair can be run
+in two modes.  If you can run both on machines with access to the same filesystem,
+launch as follows:
+
 ```bash
-# launch the server 
-streamvis_server --rest_port 8080 --bokeh_port 5006 --run_name myapp &
+# launch the server, using log file to recieve data from client
+streamvis_server file PORT RUN_NAME LOG_FILE_PATH
 
-# start your data-producing application
-streamvis_test_client --rest_uri localhost:8080 --run_name myapp
-
-# watch and interact with your data at localhost:5006
+# start your data-producing application, logging the data only
+streamvis_test_app file RUN_NAME LOG_FILE
 ```
 
-# Overview
+If you need to run the app on a separate machine, you must use Google Pub/Sub to
+send data from the app to the server.  For this, you create a Google Cloud project
+and enable the Pub/Sub API for the project.
 
-Use streamvis to create interactive visualizations of data as it is produced from
-your application.  Currently, scatter plots and line plots are supported.  They can
-be configured to either append new data on each call, or replace the existing data.
-In either case, this allows you to visualize the evolving state of your data as your
-application is running.
+```bash
+# launch the server, using Google Pub/Sub subscription (published from app)
+streamvis_server pubsub PORT RUN_NAME PROJECT TOPIC [--log_file]
+
+# start your data-producing application, using Google Pub/Sub to publish the data
+# optionally log the data as well
+streamvis_test_app publish RUN_NAME PROJECT TOPIC [--log_file]
+```
+
+When the server and app are run in `pubsub` mode, they communicate exclusively
+through Google Pub/Sub.  The app is the publisher, and the Streamvis server is the
+subscriber.  The server manages the topic and subscription resources during its
+lifetime.
+
+In your app, it is also possible to configure your `DataLogger` instance to log the
+data to a file in addition to publishing to the topic.  If you opt to log the data,
+you can later retrieve the file, and start a new server in `file` mode to consume and
+visualize the log file data.  This provides safety against a server crash while your
+app is producing data.
+
+The server can also log data even when in `pubsub` mode.  This log will be identical
+to the client log file but with the added convenience of being on the machine running
+the server.  Then, in the event of a crash (of either the app, or the server), the
+log file is conveniently located.
+
+# Example Application
+
+Streamvis ships with a simple example aplication based on
+[test_app.py](streamvis/test_app.py) which is installed as a script called
+`streamvis_test_app` mentioned above.  Briefly, the app produces data as it runs.  On
+startup, it should instantiate a `DataLogger` instance and intialize it
+appropriately.  Then, as data is produced, the logger calls one of the provided API
+functions for logging the additional data with various visualization instructions.
+
+
+
+```python
+from streamvis import DataLogger, ColorSpec, GridSpec
+
+# arbitrary run name for scoping (currently unused)
+run_name = 'myapp'
+logger = DataLogger(run_name)
+
+# ID of your Google Cloud Platform project with Pub/Sub API enabled
+project = 'ml-services-385715' 
+
+# Topic of your choice 
+# must be valid topic name, see:
+# https://cloud.google.com/pubsub/docs/create-topic#resource_names
+topic = 'mytopic'
+
+if using_pubsub:
+    logger.init_pubsub(project, topic)
+
+if using_logfile:
+    logger.init_write_log(write_log_path)
+
+# specifies rectangular packing layout of plots
+grid_map = dict(
+        top_left=(0,0,1,1), # (top,left,height,width)
+        top_right=(0,1,1,1),
+        bottom_left=(1,0,1,1),
+        bottom_right=(1,1,1,1)
+        )
+
+# set the physical layout in the page for your plots
+logger.set_layout(grid_map)
+
+N = 50
+L = 20
+left_data = np.random.randn(N, 2)
+
+for step in range(10000):
+    sleep(1.0)
+    top_data = [
+            math.sin(1 + step / 10),
+            0.5 * math.sin(1.5 + step / 20),
+            1.5 * math.sin(2 + step / 15) 
+            ]
+
+
+    left_data = left_data + np.random.randn(N, 2) * 0.1
+    layer_mult = np.linspace(0, 10, L)
+    data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
+
+    logger.tandem_lines('top_left', step, top_data, palette='Viridis256') 
+
+    # Distribute the L dimension along grid cells
+    logger.scatter(plot_name='top_right', data=data_rank3, spatial_dim=2,
+            append=False, grid=GridSpec(0, 5, 1.2))
+
+    # Colorize the L dimension
+    logger.scatter(plot_name='bottom_left', data=data_rank3, spatial_dim=2,
+            append=False, color=ColorSpec('Viridis256', 0))
+
+    # data4 = np.random.randn(N,3)
+    data4 = np.random.uniform(size=(N,3))
+
+    # Assign color within the spatial_dim
+    logger.scatter(plot_name='bottom_right', data=data4, spatial_dim=1,
+            append=False, color=ColorSpec('Viridis256'))
+```
 
 Here is an example from the
 [simple-diffusion](https://github.com/hrbigelow/simple-diffusion/blob/master/swissroll.py)
 repository.  Six plots are shown, laid out in a 2x3 grid, including colored scatter
 plots and two line plots.  A full video of 1000 training steps can be found
 [here](https://mlcrumbs.com/video/swissroll.mp4).
-
-```python
-# From simple-diffusion/swissroll.py
-from streamvis import Client
-
-client = Client(f'localhost:{port}', 'swissroll')
-grid_map = dict(
-        mu=(0,0,1,1),
-        rbf_centers=(0,1,1,1),
-        mu_alphas=(0,2,1,1),
-        loss=(1,0,1,1),
-        sigma_alphas=(1,1,1,1),
-        psamples=(1,2,1,1)
-        )
-client.set_layout(grid_map)
-
-# update (or replace) data in visualizations at each step
-for step in range(10000):
-
-    # Perform SGD step ...
-    # ...
-
-    # loss_vis.shape: timestep
-    # graph a collection of y values against a shared x scalar
-    # each call adds another point to each line in tandem
-    client.tandem_lines('loss', step, loss_vis, 'Viridis256')
-
-    # rfb.basis_centers.shape: num_hidden, spatial
-    # draw a scatter plot, indicating that the data tensor's spatial dimension
-    # axis = 1.  append=False means to refresh the plot with new data at each
-    # timestep 
-    client.scatter('rbf_centers', rbf.basis_centers, spatial_dim=1, append=False)
-
-    # rbf.mu_alphas.shape: timestep,num_hidden,spatial
-    # A scatter plot which colors the points according to the index of axis 0,
-    # using bokeh's Viridis256 colormap
-    client.scatter('mu_alphas', rbf.mu_alphas, spatial_dim=2, append=False,
-            color=ColorSpec('Viridis256', dim=0))
-
-    # rbf.sigma_alphas.shape: timestep,num_hidden,spatial
-    # similar to above
-    client.scatter('sigma_alphas', rbf.sigma_alphas, spatial_dim=2, append=False,
-            color=ColorSpec('Viridis256', 0))
-
-    # mu.shape: batch,timestep,spatial,line_points 
-    # draw the vector field as a large set of 2-point lines
-    # Using the `grid` option allows spacing out slices of the data into a grid,
-    # Use index of axis 1 to determine the grid cell.  Wrap grid cells with 8 
-    # colummns, and space them out using 1.2 times the total expanse of the data
-    client.multi_lines('mu', vis, line_dims=(0,1), spatial_dim=2, append=False,
-            grid=GridSpec(dim=1, num_columns=8, padding_factor=1.2))
-
-    # samples.shape: batch,timestep,spatial 
-    # An example using both color and grid.
-    client.scatter('psamples', samples, spatial_dim=2, append=False,
-            color=ColorSpec('Viridis256', 1),
-            grid=GridSpec(dim=1, num_columns=8, padding_factor=1.2))
-```
 
 ![dashboard](data/dashboard.png)
 

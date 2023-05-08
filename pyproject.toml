@@ -16,7 +16,7 @@ dependencies = [
 
 [project.scripts]
 streamvis_server = "streamvis.server:run"
-streamvis_test_client = "streamvis.test_client:run"
+streamvis_test_app = "streamvis.test_app:run"
 
 [tool.setuptools]
 packages = ["streamvis"]
