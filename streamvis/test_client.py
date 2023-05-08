@@ -4,9 +4,19 @@ from time import sleep
 from random import randint
 from streamvis import Client, ColorSpec, GridSpec
 
-def pubsub(project_id, run_name, topic_id):
+def make_client(run_name, project, topic, write_log_path, append=False):
+    if (project is None) != (topic is None):
+        raise RuntimeError(
+            f'`project` and `topic` must be provided together or both absent')
+    if project is None and write_log_path is None:
+        raise RuntimeError(
+            f'At least `project` or `write_log_path` must be provided')
+
     client = Client(run_name)
-    client.init_pubsub(project_id, topic_id)
+    if project is not None:
+        client.init_pubsub(project, topic)
+    if write_log_path is not None:
+        client.init_write_log(write_log_path)
 
     client.clear()
 
@@ -57,6 +67,32 @@ def pubsub(project_id, run_name, topic_id):
 
 def run():
     import fire
-    cmds = dict(pubsub=pubsub)
+    def publish(run_name: str, project: str, topic: str, log_file: str = None,
+            append: bool = False):
+        """
+        Example test client using Pub/Sub publishing and optional write log
+
+        :param run_name: unused
+        :param project: GCP project_id of existing project with Pub/Sub API enabled
+        :param topic: GCP Pub/Sub topic id.  Topic must already exist (will be
+                      created by the server)
+        :param log_file: path to local file to log all data produced.  File will be
+                         created if not exists.
+        :param append: if True, append to any existing log file
+        """
+        return make_client(run_name, project, topic, log_file, append)
+
+    def file(run_name: str, log_file: str, append: bool = False):
+        """
+        Example test client writing to a log file only
+
+        :param run_name: unused
+        :param log_file: path to local file to log all data produced.  File will be
+                         created if not exists.
+        :param append: if True, append to any existing log file
+        """
+        return make_client(run_name, None, None, log_file, append)
+
+    cmds = dict(publish=publish, file=file)
     fire.Fire(cmds)
 

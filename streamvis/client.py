@@ -1,5 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
+import signal
+import fcntl
 import json
 import pickle
 from bokeh import palettes
@@ -33,6 +35,7 @@ class Client:
         self.configured_plots = set()
         self.pub = None
         self.run_name = run_name
+        self.write_log_fh = None
 
     def init_pubsub(self, project_id, topic_id):
         from google.cloud import pubsub_v1
@@ -42,6 +45,18 @@ class Client:
                 f'Cannot initialize client since topic {topic_id} does not exist. '
                 f'Launch streamvis_server first, and provide the topic it returns')
         self.topic_path = self.pub.topic_path(project_id, topic_id)
+
+    def init_write_log(self, write_log_path, append=False):
+        try:
+            mode = 'ab' if append else 'wb'
+            self.write_log_fh = open(write_log_path, mode)
+        except OSError as ex:
+            raise RuntimeError(f'Could not open {write_log_path=} for writing: {ex}')
+        signal.signal(signal.SIGINT, self.shutdown)
+
+    def shutdown(self):
+        if self.write_log_fh is not None:
+            self.write_log_fh.close()
 
     # what to do about this?
     def clear(self):
@@ -62,20 +77,27 @@ class Client:
             # requests.post(f'{self.uri}/layout/{plot_name}', json=coords)
             self.layout_plots.add(plot_name)
 
-    def _publish(self, plot_name, field, data):
+    def _publish(self, plot_name, action, data):
         # data = json.dumps(data).encode('utf-8')
         data = pickle.dumps(data)
-        future = self.pub.publish(self.topic_path, data, run=self.run_name, 
-                cds=plot_name, field=field) 
-        future.result()
+        if self.pub is not None:
+            future = self.pub.publish(self.topic_path, data, run=self.run_name, 
+                    cds=plot_name, action=action) 
+            future.result()
+
+        if self.write_log_fh is not None:
+            fcntl.flock(self.write_log_fh, fcntl.LOCK_EX)
+            log_entry = util.LogEntry(self.run_name, action, plot_name, data)
+            pickle.dump(log_entry, self.write_log_fh)
+            fcntl.flock(self.write_log_fh, fcntl.LOCK_UN)
 
     def _send(self, plot_name, data, init_cfg, update_cfg):
         if self.pub is not None:
-            self._publish(plot_name, 'data', data)
             if plot_name not in self.configured_plots:
                 self._publish(plot_name, 'init', init_cfg)
                 self._publish(plot_name, 'update', update_cfg)
                 self.configured_plots.add(plot_name)
+            self._publish(plot_name, 'add-data', data)
 
     @staticmethod
     def get_numpy(data):
