@@ -33,7 +33,7 @@ streamvis_server pubsub PORT RUN_NAME PROJECT TOPIC [--log_file]
 
 # start your data-producing application, using Google Pub/Sub to publish the data
 # optionally log the data as well
-streamvis_test_app publish RUN_NAME PROJECT TOPIC [--log_file]
+streamvis_test_app pubsub RUN_NAME PROJECT TOPIC [--log_file]
 ```
 
 When the server and app are run in `pubsub` mode, they communicate exclusively
@@ -51,6 +51,14 @@ The server can also log data even when in `pubsub` mode.  This log will be ident
 to the client log file but with the added convenience of being on the machine running
 the server.  Then, in the event of a crash (of either the app, or the server), the
 log file is conveniently located.
+
+## Append-only logging
+
+When the `DataLogger` or the server write to a log file, it is always append-only.
+Neither one will truncate an existing log file.  This design is in line with the
+semantics of logging.  Semantically, the `DataLogger::clear` function call produces a
+message to empty the server state.  This effectively removes any data that has
+accumulated up until that point in the log.    
 
 # Example Application
 

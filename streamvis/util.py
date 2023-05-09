@@ -22,7 +22,6 @@ class LogEntry:
             raise RuntimeError(
                 f'LogEntry ({self.run}, {self.action}, {self.cds}) data '
                 f'couldn\'t be unpickled:\n{e}')
-        self.valid = True
 
     @classmethod
     def from_pubsub_message(cls, message):

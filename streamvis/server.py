@@ -134,7 +134,7 @@ class Server:
         """
         Set up the server to use Pub/Sub.  
         """
-        print('Starting...', flush=True)
+        print('Starting streamvis server...', flush=True)
         from google.cloud import pubsub_v1
         self.is_pubsub = True
         self.project_id = project_id
@@ -185,9 +185,11 @@ class Server:
         # acknowledge even though we don't yet know if processing will be successful
         # because there is no fallback anyway
         message.ack()
-        log_entry = util.LogEntry.from_pubsub_message(message)
-        if not log_entry.valid:
-            return
+        try:
+            log_entry = util.LogEntry.from_pubsub_message(message)
+        except Exception as ex:
+            print('Could not create log_entry from pubsub message: {ex}',
+                    file=sys.stderr)
 
         if self.write_log_fh is not None:
             pickle.dump(log_entry, self.write_log_fh)
@@ -299,6 +301,10 @@ class Server:
                         state.update(log_entry)
                     except EOFError:
                         break
+                    except Exception as ex:
+                        print('Could not process log_entry from log file: {ex}',
+                                file=sys.stderr)
+
                 fcntl.flock(self.read_log_fh, fcntl.LOCK_UN)
 
             # hack to make sure we're ready to init
@@ -363,7 +369,7 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
 
 def run():
     import fire
-    def readlog(port: int, run_name: str, log_file_path: str):
+    def file(port: int, run_name: str, log_file_path: str):
         """
         Visualize data from `log_file_path`
 
@@ -376,7 +382,7 @@ def run():
         """
         return make_server(port, run_name, None, None, log_file_path, None)
 
-    def subscribe(port: int, run_name: str, project: str, topic: str, log_file: str =None):
+    def pubsub(port: int, run_name: str, project: str, topic: str, log_file: str =None):
         """
         Visualize data from pubsub subscription
 
@@ -386,8 +392,8 @@ def run():
         :param topic: GCP Pub/Sub topic id.  Will be re-created/deleted by this process
         :param log_file: path to local file to log all received data if provided
         """
-        return make_server(port, run_name, project, topic, None, None, None)
+        return make_server(port, run_name, project, topic, None, log_file)
 
-    cmds = dict(file=readlog, pubsub=subscribe)
+    cmds = dict(file=file, pubsub=pubsub)
     fire.Fire(cmds)
 
