@@ -78,25 +78,6 @@ class DataLogger:
             self.write_log_fh.close()
         raise KeyboardInterrupt
 
-    # what to do about this?
-    def clear(self):
-        self._publish('', 'clear', '')
-
-    def set_layout(self, grid_map):
-        """
-        Specify the layout of plots on the page.
-        grid_map is a map of plot_name => (top, left, height, width)
-        """
-        if not (isinstance(grid_map, dict) and
-                all(isinstance(v, tuple) and len(v) == 4 for v in grid_map.values())):
-            raise RuntimeError(
-                f'set_layout: grid_map must be a map of: '
-                f'plot_name => (beg_row, beg_col, end_row, end_col)')
-        for plot_name, coords in grid_map.items():
-            self._publish(plot_name, 'layout', coords)
-            # requests.post(f'{self.uri}/layout/{plot_name}', json=coords)
-            self.layout_plots.add(plot_name)
-
     def _publish(self, plot_name, action, data):
         data = pickle.dumps(data)
         with NonInterrupt('_publish'):
@@ -114,8 +95,7 @@ class DataLogger:
 
     def _send(self, plot_name, data, init_cfg, update_cfg):
         if plot_name not in self.configured_plots:
-            self._publish(plot_name, 'init', init_cfg)
-            self._publish(plot_name, 'update', update_cfg)
+            self._publish(plot_name, 'init', init_cfg, update_cfg)
             self.configured_plots.add(plot_name)
         self._publish(plot_name, 'add-data', data)
 

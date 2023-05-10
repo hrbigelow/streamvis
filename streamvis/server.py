@@ -1,3 +1,5 @@
+import asyncio
+import tornado
 import threading
 import sys
 import os
@@ -18,65 +20,45 @@ from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
 from . import plots, util
 
-@dataclass
-class RunState:
-    # cds => data to put into the ColumnDataSource object
-    new_data: dict = field(default_factory=dict)
+class PlotState:
+    """
+    State of a plot as accumulated from the log messages
+    """
+    def __init__(self, name):
+        self.name = name
+        self.version = 0
+        self.fig_kwargs = {}
+        self.cds_opts = {}
+        self.nddata = None
 
-    # cds => plot configuration data for the init_callback
-    init_cfg: dict = field(default_factory=dict)
+    def update(self, log_evt):
+        if log_evt.action == 'init':
+            self.version += 1
+            self.fig_kwargs = log_evt.data['fig_kwargs']
+            self.cds_opts = log_evt.data['cds_opts']
+            self.nddata = None
 
-    # cds => plot configuration data for the update_callback
-    update_cfg: dict = field(default_factory=dict)
+        elif log_evt.action == 'add-data':
+            new_data = log_evt.data
+            append_dim = self.cds_opts['append_dim']
+            if append_dim == -1:
+                # if not appending, skip old updates accumulated in REST endpoint
+                new_data = new_data[-1:]
 
-    # cds => (row_start, col_start, row_end, col_end)
-    layout: dict = field(default_factory=dict)
+            for item in new_data:
+                new_nd = np.array(item)
 
-    # cds => ndarray data
-    nddata: dict = field(default_factory=dict)
+                if self.nddata is None:
+                    empty_shape = list(new_nd.shape)
+                    empty_shape[append_dim] = 0
+                    self.nddata = np.empty(empty_shape)
+                cur_nd = self.nddata
 
-    @staticmethod
-    def _samekeys(*maps):
-        first, *rest = maps
-        return all(set(first.keys()) == set(r.keys()) for r in rest)
-
-    def init_ready(self):
-        return (self._samekeys(self.init_cfg, self.update_cfg, self.layout) and
-                len(self.layout) > 0)
-
-    def update_ready(self):
-        return (self._samekeys(self.new_data, self.update_cfg) and
-                len(self.new_data) > 0)
-
-    def update(self, log_entry):
-        """
-        Update state from the log entry
-        """
-        if log_entry.action == 'clear':
-            print(f'clearing state')
-            self.init_cfg.clear()
-            self.update_cfg.clear()
-            self.layout.clear()
-            self.new_data.clear()
-            self.nddata.clear()
-        elif log_entry.action == 'layout':
-            self.layout[log_entry.cds] = log_entry.data 
-        elif log_entry.action == 'init':
-            self.init_cfg[log_entry.cds] = log_entry.data
-        elif log_entry.action == 'update':
-            self.update_cfg[log_entry.cds] = log_entry.data 
-        elif log_entry.action == 'add-data':
-            ary = self.new_data.setdefault(log_entry.cds, [])
-            ary.append(log_entry.data)
-        else: 
-            raise RuntimeError(f'Unknown action in log_entry: {log_entry.action}')
-
-    def __repr__(self):
-        return (
-                f'init_cfg: {self.init_cfg}\n'
-                f'update_cfg: {self.update_cfg}\n'
-                f'layout: {self.layout}\n'
-                )
+                if append_dim != -1:
+                    cur_nd = np.concatenate((cur_nd, new_nd), axis=append_dim)
+                    self.nddata = cur_nd
+                else:
+                    self.nddata = new_nd 
 
 class Cleanup(Handler):
     def __init__(self, sv_server):
@@ -94,8 +76,7 @@ class Server:
         """
         run_name: a name to scope this run
         """
-        # TODO: Semantics of using pubsub are different
-        self.run_state = { run_name: RunState() }
+        # self.run_state = { run_name: RunState() }
         self.run_name = run_name
         self.update_lock = threading.Lock()
         self.is_pubsub = False
@@ -138,64 +119,40 @@ class Server:
         from google.cloud import pubsub_v1
         self.is_pubsub = True
         self.project_id = project_id
-        subscription_id = 'subscription-streamvis-{}'.format(str(uuid.uuid4())[:8])
-
-        # we can get away without managing the publisher client
+        subscription_id = 'streamvis-{}'.format(str(uuid.uuid4())[:8])
 
         # the subscriber client object must exist during the subscription
         self.sub_client = pubsub_v1.SubscriberClient()
         self.topic_path = self.sub_client.topic_path(project_id, topic_id)
         with pubsub_v1.PublisherClient() as client:
-            if util.topic_exists(client, project_id, topic_id):
-                topic_req = {'topic': self.topic_path}
-                for sub in client.list_topic_subscriptions(request=topic_req):
-                    sub_req = {'subscription': sub}
-                    self.sub_client.delete_subscription(request=sub_req)
-                client.delete_topic(request = topic_req)
-            client.create_topic(request = {'name': self.topic_path} )
+            if not util.topic_exists(client, project_id, topic_id):
+                raise RuntimeError(
+                    f'Topic {self.topic_path} did not exist.  '
+                    f'Create it separately with:\n'
+                    f'gcloud pubsub topics create {topic_id}')
 
         self.sub_path = self.sub_client.subscription_path(project_id, subscription_id)
         req = dict(name=self.sub_path, topic=self.topic_path)
         self.sub_client.create_subscription(request=req)
 
-        # TODO: validate project_id
-
         # the future is not needed since we wait indefinitely
-        _ = self.sub_client.subscribe(self.sub_path, callback=self.pull_callback)
-        print(f'Created topic: {topic_id}')
+        sub = self.sub_client.subscribe(self.sub_path, callback=self.pull_callback)
+        req = dict(subscription=self.sub_path, time='1970-01-01T00:00:00.00Z')
+        self.sub_client.seek(req)
         print(f'Created subscription: {subscription_id}')
 
     def shutdown(self):
         if self.is_pubsub:
-            print('Deleting topic and subscription')
             from google.cloud import pubsub_v1
-            with pubsub_v1.PublisherClient() as pub:
-                pub.delete_topic(request={'topic': self.topic_path})
             self.sub_client.delete_subscription(request={'subscription': self.sub_path})
+            print(f'Deleted subscription {self.sub_path}')
+
         if self.read_log_fh is not None:
             self.read_log_fh.close()
         if self.write_log_fh is not None:
             print(f'Wrote {self.write_log_fh.tell()} bytes to write_log file '
                     f'{self.write_log_fh.name}')
             self.write_log_fh.close()
-
-    def pull_callback(self, message):
-        # runs in side thread managed by PubSub, so blocking call to get_state is okay
-        # run is unused currently (will be needed to scope individual runs)
-        # acknowledge even though we don't yet know if processing will be successful
-        # because there is no fallback anyway
-        message.ack()
-        try:
-            log_entry = util.LogEntry.from_pubsub_message(message)
-        except Exception as ex:
-            print('Could not create log_entry from pubsub message: {ex}',
-                    file=sys.stderr)
-
-        if self.write_log_fh is not None:
-            pickle.dump(log_entry, self.write_log_fh)
-
-        with self.get_state(blocking=True) as state:
-            state.update(log_entry)
 
     def get_figure(self, cds_name):
         return self.doc.select({ 'type': figure, 'name': cds_name })
@@ -211,32 +168,6 @@ class Server:
         finally:
             if locked:
                 self.update_lock.release()
-
-    def add_new_data(self, nddata, cds, new_data, append_dim, **kwargs):
-        """
-        Incorporate new data into the nddata store
-        data: N, *item_shape; N is a number of new streaming data points
-        append_dim: the dimension of data to append along, or -1 if replacing
-        """
-        if append_dim == -1:
-            # if not appending, skip old updates accumulated in REST endpoint
-            new_data = new_data[-1:]
-
-        for item in new_data:
-            new_nd = np.array(item)
-
-            if cds not in nddata:
-                empty_shape = list(new_nd.shape)
-                empty_shape[append_dim] = 0
-                nddata[cds] = np.empty(empty_shape)
-            cur_nd = nddata[cds]
-
-            if append_dim != -1:
-                # print(f'shapes for {cds}: cur: {cur_nd.shape}, new: {new_nd.shape}')
-                cur_nd = np.concatenate((cur_nd, new_nd), axis=append_dim)
-                nddata[cds] = cur_nd
-            else:
-                nddata[cds] = new_nd 
 
     def update_cds(self, nddata, cds_name, nd_columns, zmode, **kwargs):
         """
@@ -288,6 +219,24 @@ class Server:
                 # synchs the cds's contents from the nddata store
                 self.update_cds(state.nddata, cds, **update_cfg)
             state.new_data.clear()
+
+    def pull_callback(self, message):
+        # runs in side thread managed by PubSub, so blocking call to get_state is okay
+        # run is unused currently (will be needed to scope individual runs)
+        # acknowledge even though we don't yet know if processing will be successful
+        # because there is no fallback anyway
+        message.ack()
+        try:
+            log_entry = util.LogEntry.from_pubsub_message(message)
+        except Exception as ex:
+            print('Could not create log_entry from pubsub message: {ex}',
+                    file=sys.stderr)
+
+        if self.write_log_fh is not None:
+            pickle.dump(log_entry, self.write_log_fh)
+
+        with self.get_state(blocking=True) as state:
+            state.update(log_entry)
 
     def work_callback(self):
         """
@@ -358,10 +307,21 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
     if write_log_path is not None:
         sv_server.init_write_log(write_log_path)
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop_wrap = tornado.ioloop.IOLoop.current()
+
+    async def periodic_callback():
+        while True:
+            print("Hello from callback!")
+            await asyncio.sleep(1)
+
+    loop.create_task(periodic_callback())
+
     handler = FunctionHandler(sv_server.start)
     cleanup = Cleanup(sv_server)
     bokeh_app = Application(handler, cleanup)
-    bsrv = BokehServer({'/': bokeh_app}, port=port, io_loop=IOLoop.current())
+    bsrv = BokehServer({'/': bokeh_app}, port=port, io_loop=loop_wrap)
 
     print(f'Web server is running on http://localhost:{port}')
     bsrv.run_until_shutdown()
