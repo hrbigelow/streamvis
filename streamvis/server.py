@@ -4,63 +4,17 @@ import threading
 import sys
 import os
 import fcntl
-import numpy as np
-import json
 import pickle
 import uuid
-from dataclasses import dataclass, field
 from contextlib import contextmanager
-from bokeh.models import GridBox
-from bokeh.layouts import column
-from bokeh.plotting import figure
 from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
-from . import plots, util
+from streamvis import util, plotstate, plotpage
 
-class PlotState:
-    """
-    State of a plot as accumulated from the log messages
-    """
-    def __init__(self, name):
-        self.name = name
-        self.version = 0
-        self.fig_kwargs = {}
-        self.cds_opts = {}
-        self.nddata = None
-
-    def update(self, log_evt):
-        if log_evt.action == 'init':
-            self.version += 1
-            self.fig_kwargs = log_evt.data['fig_kwargs']
-            self.cds_opts = log_evt.data['cds_opts']
-            self.nddata = None
-
-        elif log_evt.action == 'add-data':
-            new_data = log_evt.data
-            append_dim = self.cds_opts['append_dim']
-            if append_dim == -1:
-                # if not appending, skip old updates accumulated in REST endpoint
-                new_data = new_data[-1:]
-
-            for item in new_data:
-                new_nd = np.array(item)
-
-                if self.nddata is None:
-                    empty_shape = list(new_nd.shape)
-                    empty_shape[append_dim] = 0
-                    self.nddata = np.empty(empty_shape)
-                cur_nd = self.nddata
-
-                if append_dim != -1:
-                    cur_nd = np.concatenate((cur_nd, new_nd), axis=append_dim)
-                    self.nddata = cur_nd
-                else:
-                    self.nddata = new_nd 
-
-class Cleanup(Handler):
+class CleanupHandler(Handler):
     def __init__(self, sv_server):
         super().__init__()
         self.sv_server = sv_server
@@ -76,18 +30,38 @@ class Server:
         """
         run_name: a name to scope this run
         """
-        # self.run_state = { run_name: RunState() }
+        self.run_state = { run_name: {} }
         self.run_name = run_name
         self.update_lock = threading.Lock()
         self.is_pubsub = False
         self.write_log_fh = None
         self.read_log_fh = None
+        self.pages = []
 
     def init_write_log(self, write_log_path):
         try:
             self.write_log_fh = open(write_log_path, 'ab')
         except OSError as ex:
             raise RuntimeError(f'Could not open {write_log_path=} for writing: {ex}')
+
+    """
+    The server uses either a log file or a pubsub subscription (exactly one of
+    these).  The semantics are as follows:
+
+    resource           init_read_log    init_pubsub 
+    data               log_file         topic    
+    handle             filehandle       subscription
+    location           seek to start    seek to start
+
+    The semantics differ in that once streamvis reads a message on pubsub, it is
+    acknowledged and then goes away.  Whereas, when streamvis reads an entry in the
+    log file, the message remains, and could be read again by another streamvis
+    server instance.
+
+    In both cases, streamvis manages the handle - creating it on startup, and
+    destroying it on shutdown.  It also seeks the handle to the beginning of the
+    data.
+    """
 
     def init_read_log(self, read_log_path):
         """
@@ -109,7 +83,6 @@ class Server:
         except OSError as ex:
             raise RuntimeError(
                 f'{read_log_path=} did not exist and couldn\'t be created: {ex}')
-
 
     def init_pubsub(self, project_id, topic_id): 
         """
@@ -154,9 +127,6 @@ class Server:
                     f'{self.write_log_fh.name}')
             self.write_log_fh.close()
 
-    def get_figure(self, cds_name):
-        return self.doc.select({ 'type': figure, 'name': cds_name })
-
     @contextmanager
     def get_state(self, blocking=False):
         locked = self.update_lock.acquire(blocking=blocking)
@@ -169,112 +139,90 @@ class Server:
             if locked:
                 self.update_lock.release()
 
-    def update_cds(self, nddata, cds_name, nd_columns, zmode, **kwargs):
-        """
-        Transfer the nddata into the cds
-        zmode: an identifier instructing how to populate the z column if needed
-        """
-        cds = self.doc.get_model_by_name(cds_name)
-        if cds is None:
-            return
-        ary = nddata[cds_name]
-        cdata = dict(zip(nd_columns, ary.tolist()))
-        if zmode == 'linecolor':
-            k = ary.shape[1]
-            cdata['z'] = np.linspace(0, 1, k).tolist()
-        cds.data = cdata
-        # print(f'cds_name={cds_name}, nd_columns={nd_columns}, zmode={zmode}, cdata:\n',
-                # ",".join(f'{k}: {len(v)}' for k, v in cdata.items()))
+    """
+    Server runs in either 'file' mode or 'pubsub' mode.  
 
-    def init_callback(self):
-        """
-        Creates new Bokeh plot objects using the state init_cfg and layout fields.
-        """
-        with self.get_state(blocking=False) as state:
-            grid = []
-            for cds_name, cfg in state.init_cfg.items():
-                if len(cfg) == 0:
-                    fig = self.get_figure(cds_name)
-                else:
-                    fig = plots.make_figure(cds_name, **cfg)
+    file mode: logfile_callback updates state - called from Tornado IOLoop
+    pubsub mode: pubsub_callback updates state - called from pubsub separate thread
+    """
+    async def logfile_callback(self):
+        # don't want to block
+        def update(state):
+            # runs while state is locked
+            while True:
+                try:
+                    log_entry = pickle.load(self.read_log_fh)
+                    plot_name = log_entry.plot_name
+                    plot_state = state.setdefault(plot_name, plotstate.PlotState(plot_name))
+                    plot_state.update(log_entry)
+                except EOFError:
+                    break
+                except Exception as ex:
+                    print(f'Could not process log_entry from log file: {ex}',
+                            file=sys.stderr)
+                    sys.exit(1)
 
-                coords = state.layout[cds_name]
-                grid.append((fig, *coords))
-            plot = GridBox(children=grid)
-            self.column.children.clear()
-            self.column.children.append(plot)
-            state.init_cfg.clear()
+        while True:
+            await asyncio.sleep(1)
+            with self.get_state(blocking=False) as locked_state:
+                if locked_state is None:
+                    continue
+                fcntl.flock(self.read_log_fh, fcntl.LOCK_EX)
+                update(locked_state)
+                fcntl.flock(self.read_log_fh, fcntl.LOCK_UN)
 
-    def update_callback(self):
+            for page in self.pages:
+                page.schedule_callback()
+
+    def pubsub_callback(self, message):
         """
-        Updates ColumnDataSources using state
         """
-        with self.get_state(blocking=False) as state:
-            # print(f'in update with keys {state.new_data.keys()}')
-            for cds, new_data in state.new_data.items():
-                update_cfg = state.update_cfg[cds]
-                # adds this data to the nddata store
-                self.add_new_data(state.nddata, cds, new_data, **update_cfg)
-
-                # synchs the cds's contents from the nddata store
-                self.update_cds(state.nddata, cds, **update_cfg)
-            state.new_data.clear()
-
-    def pull_callback(self, message):
-        # runs in side thread managed by PubSub, so blocking call to get_state is okay
-        # run is unused currently (will be needed to scope individual runs)
-        # acknowledge even though we don't yet know if processing will be successful
-        # because there is no fallback anyway
         message.ack()
         try:
             log_entry = util.LogEntry.from_pubsub_message(message)
         except Exception as ex:
-            print('Could not create log_entry from pubsub message: {ex}',
-                    file=sys.stderr)
+            print('Could not create log_entry from pubsub message: {ex}', file=sys.stderr)
 
         if self.write_log_fh is not None:
             pickle.dump(log_entry, self.write_log_fh)
 
         with self.get_state(blocking=True) as state:
-            state.update(log_entry)
+            cds = log_entry.attributes.get('cds')
+            plot_state = state.setdefault(cds, plotstate.PlotState(cds))
+            plot_state.update(log_entry)
 
-    def work_callback(self):
+        for page in self.pages:
+            page.schedule_callback()
+
+    def add_page(self, doc):
         """
+        Add a page object to the state machine
+        REST API arguments:
+        plots: comma-separate names of plots
+        mode: 'row' or 'column'; what a box represents in the layout
+        box_elems: comma-separated list of the number of plots each box contains
+        box_part: comma-separated list of column width (or row height) proportions
+        plot_part: comma-separate list of plot width (row mode) or height (column mode)
         """
-        with self.get_state(blocking=False) as state:
-            if not self.is_pubsub:
-                fcntl.flock(self.read_log_fh, fcntl.LOCK_EX)
-                while True:
-                    try:
-                        log_entry = pickle.load(self.read_log_fh)
-                        state.update(log_entry)
-                    except EOFError:
-                        break
-                    except Exception as ex:
-                        print('Could not process log_entry from log file: {ex}',
-                                file=sys.stderr)
+        req = doc.session_context.request
 
-                fcntl.flock(self.read_log_fh, fcntl.LOCK_UN)
+        def parse(req_args):
+            dec = lambda k: req_args[k][0].decode()
+            intsp = lambda l: list(map(int, l.split(',')))
+            final = dict(
+                    mode = dec('mode'),
+                    plots = dec('plots').split(','),
+                    box_elems = intsp(dec('box_elems')),
+                    box_part = intsp(dec('box_part')),
+                    plot_part = intsp(dec('plot_part'))
+                    )
 
-            # hack to make sure we're ready to init
-            if state.init_ready():
-                self.doc.add_next_tick_callback(self.init_callback)
-                return
+            return type('__Args', (), final)
 
-            if state.update_ready():
-                self.doc.add_next_tick_callback(self.update_callback)
-                return
-
-    def start(self, doc):
-        """
-        Called once for each page refresh, as part of the application handlers
-        """
-        with self.get_state(blocking=True) as state:
-            print(f'Current state:\n{state}')
-        self.doc = doc 
-        self.column = column()
-        self.doc.add_root(self.column)
-        self.doc.add_periodic_callback(self.work_callback, 1000)
+        args = parse(req.arguments)
+        page = plotpage.PlotPage(self, doc, *args.plots)
+        page.set_layout(args.mode, args.box_elems, args.box_part, args.plot_part)
+        self.pages.append(page)
 
 def make_server(port, run_name, project, topic, read_log_path, write_log_path):
     """
@@ -298,28 +246,22 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
             f'`write_log_path` and `read_log_path` cannot both be provided. '
             f'Received {write_log_path=}, {read_log_path=}')
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop_wrap = tornado.ioloop.IOLoop.current()
+
     if project is not None:
         sv_server.init_pubsub(project, topic)
 
     if read_log_path is not None:
         sv_server.init_read_log(read_log_path)
+        loop.create_task(sv_server.logfile_callback())
 
     if write_log_path is not None:
         sv_server.init_write_log(write_log_path)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop_wrap = tornado.ioloop.IOLoop.current()
-
-    async def periodic_callback():
-        while True:
-            print("Hello from callback!")
-            await asyncio.sleep(1)
-
-    loop.create_task(periodic_callback())
-
-    handler = FunctionHandler(sv_server.start)
-    cleanup = Cleanup(sv_server)
+    handler = FunctionHandler(sv_server.add_page)
+    cleanup = CleanupHandler(sv_server)
     bokeh_app = Application(handler, cleanup)
     bsrv = BokehServer({'/': bokeh_app}, port=port, io_loop=loop_wrap)
 
@@ -357,3 +299,5 @@ def run():
     cmds = dict(file=file, pubsub=pubsub)
     fire.Fire(cmds)
 
+if __name__ == '__main__':
+    run()

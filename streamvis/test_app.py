@@ -18,19 +18,6 @@ def make_logger(run_name, project, topic, write_log_path):
     if write_log_path is not None:
         logger.init_write_log(write_log_path)
 
-    logger.clear()
-
-    # specifies rectangular packing layout of plots
-    grid_map = dict(
-            top_left=(0,0,1,1), # (top,left,height,width)
-            top_right=(0,1,1,1),
-            bottom_left=(1,0,1,1),
-            bottom_right=(1,1,1,1)
-            )
-
-    # set the physical layout in the page for your plots
-    logger.set_layout(grid_map)
-
     N = 50
     L = 20
     left_data = np.random.randn(N, 2)

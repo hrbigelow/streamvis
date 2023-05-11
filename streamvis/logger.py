@@ -1,9 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
-import sys
 import signal
 import fcntl
-import json
 import pickle
 from bokeh import palettes
 from . import array_util, util
@@ -50,7 +48,6 @@ class DataLogger:
     a bokeh server.
     """
     def __init__(self, run_name):
-        self.layout_plots = set()
         self.configured_plots = set()
         self.pub = None
         self.run_name = run_name
@@ -95,7 +92,8 @@ class DataLogger:
 
     def _send(self, plot_name, data, init_cfg, update_cfg):
         if plot_name not in self.configured_plots:
-            self._publish(plot_name, 'init', init_cfg, update_cfg)
+            init_data = dict(fig_kwargs=init_cfg, cds_opts=update_cfg)
+            self._publish(plot_name, 'init', init_data)
             self.configured_plots.add(plot_name)
         self._publish(plot_name, 'add-data', data)
 
@@ -114,14 +112,6 @@ class DataLogger:
                 f'data.detach().numpy() or np.array(data).  '
                 f'Got type(data) = {type(data)}')
         return data
-
-    def _check_name(self, plot_name):
-        if plot_name not in self.layout_plots:
-            plots = '\n'.join(f'   {p}' for p in self.layout_plots)
-            raise RuntimeError(
-                f'Plot \'{plot_name}\' has not been registered in layout.\n'
-                f'Plots registered in layout are:\n{plots}'
-                )
 
     @staticmethod
     def _maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg):
@@ -176,8 +166,6 @@ class DataLogger:
         along the grid.dim dimension and wrapping the slices into a grid of
         grid.num_columns grid items.
         """
-        self._check_name(plot_name)
-
         data = self.get_numpy(data)
         
         init_cfg = dict(kind='scatter', fig_kwargs=fig_kwargs)
@@ -196,8 +184,6 @@ class DataLogger:
         x: a scalar value
         ys: array of K elements y1,...,yk
         """
-        self._check_name(plot_name)
-
         init_cfg = dict(kind='multi_line', with_color=False, palette=palette,
                 fig_kwargs=fig_kwargs)
         if palette is not None:
@@ -208,7 +194,7 @@ class DataLogger:
         data = np.expand_dims(np.stack((xs, ys), axis=0), -1)
         data = data.tolist()
         zmode = None if palette is None else 'linecolor'
-        update_cfg = dict(append_dim=2, nd_columns='xy', zmode=zmode)
+        update_cfg = dict(append_dim=1, nd_columns='xy', zmode=zmode)
         self._send(plot_name, data, init_cfg, update_cfg)
 
     def multi_lines(self, plot_name, data, line_dims, spatial_dim, append, color=None,
@@ -219,7 +205,6 @@ class DataLogger:
         - spatial_dim: int indexing the x,y or x,y,z values
         - z must be present if color=ColorSpec(palette, None), otherwise absent
         """
-        self._check_name(plot_name)
         data = self.get_numpy(data)
 
         if isinstance(line_dims, int):

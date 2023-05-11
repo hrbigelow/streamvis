@@ -2,17 +2,17 @@ from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource
 from bokeh.transform import linear_cmap
 
-def make_figure(cds_name, kind, with_color, palette, fig_kwargs, **unused):
+def make_figure(name, kind, with_color, palette, fig_kwargs, **unused):
     """
     create a figure according to configuration information 
-    cds_name: the name of a ColumnDataSource instantiated for this plot
+    name: the name of a ColumnDataSource instantiated for this plot
     cfg: a map of configuration information
     returns: a bokeh.plotting.figure instance 
     """
     # print(f'make_figure: {cds_name}, kind={kind}, with_color={with_color}')
-    fig = figure(title=cds_name, **fig_kwargs)
+    fig = figure(title=name, **fig_kwargs)
     col_map = dict(x=[], y=[], z=[]) if with_color else dict(x=[], y=[])
-    cds = ColumnDataSource(col_map, name=cds_name)
+    cds = ColumnDataSource(col_map, name=name)
 
     vis_kwargs = { 'source': cds }
     if with_color:
