@@ -90,9 +90,9 @@ class DataLogger:
                 pickle.dump(log_entry, self.write_log_fh)
                 fcntl.flock(self.write_log_fh, fcntl.LOCK_UN)
 
-    def _send(self, plot_name, data, init_cfg, update_cfg):
+    def _send(self, plot_name, data, init_cfg, cds_opts):
         if plot_name not in self.configured_plots:
-            init_data = dict(fig_kwargs=init_cfg, cds_opts=update_cfg)
+            init_data = { **init_cfg, 'cds_opts': cds_opts}
             self._publish(plot_name, 'init', init_data)
             self.configured_plots.add(plot_name)
         self._publish(plot_name, 'add-data', data)
@@ -168,15 +168,15 @@ class DataLogger:
         """
         data = self.get_numpy(data)
         
-        init_cfg = dict(kind='scatter', fig_kwargs=fig_kwargs)
-        update_cfg = dict(append_dim=(1 if append else -1), zmode=None)
+        init_cfg = dict(glyph_kind='scatter', fig_kwargs=fig_kwargs)
+        cds_opts = dict(append_dim=(1 if append else -1), zmode=None)
 
-        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg)
+        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, cds_opts)
         data = self._maybe_apply_grid(data, grid, spatial_dim)
 
         data = array_util.axes_to_front(data, spatial_dim)
         data = data.tolist()
-        self._send(plot_name, data, init_cfg, update_cfg)
+        self._send(plot_name, data, init_cfg, cds_opts)
 
     def tandem_lines(self, plot_name, x, ys, palette=None, fig_kwargs={}):
         """
@@ -184,7 +184,7 @@ class DataLogger:
         x: a scalar value
         ys: array of K elements y1,...,yk
         """
-        init_cfg = dict(kind='multi_line', with_color=False, palette=palette,
+        init_cfg = dict(glyph_kind='multi_line', with_color=False, palette=palette,
                 fig_kwargs=fig_kwargs)
         if palette is not None:
             init_cfg['with_color'] = True
@@ -194,8 +194,8 @@ class DataLogger:
         data = np.expand_dims(np.stack((xs, ys), axis=0), -1)
         data = data.tolist()
         zmode = None if palette is None else 'linecolor'
-        update_cfg = dict(append_dim=1, nd_columns='xy', zmode=zmode)
-        self._send(plot_name, data, init_cfg, update_cfg)
+        cds_opts = dict(append_dim=1, nd_columns='xy', zmode=zmode)
+        self._send(plot_name, data, init_cfg, cds_opts)
 
     def multi_lines(self, plot_name, data, line_dims, spatial_dim, append, color=None,
             grid=None, fig_kwargs={}):
@@ -210,11 +210,11 @@ class DataLogger:
         if isinstance(line_dims, int):
             line_dims = (line_dims,)
 
-        init_cfg = dict(kind='multi_line', fig_kwargs=fig_kwargs)
+        init_cfg = dict(glyph_kind='multi_line', fig_kwargs=fig_kwargs)
         append_dim = 2 if append else -1
-        update_cfg = dict(append_dim=append_dim, zmode=None)
+        cds_opts = dict(append_dim=append_dim, zmode=None)
 
-        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg)
+        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, cds_opts)
         data = self._maybe_apply_grid(data, grid, spatial_dim)
 
         # permute to: spatial_dim, *line_dims, other
@@ -224,5 +224,5 @@ class DataLogger:
         num_lines = np.prod(data.shape[1:1+len(line_dims)])
         data = data.reshape(num_spatial, num_lines, -1)
         data = data.tolist()
-        self._send(plot_name, data, init_cfg, update_cfg)
+        self._send(plot_name, data, init_cfg, cds_opts)
 

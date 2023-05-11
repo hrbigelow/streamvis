@@ -210,8 +210,8 @@ class Server:
             dec = lambda k: req_args[k][0].decode()
             intsp = lambda l: list(map(int, l.split(',')))
             final = dict(
-                    mode = dec('mode'),
                     plots = dec('plots').split(','),
+                    row_mode = (dec('mode') == 'row'),
                     box_elems = intsp(dec('box_elems')),
                     box_part = intsp(dec('box_part')),
                     plot_part = intsp(dec('plot_part'))
@@ -221,7 +221,8 @@ class Server:
 
         args = parse(req.arguments)
         page = plotpage.PlotPage(self, doc, *args.plots)
-        page.set_layout(args.mode, args.box_elems, args.box_part, args.plot_part)
+        page.set_layout(args.row_mode, args.box_elems, args.box_part, args.plot_part)
+        page.set_pagesize(1800, 900)
         self.pages.append(page)
 
 def make_server(port, run_name, project, topic, read_log_path, write_log_path):

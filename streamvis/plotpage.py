@@ -54,6 +54,15 @@ class PlotPage:
             self.widths = plot_norm
             self.heights = box_norm
 
+    def get_figsize(self, index):
+        width = int(self.widths[index] * self.page_width)
+        height = int(self.heights[index] * self.page_height)
+        return dict(width=width, height=height)
+
+    def set_pagesize(self, width, height):
+        self.page_width = width
+        self.page_height = height
+
     def build_page(self, state):
         """
         Build the page for the first time
@@ -68,10 +77,14 @@ class PlotPage:
                 self.container.children.append(box)
             else:
                 box = self.container.children[box_index]
-            plot_state = state[plot]
-            fig = plots.make_figure(plot, **plot_state.fig_kwargs)
+            ps = state[plot]
+            fig_kwargs = ps.fig_kwargs
+            fig_kwargs.update(self.get_figsize(index))
+            fig = plots.make_figure(plot, ps.glyph_kind, ps.with_color, ps.palette,
+                    fig_kwargs)
             box.children.append(fig)
-            self.versions[index] = plot_state.version
+            self.versions[index] = ps.version
+        self.doc.add_root(self.container)
 
     def replace_plot(self, index, fig):
         """
@@ -103,19 +116,22 @@ class PlotPage:
                 self.build_page(state)
             
             # update any figures if out of date version
-            for ind, plot in enumerate(self.plots):
-                plot_state = state[plot]
-                if self.versions[ind] != plot_state.version:
-                    fig = plots.make_figure(plot, **plot_state.fig_kwargs)
+            for index, plot in enumerate(self.plots):
+                ps = state[plot]
+                if self.versions[index] != ps.version:
+                    fig_kwargs = ps.fig_kwargs
+                    fig_kwargs.update(self.get_figsize(index))
+                    fig = plots.make_figure(plot, ps.glyph_kind, ps.with_color,
+                            ps.palette, fig_kwargs)
                     # does this work?
-                    self.replace_plot(ind, fig)
-                    self.versions[ind] = plot_state.version
+                    self.replace_plot(index, fig)
+                    self.versions[index] = ps.version
 
                 # update cds
-                cds = self.get_data_source(ind)
-                zmode = plot_state.cds_opts['zmode']
-                nd_columns = plot_state.cds_opts['nd_columns']
-                ary = plot_state.nddata
+                cds = self.get_data_source(index)
+                zmode = ps.cds_opts['zmode']
+                nd_columns = ps.cds_opts['nd_columns']
+                ary = ps.nddata
                 cdata = dict(zip(nd_columns, ary.tolist()))
                 if zmode == 'linecolor':
                     k = ary.shape[1]

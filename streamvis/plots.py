@@ -2,7 +2,8 @@ from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource
 from bokeh.transform import linear_cmap
 
-def make_figure(name, kind, with_color, palette, fig_kwargs, **unused):
+# TODO fix fig_kwargs scoping
+def make_figure(name, kind, with_color, palette, fig_kwargs):
     """
     create a figure according to configuration information 
     name: the name of a ColumnDataSource instantiated for this plot
