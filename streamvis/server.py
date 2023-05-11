@@ -206,12 +206,13 @@ class Server:
         """
         req = doc.session_context.request
 
+
         def parse(req_args):
             dec = lambda k: req_args[k][0].decode()
             intsp = lambda l: list(map(int, l.split(',')))
             final = dict(
                     plots = dec('plots').split(','),
-                    row_mode = (dec('mode') == 'row'),
+                    row_mode = int(dec('row_mode')),
                     box_elems = intsp(dec('box_elems')),
                     box_part = intsp(dec('box_part')),
                     plot_part = intsp(dec('plot_part'))
@@ -220,8 +221,13 @@ class Server:
             return type('__Args', (), final)
 
         args = parse(req.arguments)
-        page = plotpage.PlotPage(self, doc, *args.plots)
-        page.set_layout(args.row_mode, args.box_elems, args.box_part, args.plot_part)
+
+        assert sum(args.box_elems) == len(args.plots)
+        assert len(args.box_part) == len(args.box_elems)
+        assert len(args.plot_part) == len(args.plots)
+
+        page = plotpage.PlotPage(self, doc, args.row_mode, *args.plots)
+        page.set_layout(args.box_elems, args.box_part, args.plot_part)
         page.set_pagesize(1800, 900)
         self.pages.append(page)
 

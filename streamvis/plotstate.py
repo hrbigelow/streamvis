@@ -8,7 +8,6 @@ class PlotState:
         self.name = name
         self.version = 0
         self.glyph_kind = None
-        self.with_color = None
         self.palette = None
         self.fig_kwargs = {}
         self.cds_opts = {}
@@ -25,7 +24,7 @@ class PlotState:
         if log_evt.action == 'init':
             self.version += 1
             self.glyph_kind = log_evt.data['glyph_kind']
-            self.with_color = log_evt.data['with_color']
+            self.palette = log_evt.data['palette']
             self.fig_kwargs = log_evt.data['fig_kwargs']
             self.cds_opts = log_evt.data['cds_opts']
             self.nddata = None

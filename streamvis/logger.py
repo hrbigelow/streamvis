@@ -116,11 +116,9 @@ class DataLogger:
     @staticmethod
     def _maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg):
         if color is None:
-            init_cfg['with_color'] = False
             init_cfg['palette'] = None
             update_cfg['nd_columns'] = 'xy'
         else:
-            init_cfg['with_color'] = True
             init_cfg['palette'] = color.palette
             update_cfg['nd_columns'] = 'xyz'
             if color.dim is not None:
@@ -182,19 +180,20 @@ class DataLogger:
         """
         Plot streaming data as a set of tandem lines, all sharing the same x axis.
         x: a scalar value
-        ys: array of K elements y1,...,yk
+        ys: array of L elements y1,...,yl.
+        L: number of lines being plotted
         """
-        init_cfg = dict(glyph_kind='multi_line', with_color=False, palette=palette,
-                fig_kwargs=fig_kwargs)
-        if palette is not None:
-            init_cfg['with_color'] = True
+        init_cfg = dict(glyph_kind='multi_line', palette=palette, fig_kwargs=fig_kwargs)
 
         ys = self.get_numpy(ys)
         xs = np.full(ys.shape[0], x)
-        data = np.expand_dims(np.stack((xs, ys), axis=0), -1)
+        data = np.stack((xs, ys), axis=0)
+
+        # data: 2, L, 1
+        data = data.reshape(*data.shape, 1)
         data = data.tolist()
         zmode = None if palette is None else 'linecolor'
-        cds_opts = dict(append_dim=1, nd_columns='xy', zmode=zmode)
+        cds_opts = dict(append_dim=2, nd_columns='xy', zmode=zmode)
         self._send(plot_name, data, init_cfg, cds_opts)
 
     def multi_lines(self, plot_name, data, line_dims, spatial_dim, append, color=None,
