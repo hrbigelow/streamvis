@@ -12,7 +12,18 @@ from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
-from streamvis import util, plotstate, plotpage
+from streamvis import util, plotstate, pagelayout
+
+class LockManager:
+    def __init__(self):
+        self.lock = threading.Lock()
+
+    def __enter__(self):
+        self.lock.acquire()
+        return None
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.lock.release()
 
 class CleanupHandler(Handler):
     def __init__(self, sv_server):
@@ -30,13 +41,15 @@ class Server:
         """
         run_name: a name to scope this run
         """
+        self.update_lock = threading.Lock()
         self.run_state = { run_name: {} }
         self.run_name = run_name
-        self.update_lock = threading.Lock()
         self.is_pubsub = False
         self.write_log_fh = None
         self.read_log_fh = None
-        self.pages = []
+
+        self.page_lock = LockManager()
+        self.pages = {}
 
     def init_write_log(self, write_log_path):
         try:
@@ -171,8 +184,10 @@ class Server:
                 update(locked_state)
                 fcntl.flock(self.read_log_fh, fcntl.LOCK_UN)
 
-            for page in self.pages:
-                page.schedule_callback()
+            with self.page_lock:
+                # print(f'main loop logfile_callback, {len(self.pages)=}')
+                for page in self.pages.values():
+                    page.schedule_callback()
 
     def pubsub_callback(self, message):
         """
@@ -191,8 +206,9 @@ class Server:
             plot_state = state.setdefault(cds, plotstate.PlotState(cds))
             plot_state.update(log_entry)
 
-        for page in self.pages:
-            page.schedule_callback()
+        with self.page_lock:
+            for page in self.pages.values():
+                page.schedule_callback()
 
     def add_page(self, doc):
         """
@@ -205,7 +221,7 @@ class Server:
         plot_part: comma-separate list of plot width (row mode) or height (column mode)
         """
         req = doc.session_context.request
-
+        session_id = doc.session_context.id
 
         def parse(req_args):
             dec = lambda k: req_args[k][0].decode()
@@ -226,10 +242,12 @@ class Server:
         assert len(args.box_part) == len(args.box_elems)
         assert len(args.plot_part) == len(args.plots)
 
-        page = plotpage.PlotPage(self, doc, args.row_mode, *args.plots)
+        page = pagelayout.PageLayout(self, doc, args.row_mode, *args.plots)
         page.set_layout(args.box_elems, args.box_part, args.plot_part)
         page.set_pagesize(1800, 900)
-        self.pages.append(page)
+
+        with self.page_lock:
+            self.pages[session_id] = page
 
 def make_server(port, run_name, project, topic, read_log_path, write_log_path):
     """

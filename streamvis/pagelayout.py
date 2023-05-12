@@ -2,13 +2,16 @@ import numpy as np
 from bokeh.layouts import column, row
 from . import plots
 
-class PlotPage:
+
+class PageLayout:
     """
     Represents a browser page
     """
     def __init__(self, state_machine, doc, row_mode, *plot_names):
         self.state_machine = state_machine
         self.doc = doc
+        self.session_id = doc.session_context.id
+        self.doc.on_session_destroyed(self.destroy)
         self.plots = plot_names
         self.versions = [-1] * len(plot_names)
         self.row_mode = row_mode
@@ -18,8 +21,10 @@ class PlotPage:
         self.box_elems = None
         self.widths = None
         self.heights = None
-        self.doc.add_root(self.container)
         self.page_built = False
+
+    def destroy(self, session_context):
+        del self.state_machine.pages[self.session_id]
 
     def set_layout(self, box_elems, box_part, plot_part):
         """
@@ -79,13 +84,14 @@ class PlotPage:
             box.children.append(fig)
             # print(f'in build_page, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
             self.versions[index] = ps.version
+        self.doc.add_root(self.container)
         self.page_built = True
 
     def replace_plot(self, index, fig):
         """
         Assuming the layout is initialized, replace the plot 
         """
-        print(f'replace_plot: {index=}, {fig=}')
+        # print(f'replace_plot: {index=}, {fig=}')
         box_index, elem_index = self.coords[index]
         box = self.container.children[box_index]
         box.children[elem_index] = fig
