@@ -1,31 +1,25 @@
 # streamvis - interactive visualizations of streaming data with Bokeh
 
-Streamvis allows you to design custom visualizations using the Bokeh
-library, and define how they update with periodic arrivals of new data.
-
 # Install
 
     pip install git+https://github.com/hrbigelow/streamvis.git
 
-# Setup
+## Quick Start: file mode
 
-Streamvis provides a server and a `DataLogger` class to be used with a data-producing
-application.  The server consumes data streamed from the application, and provides
-the interactive visualization of that data.  The server + application pair can be run
-in two modes.  If you can run both on machines with access to the same filesystem,
-launch as follows:
+File mode is used when server and application access the same filesystem.
 
 ```bash
 # launch the server, using log file to recieve data from client
-streamvis_server file PORT RUN_NAME LOG_FILE_PATH
+streamvis_server file PORT RUN_NAME LOG_FILE
 
 # start your data-producing application, logging the data only
 streamvis_test_app file RUN_NAME LOG_FILE
 ```
 
-If you need to run the app on a separate machine, you must use Google Pub/Sub to
-send data from the app to the server.  For this, you create a Google Cloud project
-and enable the Pub/Sub API for the project.
+## (not so) Quick Start: pubsub mode
+
+Pubsub mode enables running the application remotely from the server.
+
 
 ```bash
 # launch the server, using Google Pub/Sub subscription (published from app)
@@ -34,12 +28,95 @@ streamvis_server pubsub PORT RUN_NAME PROJECT TOPIC [--log_file]
 # start your data-producing application, using Google Pub/Sub to publish the data
 # optionally log the data as well
 streamvis_test_app pubsub RUN_NAME PROJECT TOPIC [--log_file]
+```  
+
+To use this mode, you must first create a Pub/Sub API-enabled GCP project and Pub/Sub
+topic.  See Google's documentation on 
+[creating a project](https://developers.google.com/workspace/guides/create-project), 
+[enabling APIs](https://developers.google.com/workspace/guides/enable-apis), and 
+[creating a topic](https://cloud.google.com/pubsub/docs/create-topic#create_a_topic).
+
+# Introduction
+
+Streamvis provides interactive visualizations for data that is periodically produced
+from your application as it is running.  You create a `streamvis.logger.DataLogger`
+instance in your application, then call its plotting API functions to log data in
+different plot formats to a named plot of your choice.  
+
+Using the server, you can visualize the data interactively.  The content of the plots
+will automatically update as new data is logged.
+
+## Design multi-plot page layouts
+
+If you have several different plots, you may want to view subsets of them in
+different layouts that you don't know ahead of time.  The `streamvis_server` lets you
+do this using parameters to specify layouts organized as rows or columns.
+
+### Row-based layout
+
+```
+localhost:5006/?rows=A,B;C&width=1,2,1&height=1,2
+
++----------+----+
+|     A    | B  |
++----------+----+
+|               |
+|       C       |
+|               |
++---------------+
+
+Query parameters:
+rows:   (required) semi-colon separated plot rows.  each plot row is a csv string list 
+width:  (optional) csv number list of relative plot widths
+height: (optional) csv number list of row heights
+
+Detail
+rows=A,B;C   # Top row contains plots A and B.  Bottom row is plot C
+width=1,2,1  # Plots A and B are 1/3 and 2/3 of page width.  Plot C is full page width
+height=1,2   # rows are 1/3 and 2/3 of page height, respectively 
 ```
 
-When the server and app are run in `pubsub` mode, they communicate exclusively
-through Google Pub/Sub.  The app is the publisher, and the Streamvis server is the
-subscriber.  The server manages the topic and subscription resources during its
-lifetime.
+For row mode layout, the `rows` parameter is required.  The `width` and `height`
+parameters default to a list of 1's, which means each plot in a row will take an
+equal share of width, and each row in the page an equal share of height.
+
+### Column-based layout
+
+```
+localhost:5006/?cols=A,B;C&width=2,1&height=1,2,1
+
++-----+---------+
+|  A  |         |
++-----+         |
+|     |    C    |
+|  B  |         |
+|     |         |
++-----+---------+
+
+Query parameters
+cols:   (required) semi-colon separated plot columns.  each plot column is a csv string list
+width:  (optional) csv number list of column widths
+height: (optional) csv number list of relative plot heights
+
+Detail
+cols=A,B;C    # Left column contains plots A and B, right column contains plot C
+width=2,1     # Left column is 1/3 of page width, right column is 2/3
+height=1,2,1  # Plots A and B take up 1/3 and 2/3 of page height.  Plot C is full page height
+```
+
+## Detail 
+
+Communication between the `DataLogger` and `streamvis_server` may be either in `file`
+mode or `pubsub` mode.  The `pubsub` mode requires a Google Cloud project with
+Pub/Sub API enabled.  It is harder to set up but allows you to run your application
+on the cloud while visualizing the data locally.  For example, you can run your
+application in a Google Colab, Kaggle Notebook, or Google Cloud compute instance, but
+run the `streamvis_server` on your laptop.
+
+When the server and app are run in `pubsub` mode, they communicate through Google
+Pub/Sub.  The app is the publisher, and the Streamvis server is the subscriber.  The
+server creates and deletes a Pub/Sub subscription resource during its lifetime.
+However, you must provide the Pub/Sub API-enabled project, and create a topic.
 
 In your app, it is also possible to configure your `DataLogger` instance to log the
 data to a file in addition to publishing to the topic.  If you opt to log the data,
@@ -81,9 +158,7 @@ logger = DataLogger(run_name)
 # ID of your Google Cloud Platform project with Pub/Sub API enabled
 project = 'ml-services-385715' 
 
-# Topic of your choice 
-# must be valid topic name, see:
-# https://cloud.google.com/pubsub/docs/create-topic#resource_names
+# identifies your pre-existing Pub/Sub topic 
 topic = 'mytopic'
 
 if using_pubsub:
@@ -91,17 +166,6 @@ if using_pubsub:
 
 if using_logfile:
     logger.init_write_log(write_log_path)
-
-# specifies rectangular packing layout of plots
-grid_map = dict(
-        top_left=(0,0,1,1), # (top,left,height,width)
-        top_right=(0,1,1,1),
-        bottom_left=(1,0,1,1),
-        bottom_right=(1,1,1,1)
-        )
-
-# set the physical layout in the page for your plots
-logger.set_layout(grid_map)
 
 N = 50
 L = 20
