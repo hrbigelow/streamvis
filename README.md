@@ -22,11 +22,12 @@ Pubsub mode enables running the application remotely from the server.
 
 
 ```bash
-# launch the server, using Google Pub/Sub subscription (published from app)
+# launch the server, subscribing to Google Pub/Sub topic 
+# optionally logs the data to --log_file
 streamvis_server pubsub PORT RUN_NAME PROJECT TOPIC [--log_file]
 
-# start your data-producing application, using Google Pub/Sub to publish the data
-# optionally log the data as well
+# start your data-producing application, publishing to topic
+# optionally logs the data to --log_file 
 streamvis_test_app pubsub RUN_NAME PROJECT TOPIC [--log_file]
 ```  
 
