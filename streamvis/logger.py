@@ -67,13 +67,15 @@ class DataLogger:
             self.write_log_fh = open(write_log_path, 'ab')
         except OSError as ex:
             raise RuntimeError(f'Could not open {write_log_path=} for writing: {ex}')
-        signal.signal(signal.SIGINT, self.shutdown_handler)
 
-    def shutdown_handler(self, signal, frame):
+    def shutdown(self):
+        """
+        Call shutdown in a SIGINT or SIGTERM signal handler in your main application
+        for a clean exit 
+        """
         if self.write_log_fh is not None:
-            print(f'Closing log file {self.write_log_fh.name}')
+            print(f'\nClosing streamvis log file {self.write_log_fh.name}')
             self.write_log_fh.close()
-        raise KeyboardInterrupt
 
     def _publish(self, plot_name, action, data):
         data = pickle.dumps(data)
