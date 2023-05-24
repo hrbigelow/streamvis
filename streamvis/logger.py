@@ -79,18 +79,20 @@ class DataLogger:
 
     def _publish(self, plot_name, action, data):
         data = pickle.dumps(data)
-        with NonInterrupt('_publish'):
-            if self.pub is not None:
-                future = self.pub.publish(self.topic_path, data, run=self.run_name, 
-                        cds=plot_name, action=action) 
-                future.result()
+        # with NonInterrupt('_publish'):
+        # TODO: since the logger may run in a spawned process, the NonInterrupt
+        # mechanism (which relies on signal) is not allowed.
+        if self.pub is not None:
+            future = self.pub.publish(self.topic_path, data, run=self.run_name, 
+                    cds=plot_name, action=action) 
+            future.result()
 
-            if self.write_log_fh is not None:
-                # TODO: context manager
-                fcntl.flock(self.write_log_fh, fcntl.LOCK_EX)
-                log_entry = util.LogEntry(self.run_name, action, plot_name, data)
-                pickle.dump(log_entry, self.write_log_fh)
-                fcntl.flock(self.write_log_fh, fcntl.LOCK_UN)
+        if self.write_log_fh is not None:
+            # TODO: context manager
+            fcntl.flock(self.write_log_fh, fcntl.LOCK_EX)
+            log_entry = util.LogEntry(self.run_name, action, plot_name, data)
+            pickle.dump(log_entry, self.write_log_fh)
+            fcntl.flock(self.write_log_fh, fcntl.LOCK_UN)
 
     def _send(self, plot_name, data, init_cfg, cds_opts):
         if plot_name not in self.configured_plots:
