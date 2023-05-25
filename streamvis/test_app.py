@@ -41,6 +41,7 @@ def make_logger(run_name, project, topic, write_log_path):
         logger.scatter(plot_name='top_right', data=data_rank3, spatial_dim=2,
                 append=False, grid=GridSpec(0, 5, 1.2))
 
+        print(f'Logged {step=}')
         """
         # Colorize the L dimension
         logger.scatter(plot_name='bottom_left', data=data_rank3, spatial_dim=2,

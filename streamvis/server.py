@@ -1,6 +1,7 @@
 import asyncio
 import tornado
 import threading
+import signal
 import sys
 import os
 import fcntl
@@ -51,6 +52,7 @@ class Server:
 
         self.page_lock = LockManager()
         self.pages = {}
+        self.update_pending = False # pretected by page_lock, tells if update needed 
 
     def init_write_log(self, write_log_path):
         try:
@@ -119,11 +121,17 @@ class Server:
                     f'gcloud pubsub topics create {topic_id}')
 
         self.sub_path = self.sub_client.subscription_path(project_id, subscription_id)
-        req = dict(name=self.sub_path, topic=self.topic_path)
-        self.sub_client.create_subscription(request=req)
+        self.sub_client.create_subscription(request=
+                dict(name=self.sub_path, 
+                    topic=self.topic_path, 
+                    enable_message_ordering=True,
+                    # enable_exactly_once_delivery=True,
+                    # filter=f'attributes.run = "{self.run_name}"'
+                    )
+                )
 
         # the future is not needed since we wait indefinitely
-        sub = self.sub_client.subscribe(self.sub_path, callback=self.pull_callback)
+        sub = self.sub_client.subscribe(self.sub_path, callback=self.pubsub_callback)
         req = dict(subscription=self.sub_path, time='1970-01-01T00:00:00.00Z')
         self.sub_client.seek(req)
         print(f'Created subscription: {subscription_id}')
@@ -186,30 +194,52 @@ class Server:
                 fcntl.flock(self.read_log_fh, fcntl.LOCK_UN)
 
             with self.page_lock:
+                self.update_pending = True
                 # print(f'main loop logfile_callback, {len(self.pages)=}')
+                # for page in self.pages.values():
+                    # page.schedule_callback()
+
+    async def update_pages(self):
+        """
+        A callback that triggers page updating if either there is an update_pending,
+        or a new page 
+        """
+        while True:
+            await asyncio.sleep(0.5)
+            with self.page_lock:
                 for page in self.pages.values():
-                    page.schedule_callback()
+                    if self.update_pending or not page.page_built:
+                        page.schedule_callback()
+                self.update_pending = False
 
     def pubsub_callback(self, message):
         """
         """
+        # print(f'in pubsub_callback with {message.message_id}')
         message.ack()
         try:
             log_entry = util.LogEntry.from_pubsub_message(message)
         except Exception as ex:
             print('Could not create log_entry from pubsub message: {ex}', file=sys.stderr)
+            return
+
+        with self.get_state(blocking=True) as state:
+            plot_name = log_entry.plot_name
+            plot_state = state.setdefault(plot_name, plotstate.PlotState(plot_name))
+            try:
+                plot_state.update(log_entry)
+            except Exception as ex:
+                print(f'Could not process log_entry from pubsub message: {ex}.  Skipping.',
+                        file=sys.stderr)
+                return
 
         if self.write_log_fh is not None:
             pickle.dump(log_entry, self.write_log_fh)
 
-        with self.get_state(blocking=True) as state:
-            cds = log_entry.attributes.get('cds')
-            plot_state = state.setdefault(cds, plotstate.PlotState(cds))
-            plot_state.update(log_entry)
-
         with self.page_lock:
-            for page in self.pages.values():
-                page.schedule_callback()
+            self.update_pending = True
+            # for page in self.pages.values():
+                # page.schedule_callback()
 
     def add_page(self, doc):
         """
@@ -236,9 +266,7 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
     port: webserver port
     run_name: arbitrary name for this
     project: Google Cloud Platform project id with Pub/Sub API enabled
-    topic: Pub/Sub topic for client/server communication.  Topic will be
-           deleted and re-created if already exists.  Will be deleted upon
-           server shutdown
+    topic: Pub/Sub topic for client/server communication.
     """
     sv_server = Server(run_name)
     if project is None and read_log_path is None:
@@ -267,6 +295,15 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
     if write_log_path is not None:
         sv_server.init_write_log(write_log_path)
 
+    loop.create_task(sv_server.update_pages())
+
+    def shutdown_handler(signum, frame):
+        print(f'Server received {signal.Signals(signum).name}')
+        sv_server.shutdown()
+
+    signal.signal(signal.SIGQUIT, shutdown_handler)
+    signal.signal(signal.SIGHUP, shutdown_handler) 
+
     handler = FunctionHandler(sv_server.add_page)
     cleanup = CleanupHandler(sv_server)
     bokeh_app = Application(handler, cleanup)
@@ -274,7 +311,6 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
 
     print(f'Web server is running on http://localhost:{port}')
     bsrv.run_until_shutdown()
-    # IOLoop.current().start()
 
 def run():
     import fire
@@ -298,7 +334,8 @@ def run():
         :param port: webserver port
         :param run_name: unused
         :param project: GCP project_id of existing project with Pub/Sub API enabled
-        :param topic: GCP Pub/Sub topic id.  Will be re-created/deleted by this process
+        :param topic: GCP Pub/Sub topic id.  Must already exist.  Create with gcloud
+                      or GCP console.
         :param log_file: path to local file to log all received data if provided
         """
         return make_server(port, run_name, project, topic, None, log_file)

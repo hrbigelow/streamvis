@@ -2,7 +2,8 @@ import numpy as np
 
 class PlotState:
     """
-    State of a plot as accumulated from the log messages
+    State of a plot as accumulated from the log messages.
+    TODO: elucidate 
     """
     def __init__(self, name):
         self.name = name
@@ -12,6 +13,7 @@ class PlotState:
         self.fig_kwargs = {}
         self.cds_opts = {}
         self.nddata = None
+        self.initialized = False
 
     def update(self, log_evt):
         """
@@ -27,15 +29,19 @@ class PlotState:
             self.palette = log_evt.data['palette']
             self.fig_kwargs = log_evt.data['fig_kwargs']
             self.cds_opts = log_evt.data['cds_opts']
-            self.nddata = None
+            self.initialized = True
 
         elif log_evt.action == 'add-data':
+            if not self.initialized:
+                raise RuntimeError(
+                    f'PlotState::update: plot {self.name} received an \'add-data\' '
+                    f'message before an \'init\' message.')
             append_dim = self.cds_opts['append_dim']
             new_nd = np.array(log_evt.data)
             if not -1 <= append_dim < new_nd.ndim:
                 raise RuntimeError(
-                    f'PlotState::update: {append_dim=} not in bounds of log_evt.data '
-                    f'shape {new_nd.shape}')
+                    f'PlotState::update: plot {self.name} {append_dim=} not in bounds of '
+                    f'log_evt.data shape {new_nd.shape}')
 
             if self.nddata is None:
                 empty_shape = list(new_nd.shape)

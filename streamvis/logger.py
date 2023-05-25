@@ -55,7 +55,10 @@ class DataLogger:
 
     def init_pubsub(self, project_id, topic_id):
         from google.cloud import pubsub_v1
-        self.pub = pubsub_v1.PublisherClient()
+        self.pub = pubsub_v1.PublisherClient(
+                publisher_options = pubsub_v1.types.PublisherOptions(
+                    enable_message_ordering=True
+                    ))
         if not util.topic_exists(self.pub, project_id, topic_id):
             raise RuntimeError(
                 f'Cannot initialize client since topic {topic_id} does not exist. '
@@ -78,13 +81,18 @@ class DataLogger:
             self.write_log_fh.close()
 
     def _publish(self, plot_name, action, data):
+        assert plot_name is not None, '_publish: plot_name is None'
         data = pickle.dumps(data)
         # with NonInterrupt('_publish'):
         # TODO: since the logger may run in a spawned process, the NonInterrupt
         # mechanism (which relies on signal) is not allowed.
         if self.pub is not None:
-            future = self.pub.publish(self.topic_path, data, run=self.run_name, 
-                    cds=plot_name, action=action) 
+            attrs = dict(run=self.run_name, plot_name=plot_name, action=action)
+            future = self.pub.publish(
+                    topic=self.topic_path, 
+                    data=data, 
+                    ordering_key=self.run_name,
+                    **attrs)
             future.result()
 
         if self.write_log_fh is not None:

@@ -34,5 +34,7 @@ class LogEntry:
         run = message.attributes.get('run')
         action = message.attributes.get('action')
         plot_name = message.attributes.get('plot_name')
+        if plot_name is None:
+            raise RuntimeError(f'no plot_name field')
         return cls(run, action, plot_name, message.data)
 
