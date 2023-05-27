@@ -205,7 +205,12 @@ class DataLogger:
         Expect all calls for `plot_name` to have the same num_lines, but may have
         differing num_new_points.
         """
-        # TODO: add client-side integrity checks
+        data = self.get_numpy(data)
+        if data.ndim != 3 or data.shape[2] != 2:
+            raise RuntimeError(
+                f'tandem_lines requires data shape [lines, new_points, xy]. '
+                f'Received {data.shape=}')
+
         # The multi_line plot expects 
         init_cfg = dict(glyph_kind='multi_line', palette=palette, fig_kwargs=fig_kwargs)
         zmode = None if palette is None else 'linecolor'
