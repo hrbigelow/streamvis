@@ -126,7 +126,7 @@ class Server:
                     topic=self.topic_path, 
                     enable_message_ordering=True,
                     # enable_exactly_once_delivery=True,
-                    # filter=f'attributes.run = "{self.run_name}"'
+                    filter=f'attributes.run = "{self.run_name}"'
                     )
                 )
 
@@ -174,8 +174,8 @@ class Server:
             while True:
                 try:
                     log_entry = pickle.load(self.read_log_fh)
-                    plot_name = log_entry.plot_name
-                    plot_state = state.setdefault(plot_name, plotstate.PlotState(plot_name))
+                    name = log_entry.plot_name
+                    plot_state = state.setdefault(name, plotstate.PlotState(name))
                     plot_state.update(log_entry)
                 except EOFError:
                     break
@@ -224,8 +224,8 @@ class Server:
             return
 
         with self.get_state(blocking=True) as state:
-            plot_name = log_entry.plot_name
-            plot_state = state.setdefault(plot_name, plotstate.PlotState(plot_name))
+            name = log_entry.plot_name
+            plot_state = state.setdefault(name, plotstate.PlotState(name))
             try:
                 plot_state.update(log_entry)
             except Exception as ex:

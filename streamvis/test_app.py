@@ -2,7 +2,7 @@ import numpy as np
 import math
 from time import sleep
 from random import randint
-from streamvis import DataLogger, ColorSpec, GridSpec
+from streamvis import DataLogger, GridSpec
 
 def make_logger(run_name, project, topic, write_log_path):
     if (project is None) != (topic is None):
@@ -24,22 +24,22 @@ def make_logger(run_name, project, topic, write_log_path):
 
     for step in range(10000):
         sleep(1.0)
-        top_data = [
-                math.sin(1 + step / 10),
-                0.5 * math.sin(1.5 + step / 20),
-                1.5 * math.sin(2 + step / 15) 
-                ]
-
+        # [num_lines, num_new_points, xy] 
+        top_data = np.array([
+                step, math.sin(1 + step / 10),
+                step, 0.5 * math.sin(1.5 + step / 20),
+                step, 1.5 * math.sin(2 + step / 15)
+                ]).reshape(3,1,2)
 
         left_data = left_data + np.random.randn(N, 2) * 0.1
         layer_mult = np.linspace(0, 10, L)
-        data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
 
-        logger.tandem_lines('top_left', step, top_data, palette='Viridis256') 
+        logger.tandem_lines('top_left', top_data, palette='Viridis256') 
 
         # Distribute the L dimension along grid cells
-        logger.scatter(plot_name='top_right', data=data_rank3, spatial_dim=2,
-                append=False, grid=GridSpec(0, 5, 1.2))
+        data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
+        logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
+                grid_columns=5, grid_spacing=1.0)
 
         print(f'Logged {step=}')
         """

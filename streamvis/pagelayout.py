@@ -211,6 +211,8 @@ class PageLayout:
                     # does this work?
                     self.replace_plot(index, fig)
                     self.versions[index] = ps.version
+                if ps.nddata is None:
+                    return
 
                 # update cds
                 cds = self.get_data_source(index)

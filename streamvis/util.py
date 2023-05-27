@@ -12,22 +12,27 @@ class LogEntry:
     """
     Represents the base unit communicated from the client
     """
-    def __init__(self, run, action, plot_name, data):
+    def __init__(self, run, action, plot_name, payload):
         self.run = run
         self.action = action
         self.plot_name = plot_name
         try:
-            self.data = pickle.loads(data)
+            payload = pickle.loads(payload)
         except Exception as e:
             raise RuntimeError(
-                f'LogEntry ({self.run}, {self.action}, {self.plot_name}) data '
+                f'LogEntry ({self.run}, {self.action}, {self.plot_name}) payload '
                 f'couldn\'t be unpickled:\n{e}')
+        if self.action == 'init':
+            self.config = payload
+        else:
+            self.tensor_data = payload
 
     def __repr__(self):
         return (f'{self.run=}\n'
                 f'{self.action=}\n'
                 f'{self.plot_name=}\n'
-                f'{repr(self.data)[:100]}...\n')
+                f'{self.config=}\n'
+                f'{repr(self.tensor_data)[:100]}...\n')
 
     @classmethod
     def from_pubsub_message(cls, message):

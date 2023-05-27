@@ -12,18 +12,6 @@ class GridSpec:
     num_columns: int
     padding_factor: float = 1.2
 
-class ColorSpec:
-    def __init__(self, palette='Viridis', dim=None):
-        if palette not in palettes.__palettes__:
-            raise RuntimeError(
-                f'Invalid ColorSpec:  got palette {palette}.  palette must be one of '
-                f'the Bokeh palette identifiers in bokeh.palettes.__palettes__')
-        self.palette = palette
-        if dim is not None and not isinstance(dim, int):
-            raise RuntimeError(
-                f'Invalid ColorSpec:  got dim = {dim}.  Must be None or an integer')
-        self.dim = dim 
-
 class NonInterrupt:
     def __init__(self, name):
         self.name = name
@@ -80,9 +68,8 @@ class DataLogger:
             print(f'\nClosing streamvis log file {self.write_log_fh.name}')
             self.write_log_fh.close()
 
-    def _publish(self, plot_name, action, data):
+    def _publish(self, plot_name, action, payload):
         assert plot_name is not None, '_publish: plot_name is None'
-        data = pickle.dumps(data)
         # with NonInterrupt('_publish'):
         # TODO: since the logger may run in a spawned process, the NonInterrupt
         # mechanism (which relies on signal) is not allowed.
@@ -90,7 +77,7 @@ class DataLogger:
             attrs = dict(run=self.run_name, plot_name=plot_name, action=action)
             future = self.pub.publish(
                     topic=self.topic_path, 
-                    data=data, 
+                    data=pickle.dumps(payload), 
                     ordering_key=self.run_name,
                     **attrs)
             future.result()
@@ -98,7 +85,7 @@ class DataLogger:
         if self.write_log_fh is not None:
             # TODO: context manager
             fcntl.flock(self.write_log_fh, fcntl.LOCK_EX)
-            log_entry = util.LogEntry(self.run_name, action, plot_name, data)
+            log_entry = util.LogEntry(self.run_name, action, plot_name, payload)
             pickle.dump(log_entry, self.write_log_fh)
             fcntl.flock(self.write_log_fh, fcntl.LOCK_UN)
 
@@ -126,26 +113,6 @@ class DataLogger:
         return data
 
     @staticmethod
-    def _maybe_apply_color(data, color, spatial_dim, init_cfg, update_cfg):
-        if color is None:
-            init_cfg['palette'] = None
-            update_cfg['nd_columns'] = 'xy'
-        else:
-            init_cfg['palette'] = color.palette
-            update_cfg['nd_columns'] = 'xyz'
-            if color.dim is not None:
-                if color.dim == spatial_dim:
-                    raise RuntimeError(
-                        f'color.dim, if provided, must not be equal to spatial_dim.  '
-                        f'Both were equal to {color.dim}')
-                if color.dim not in range(data.ndim):
-                    raise RuntimeError(
-                        f'color.dim = {color.dim} but data.ndim = {data.ndim}')
-
-                data = array_util.dim_to_data(data, color.dim, spatial_dim, (0,1))
-        return data
-
-    @staticmethod
     def _maybe_apply_grid(data, grid, spatial_dim):
         if grid is not None:
             if grid.dim == spatial_dim:
@@ -161,51 +128,92 @@ class DataLogger:
                     grid.padding_factor)
         return data
 
-
-    def scatter(self, plot_name, data, spatial_dim, append, color=None, grid=None,
-            fig_kwargs={}):
+    def scatter(self, plot_name, data, append, palette='Viridis256', fig_kwargs={}):
         """
-        Produce a scatter plot of `data`.
-        If ColorSpec is None, or ColorSpec with dim is provided, then
-        data.shape[spatial_dim] must be 2, and is interpreted as x,y
-        
-        Otherwise, ColorSpec with no dim was provided.  In this case,
-        data.shape[spatial_dim] must be 3, and is interpreted as x,y,color
+        Produce a scatter plot of `data`, which can be one of these shapes:
+        [points, xy]         
+        [points, xyc]
+        [color, points, xy]
 
-        If GridSpec is provided, the data will be spread out into a grid by slicing
-        along the grid.dim dimension and wrapping the slices into a grid of
-        grid.num_columns grid items.
+        'xy' is a size-2 dimension with x,y coordinates.
+        'xyc' indicates x,y and color values.
+
         """
         data = self.get_numpy(data)
-        
-        init_cfg = dict(glyph_kind='scatter', fig_kwargs=fig_kwargs)
-        cds_opts = dict(append_dim=(1 if append else -1), zmode=None)
-
-        data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, cds_opts)
-        data = self._maybe_apply_grid(data, grid, spatial_dim)
-
-        data = array_util.axes_to_front(data, spatial_dim)
-        data = data.tolist()
+        init_cfg = dict(glyph_kind='scatter', palette=palette, fig_kwargs=fig_kwargs)
+        append_dim = 1 if append else None
+        nd_columns = 'xy' if data.shape[-1] == 2 else 'xyz'
+        cds_opts = dict(append_dim=append_dim, nd_columns=nd_columns, zmode=None)
         self._send(plot_name, data, init_cfg, cds_opts)
 
-    def tandem_lines(self, plot_name, x, ys, palette=None, fig_kwargs={}):
+    def scatter_grid(self, plot_name, data, append, palette='Viridis256', grid_columns=5,
+            grid_spacing=0.1, fig_kwargs={}):
         """
-        Plot streaming data as a set of tandem lines, all sharing the same x axis.
-        x: a scalar value
-        ys: array of L elements y1,...,yl.
-        L: number of lines being plotted
+        Produce a scatter plot of `data`, which can be one of these shapes:
+        [grid, points, xy]
+        [grid, points, xyc]
+        [grid, color, points, xy]
+
+        If ColorSpec is None, or ColorSpec with dim is provided, then
+        data.shape[spatial_dim] = 2 (x,y) 
+        
+        Otherwise, ColorSpec with no dim was provided.  In this case,
+        data.shape[spatial_dim] = 3 (x,y,color)
         """
+        data = self.get_numpy(data)
+
+        if data.ndim not in (3, 4):
+            raise RuntimeError(f'scatter_grid: data must have 3 or 4 dimensions')
+        if data.shape[1] == 3 or data.ndim == 4:
+            if palette is None:
+                raise RuntimeError(
+                    f'scatter_grid: got {palette=} but {data.shape=}. '
+                    f'data has color information but no palette specified')
+        if data.shape[-1] == 2 and data.ndim == 3:
+            palette = None
+
+        init_cfg = dict(glyph_kind='scatter', palette=palette, fig_kwargs=fig_kwargs)
+        append_dim = 1 if append else None
+        nd_columns = 'xy' if data.shape[-1] == 2 else 'xyz'
+        cds_opts = dict(append_dim=append_dim, nd_columns=nd_columns, zmode=None)
+
+        if data.ndim == 4: # color is dimension 1
+            data = array_util.dim_to_data(data, 1, 3, (0, 1))
+            # merge dimensions 1 and 2
+            shape = list(data.shape)
+            shape[1] *= shape[2]
+            shape.pop(2)
+            # [grid, points, spatial]
+            data = data.reshape(*shape)
+
+        spatial_dim = data.ndim - 1
+        data = array_util.make_grid(data, spatial_dim, 0, grid_columns, grid_spacing)
+        data = data.reshape(-1, data.shape[-1])
+
+        # bokeh scatter expects shape [xy, points]
+        data = data.transpose(1, 0)
+        self._send(plot_name, data, init_cfg, cds_opts)
+
+    def tandem_lines(self, plot_name, data, palette=None, fig_kwargs={}):
+        """
+        plot_name: the plot to plot this data
+        data: [lines, new_points, xy]  (xy = 2)
+        
+        Adds `num_points` new points each to `lines` lines.  Each point is defined by
+        its `xy` coordinates.
+
+        Expect all calls for `plot_name` to have the same num_lines, but may have
+        differing num_new_points.
+        """
+        # TODO: add client-side integrity checks
+        # The multi_line plot expects 
         init_cfg = dict(glyph_kind='multi_line', palette=palette, fig_kwargs=fig_kwargs)
-
-        ys = self.get_numpy(ys)
-        xs = np.full(ys.shape[0], x)
-        data = np.stack((xs, ys), axis=0)
-
-        # data: 2, L, 1
-        data = data.reshape(*data.shape, 1)
-        data = data.tolist()
         zmode = None if palette is None else 'linecolor'
-        cds_opts = dict(append_dim=2, nd_columns='xy', zmode=zmode)
+        
+        # bokeh multi_line requires shape [xy, lines, new_points]
+        data = data.transpose(2,0,1)
+        append_dim = 2 # new_points dimension
+        cds_opts = dict(append_dim=append_dim, nd_columns='xy', zmode=zmode)
         self._send(plot_name, data, init_cfg, cds_opts)
 
     def multi_lines(self, plot_name, data, line_dims, spatial_dim, append, color=None,
@@ -222,7 +230,7 @@ class DataLogger:
             line_dims = (line_dims,)
 
         init_cfg = dict(glyph_kind='multi_line', fig_kwargs=fig_kwargs)
-        append_dim = 2 if append else -1
+        append_dim = 2 if append else None
         cds_opts = dict(append_dim=append_dim, zmode=None)
 
         data = self._maybe_apply_color(data, color, spatial_dim, init_cfg, cds_opts)
