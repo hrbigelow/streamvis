@@ -150,7 +150,7 @@ functions for logging the additional data with various visualization instruction
 
 
 ```python
-from streamvis import DataLogger, ColorSpec, GridSpec
+from streamvis import DataLogger, GridSpec
 
 # arbitrary run name for scoping (currently unused)
 run_name = 'myapp'
@@ -193,7 +193,7 @@ for step in range(10000):
 
     # Colorize the L dimension
     logger.scatter(plot_name='bottom_left', data=data_rank3, spatial_dim=2,
-            append=False, color=ColorSpec('Viridis256', 0))
+            append=False))
 
     # data4 = np.random.randn(N,3)
     data4 = np.random.uniform(size=(N,3))

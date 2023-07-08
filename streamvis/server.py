@@ -210,6 +210,7 @@ class Server:
                 for page in self.pages.values():
                     if self.update_pending or not page.page_built:
                         page.schedule_callback()
+                # Here is a bug 
                 self.update_pending = False
 
     def pubsub_callback(self, message):
@@ -254,9 +255,12 @@ class Server:
         req = doc.session_context.request
         session_id = doc.session_context.id
 
-        page = pagelayout.PageLayout(self, doc)
-        page.process_request(req)
-        page.set_pagesize(1800, 900)
+        if len(req.arguments) == 0:
+            page = pagelayout.IndexPage(self, doc)
+        else:
+            page = pagelayout.PageLayout(self, doc)
+            page.process_request(req)
+            page.set_pagesize(1800, 900)
 
         with self.page_lock:
             self.pages[session_id] = page

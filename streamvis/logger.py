@@ -205,6 +205,9 @@ class DataLogger:
         Expect all calls for `plot_name` to have the same num_lines, but may have
         differing num_new_points.
         """
+        if 'text_font_size' not in fig_kwargs:
+            fig_kwargs['text_font_size'] = { 'value': '24px' }
+
         data = self.get_numpy(data)
         if data.ndim != 3 or data.shape[2] != 2:
             raise RuntimeError(

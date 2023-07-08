@@ -1,7 +1,49 @@
 import numpy as np
 from bokeh.layouts import column, row
+from bokeh.models.dom import HTML
+from bokeh.models import Div
 from . import plots
 
+class IndexPage:
+    """
+    An index page, providing links to each available plot
+    """
+    def __init__(self, state_machine, doc):
+        self.state_machine = state_machine
+        self.doc = doc
+        self.session_id = doc.session_context.id
+        self.doc.on_session_destroyed(self.destroy)
+        self.page_built = False
+
+    def destroy(self, session_context):
+        del self.state_machine.pages[self.session_id]
+
+    def build_page(self, state):
+        self.container = row()
+        text = '<h2>Streamvis Server Index Page</h2>'
+        text += '<p>no plots available yet...</p>'
+        self.container.children.append(column([Div(text=text)]))
+        self.doc.add_root(self.container)
+        self.page_built = True
+
+    def schedule_callback(self):
+        self.doc.add_next_tick_callback(self.update_callback)
+
+    def update_callback(self):
+        with self.state_machine.get_state(blocking=False) as state:
+            if state is None:
+                self.schedule_callback()
+                return
+            if not self.page_built:
+                self.build_page(state)
+            known_plots = state.keys()
+            if len(known_plots) == 0:
+                return
+
+            inner = '<br>'.join(plot for plot in known_plots)
+            html = f'<p>{inner}</p>'
+            self.container.children[0].children[0] = Div(text=html)
+            # print(f'bar: in IndexPage::update_callback with {html=}')
 
 class PageLayout:
     """
@@ -72,7 +114,7 @@ class PageLayout:
         """
         args = request.arguments
 
-        with self.state_machine.get_state() as state:
+        with self.state_machine.get_state(blocking=True) as state:
             known_plots = state.keys()
 
         def maybe_get(args, param):
@@ -194,6 +236,7 @@ class PageLayout:
         """
         with self.state_machine.get_state(blocking=False) as state:
             if state is None:
+                self.schedule_callback()
                 return
             if not all(plot in state for plot in self.plots):
                 # state is incomplete
