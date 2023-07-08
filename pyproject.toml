@@ -11,7 +11,7 @@ dependencies = [
   "tornado",
   "numpy",
   "fire",
-  "bokeh"
+  "bokeh>=3.0.0"
 ]
 
 [project.scripts]
