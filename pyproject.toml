@@ -11,7 +11,8 @@ dependencies = [
   "tornado",
   "numpy",
   "fire",
-  "bokeh>=3.0.0"
+  "bokeh>=3.0.0",
+  "google-cloud-storage"
 ]
 
 [project.scripts]

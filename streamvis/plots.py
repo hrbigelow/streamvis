@@ -12,6 +12,7 @@ def make_figure(name, kind, palette, fig_kwargs):
     """
     # print(f'make_figure: {name=}, {kind=}, {palette=}, {fig_kwargs=}')
     fig = figure(title=name, **fig_kwargs)
+    fig.title.text_font_size = '16px'
     col_map = dict(x=[], y=[], z=[]) if palette else dict(x=[], y=[])
     cds = ColumnDataSource(col_map, name=name)
 
