@@ -1,45 +1,53 @@
-import pickle
+import numpy as np
+from . import data_pb2 as pb
+import pdb
 
-def topic_exists(pub_client, project, topic):
+def pack_message(message):
     """
+    Create a delimited protobuf message as bytes
     """
-    project_path = f'projects/{project}'
-    gen = (tx.name for tx in pub_client.list_topics(project=project_path))
-    topic_path = pub_client.topic_path(project, topic)
-    return topic_path in gen
+    content = message.SerializeToString()
+    length_code = len(content).to_bytes(4, 'big')
+    if isinstance(message, pb.MetaData):
+        kind_code = b'\x00'
+    elif isinstance(message, pb.Points):
+        kind_code = b'\x01'
+    return kind_code + length_code + content 
 
-class LogEntry:
+def unpack_messages(messages):
     """
-    Represents the base unit communicated from the client
+    Unpack bytes representing zero or more packed messages
     """
-    def __init__(self, run, action, plot_name, payload):
-        self.run = run
-        self.action = action
-        self.plot_name = plot_name
-        try:
-            payload = pickle.loads(payload)
-        except Exception as e:
-            raise RuntimeError(
-                f'LogEntry ({self.run}, {self.action}, {self.plot_name}) payload '
-                f'couldn\'t be unpickled:\n{e}')
-        if self.action == 'init':
-            self.config = payload
+    items = []
+    off = 0
+    end = len(messages)
+    while off != end:
+        kind_code = messages[off:off+1]
+        length_code = messages[off+1:off+5]
+        kind = int.from_bytes(kind_code, 'big')
+        length = int.from_bytes(length_code, 'big')
+        content = messages[off+5:off+5+length]
+        if kind == 0:
+            item = pb.MetaData()
+        elif kind == 1:
+            item = pb.Points()
         else:
-            self.tensor_data = payload
+            raise RuntimeError(f'Unknown kind {kind}, length {length}')
+        item.ParseFromString(content)
+        off += 5 + length
+        items.append(item)
+    return items
 
-    def __repr__(self):
-        return (f'{self.run=}\n'
-                f'{self.action=}\n'
-                f'{self.plot_name=}\n'
-                f'{self.config=}\n'
-                f'{repr(self.tensor_data)[:100]}...\n')
-
-    @classmethod
-    def from_pubsub_message(cls, message):
-        run = message.attributes.get('run')
-        action = message.attributes.get('action')
-        plot_name = message.attributes.get('plot_name')
-        if plot_name is None:
-            raise RuntimeError(f'no plot_name field')
-        return cls(run, action, plot_name, message.data)
+def points_to_cds(points, group): 
+    selected = [p for p in points if p.meta_id == group.id]
+    selected = sorted(selected, key=lambda p: p.seqnum)
+    cds = { d.name: [] for d in group.data }
+    inames = [ d.name for d in group.data if d.is_integer ]
+    fnames = [ d.name for d in group.data if not d.is_integer ]
+    names = inames + fnames
+    num_columns = len(names)
+    num_points = len(points)
+    grid = np.array([[*p.idata, *p.fdata] for p in selected]).transpose()
+    cds = dict(zip(names, grid))
+    return cds 
 

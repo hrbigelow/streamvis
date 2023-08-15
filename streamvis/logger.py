@@ -1,10 +1,13 @@
 import numpy as np
 from dataclasses import dataclass
+from google.cloud import storage
+import random
+import time
 import signal
 import fcntl
-import pickle
 from bokeh import palettes
 from . import array_util, util
+from . import data_pb2 as pb
 
 @dataclass
 class GridSpec:
@@ -30,71 +33,120 @@ class NonInterrupt:
         if self.signal_received:
             self.old_handler(*self.signal_received)
 
+
 class DataLogger:
     """
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self, run_name):
+    def __init__(self, scope):
         self.configured_plots = set()
-        self.pub = None
-        self.run_name = run_name
-        self.write_log_fh = None
+        self.scope = scope
+        self.metadata = {}
+        self.seqnum = {}
+        random.seed(time.time())
 
-    def init_pubsub(self, project_id, topic_id):
-        from google.cloud import pubsub_v1
-        self.pub = pubsub_v1.PublisherClient(
-                publisher_options = pubsub_v1.types.PublisherOptions(
-                    enable_message_ordering=True
-                    ))
-        if not util.topic_exists(self.pub, project_id, topic_id):
+    def init_gcs(self, bucket_name, blob_name, buffer_items=100):
+        """
+        Initialize logger to log data to the given GCS blob
+        buffer_items:  number of data items to buffer
+        bucket_name:  GCS bucket name for writing all data
+        blob_name:  GCS blob name for writing all data
+        """
+        client = storage.Client()
+        bucket = client.get_bucket(bucket_name)
+        self.blob = bucket.blob(blob_name)
+        if not self.blob.exists():
+            self.blob.upload_from_string('')
+        suffix = hex(random.randint(0, 0x1000000))[2:]
+        self.tmp_blob = bucket.blob(blob_name + '-' + suffix) 
+        self.buffer_items = buffer_items
+        self.points = pb.Points()
+
+    def _append_gcs(self, content):
+        """
+        Appends content to the GCS blob
+        content: protobuf message 
+        """
+        if self.tmp_blob.exists():
+            self.tmp_blob.delete()
+        self.tmp_blob.upload_from_string(content)
+        self.blob.compose([self.blob, self.tmp_blob])
+
+    def _write_message(self, message):
+        """
+        do a buffered write of the message.
+        If message is pb.Point, it is buffered in self.points
+        If it is pb.MetaData, it is written immediately
+        """
+        if isinstance(message, pb.MetaData):
+            packed = util.pack_message(message)
+            self._append_gcs(packed)
+        elif isinstance(message, pb.Point):
+            self.points.p.append(message)
+            if len(self.points.p) >= self.buffer_items:
+                packed = util.pack_message(self.points)
+                self._append_gcs(packed)
+                self.points = pb.Points()
+        else:
             raise RuntimeError(
-                f'Cannot initialize client since topic {topic_id} does not exist. '
-                f'Launch streamvis_server first, and provide the topic it returns')
-        self.topic_path = self.pub.topic_path(project_id, topic_id)
+                    'DataLogger::write accepts only MetaData or Point.  Received '
+                    f'{type(message)}')
 
-    def init_write_log(self, write_log_path):
-        try:
-            self.write_log_fh = open(write_log_path, 'ab')
-        except OSError as ex:
-            raise RuntimeError(f'Could not open {write_log_path=} for writing: {ex}')
+    def write(self, meta_name, **values):
+        """
+        Writes new data, possibly creating a new 
+        """
+        if meta_name not in self.metadata:
+            meta = pb.MetaData()
+            meta.id = random.randint(0, 2**32)
+            meta.scope = self.scope
+            meta.name = meta_name
+            for name, val in values.items():
+                if not isinstance(val, (int, float)):
+                    raise RuntimeError(
+                        'DataLogger::write: `values` contains a non-{int,float} '
+                        f'value: {values}')
+                datum = meta.data.add()
+                datum.name = name
+                datum.is_integer = isinstance(val, int)
+
+            self.metadata[meta_name] = meta
+            self.seqnum[meta_name] = 0
+            self._write_message(meta)
+
+        meta = self.metadata[meta_name]
+        item = pb.Point()
+        item.meta_id = meta.id
+        item.seqnum = self.seqnum[meta_name]
+        self.seqnum[meta_name] += 1
+        for datum in meta.data:
+            if datum.name not in values:
+                raise RuntimeError(
+                    f'DataLogger::write: `values` does not contain datum {datum.name} '
+                    f'previously appearing in the metadata field.  '
+                    f'Expected data are {meta.data})') 
+            if datum.is_integer:
+                item.idata.append(values[datum.name])
+            else:
+                item.fdata.append(values[datum.name])
+
+        if len(values) != len(meta.data):
+            raise RuntimeError(
+                f'DataLogger::write: `values` contained extra entries. '
+                f'values: {values}\nvs.'
+                f'meta.data: {meta.data}')
+
+        self._write_message(item)
+
 
     def shutdown(self):
         """
         Call shutdown in a SIGINT or SIGTERM signal handler in your main application
         for a clean exit 
         """
-        if self.write_log_fh is not None:
-            print(f'\nClosing streamvis log file {self.write_log_fh.name}')
-            self.write_log_fh.close()
-
-    def _publish(self, plot_name, action, payload):
-        assert plot_name is not None, '_publish: plot_name is None'
-        # with NonInterrupt('_publish'):
-        # TODO: since the logger may run in a spawned process, the NonInterrupt
-        # mechanism (which relies on signal) is not allowed.
-        if self.pub is not None:
-            attrs = dict(run=self.run_name, plot_name=plot_name, action=action)
-            future = self.pub.publish(
-                    topic=self.topic_path, 
-                    data=pickle.dumps(payload), 
-                    ordering_key=self.run_name,
-                    **attrs)
-            future.result()
-
-        if self.write_log_fh is not None:
-            # TODO: context manager
-            fcntl.flock(self.write_log_fh, fcntl.LOCK_EX)
-            log_entry = util.LogEntry(self.run_name, action, plot_name, payload)
-            pickle.dump(log_entry, self.write_log_fh)
-            fcntl.flock(self.write_log_fh, fcntl.LOCK_UN)
-
-    def _send(self, plot_name, data, init_cfg, cds_opts):
-        if plot_name not in self.configured_plots:
-            init_data = { **init_cfg, 'cds_opts': cds_opts}
-            self._publish(plot_name, 'init', init_data)
-            self.configured_plots.add(plot_name)
-        self._publish(plot_name, 'add-data', data)
+        # Any GCS resources need flushing or cleanup?
+        pass
 
     @staticmethod
     def get_numpy(data):

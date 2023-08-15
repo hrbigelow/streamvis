@@ -1,56 +1,49 @@
 import numpy as np
+import re
 from bokeh.layouts import column, row
 from bokeh.models.dom import HTML
-from bokeh.models import Div
-from . import plots
+from bokeh.models import Div, ColumnDataSource
+from bokeh.plotting import figure
+from streamvis import util
 
 class IndexPage:
     """
     An index page, providing links to each available plot
     """
-    def __init__(self, state_machine, doc):
-        self.state_machine = state_machine
+    def __init__(self, server, doc):
+        self.server = server
         self.doc = doc
         self.session_id = doc.session_context.id
         self.doc.on_session_destroyed(self.destroy)
         self.page_built = False
 
     def destroy(self, session_context):
-        del self.state_machine.pages[self.session_id]
+        del self.server.pages[self.session_id]
 
-    def build_page(self, state):
+    def build_page(self):
         self.container = row()
         text = '<h2>Streamvis Server Index Page</h2>'
-        text += '<p>no plots available yet...</p>'
         self.container.children.append(column([Div(text=text)]))
+        inner = '<br>'.join(plot for plot in self.server.schema.keys())
+        html = f'<p>{inner}</p>'
+        self.container.children[0].children[0] = Div(text=html)
         self.doc.add_root(self.container)
-        self.page_built = True
 
     def schedule_callback(self):
         self.doc.add_next_tick_callback(self.update_callback)
 
     def update_callback(self):
-        with self.state_machine.get_state(blocking=False) as state:
-            if state is None:
-                self.schedule_callback()
-                return
-            if not self.page_built:
-                self.build_page(state)
-            known_plots = state.keys()
-            if len(known_plots) == 0:
-                return
-
-            inner = '<br>'.join(plot for plot in known_plots)
-            html = f'<p>{inner}</p>'
-            self.container.children[0].children[0] = Div(text=html)
-            # print(f'bar: in IndexPage::update_callback with {html=}')
+        # no-op because the schema doesn't change
+        pass
 
 class PageLayout:
     """
     Represents a browser page
     """
-    def __init__(self, state_machine, doc):
-        self.state_machine = state_machine
+    def __init__(self, server, doc):
+        self.server = server
+        # index into the server message log
+        self.read_pos = 0
         self.doc = doc
         self.session_id = doc.session_context.id
         self.doc.on_session_destroyed(self.destroy)
@@ -59,18 +52,30 @@ class PageLayout:
         self.box_elems = None
         self.widths = None
         self.heights = None
-        self.page_built = False
+        self.server_points_pos = 0 
 
     def destroy(self, session_context):
-        del self.state_machine.pages[self.session_id]
+        # This seems very suspicious, because
+        # self.server.pages[self.session_id] == self 
+        del self.server.pages[self.session_id]
 
     def _set_layout(self, plots, box_elems, box_part, plot_part):
         """
+        The overall page layout is a list of 'boxes', with each box containing
+        one or more plots.  The boxes are either all Bokeh row or column objects.
+        Accordingly, each plot is addressed by a (box, elem) tuple indicating which
+        box it is in, and its position within the box.
+
+        Computes height and width fractions for all plots and sets the properties.
+        `widths` and `heights`.  Once overall page width and height are known, these
+        fractions can be used to resolve the individual plot dimensions in pixels.
+
         box_elems:  box_elems[i] = number of plots in box i
         box_part:   box_part[i] = relative stacking size of box i
         plot_part:  plot_part[i] = relative size of plot i
+
         """
-        self.plots = plots
+        self.plot_names = plots
         self.versions = [-1] * len(plots)
         self.box_elems = box_elems
 
@@ -111,11 +116,12 @@ class PageLayout:
 
         Exactly one of `rows` or `cols` must be given.  Both `width` and `height` are
         optional.
+
+        This function only accesses the server schema, not the data state
         """
         args = request.arguments
 
-        with self.state_machine.get_state(blocking=True) as state:
-            known_plots = state.keys()
+        known_plots = self.server.schema.keys()
 
         def maybe_get(args, param):
             val = args.pop(param, None)
@@ -130,9 +136,8 @@ class PageLayout:
                 for plot in items:
                     if plot not in known_plots:
                         raise RuntimeError(
-                            f'In {param}={grid}, plot \'{plot}\' is not among the '
-                            f'known plots, or has no data yet.  Known plots are:\n'
-                            f'{", ".join(known_plots)}')
+                            f'In {param}={grid}, plot \'{plot}\' is not in the schema. '
+                            f'Schema contains plots {", ".join(known_plots)}')
                     plots.append(plot)
                 box_elems.append(len(items))
 
@@ -180,6 +185,7 @@ class PageLayout:
             box_part = parse_csv('width', width_arg, len(box_elems))
             
         self._set_layout(plots, box_elems, box_part, plot_part)
+        self.build_page()
 
     def get_figsize(self, index):
         width = int(self.widths[index] * self.page_width)
@@ -190,37 +196,25 @@ class PageLayout:
         self.page_width = width
         self.page_height = height
 
-    def build_page(self, state):
+    def build_page(self):
         """
         Build the page for the first time
         """
         self.container = column() if self.row_mode else row() 
+        schema = self.server.schema
 
-        for index in range(len(self.plots)):
-            plot = self.plots[index]
+        for index, plot_name in enumerate(self.plot_names):
             box_index, _ = self.coords[index]
             if box_index >= len(self.container.children):
                 box = row() if self.row_mode else column()
                 self.container.children.append(box)
             box = self.container.children[box_index]
-            ps = state[plot]
-            fig_kwargs = ps.fig_kwargs
+            fig_kwargs = schema[plot_name].get('kwargs', {})
             fig_kwargs.update(self.get_figsize(index))
-            fig = plots.make_figure(plot, ps.glyph_kind, ps.palette, fig_kwargs)
+            fig = figure(name=plot_name, **fig_kwargs)
             box.children.append(fig)
             # print(f'in build_page, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
-            self.versions[index] = ps.version
         self.doc.add_root(self.container)
-        self.page_built = True
-
-    def replace_plot(self, index, fig):
-        """
-        Assuming the layout is initialized, replace the plot 
-        """
-        # print(f'replace_plot: {index=}, {fig=}')
-        box_index, elem_index = self.coords[index]
-        box = self.container.children[box_index]
-        box.children[elem_index] = fig
 
     def get_data_source(self, index):
         box_index, elem_index = self.coords[index]
@@ -230,41 +224,41 @@ class PageLayout:
     def schedule_callback(self):
         self.doc.add_next_tick_callback(self.update_callback)
 
+    @staticmethod
+    def matching_groups(plot_schema, groups):
+        matched = []
+        for g in groups:
+            if (re.match(plot_schema['scope_pattern'], g.scope) and
+                    re.match(plot_schema['name_pattern'], g.name)):
+                matched.append(g)
+        return matched
+
     def update_callback(self):
         """
         Scheduled as a next-tick callback when server state is updated
         """
-        with self.state_machine.get_state(blocking=False) as state:
-            if state is None:
+        with self.server.get_state(blocking=False) as state:
+            if self.server_points_pos == len(state['points']):
+                # no new data
                 self.schedule_callback()
                 return
-            if not all(plot in state for plot in self.plots):
-                # state is incomplete
-                return
-            if not self.page_built:
-                self.build_page(state)
             
             # update any figures if out of date version
-            for index, plot in enumerate(self.plots):
-                ps = state[plot]
-                if self.versions[index] != ps.version:
-                    fig_kwargs = ps.fig_kwargs
-                    fig_kwargs.update(self.get_figsize(index))
-                    fig = plots.make_figure(plot, ps.glyph_kind, ps.palette, fig_kwargs)
-                    # does this work?
-                    self.replace_plot(index, fig)
-                    self.versions[index] = ps.version
-                if ps.nddata is None:
-                    return
-
-                # update cds
-                cds = self.get_data_source(index)
-                zmode = ps.cds_opts['zmode']
-                nd_columns = ps.cds_opts['nd_columns']
-                ary = ps.nddata
-                cdata = dict(zip(nd_columns, ary.tolist()))
-                if zmode == 'linecolor':
-                    k = ary.shape[1]
-                    cdata['z'] = np.linspace(0, 1, k).tolist()
-                cds.data = cdata
+            new_points = state['points'][self.server_points_pos:]
+            # print(f'got {len(new_points)} new points')
+            all_data_groups = state['metadata']
+            for fig in self.doc.select(selector={'type': figure}):
+                # print('bla: ', fig.name)
+                plot_schema = self.server.schema[fig.name]
+                data_groups = self.matching_groups(plot_schema, all_data_groups)
+                for group in data_groups:
+                    glyphs = fig.select({'name': str(group.id)})
+                    if len(glyphs) == 0:
+                        cols = plot_schema['columns']
+                        cds = ColumnDataSource({c: [] for c in cols})
+                        fig.line(*cols, source=cds, name=str(group.id))
+                    glyph = fig.select({'name': str(group.id)})[0]
+                    new_cds_data = util.points_to_cds(new_points, group)
+                    glyph.data_source.stream(new_cds_data)
+            self.server_points_pos = len(state['points'])
 

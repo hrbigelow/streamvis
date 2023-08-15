@@ -5,15 +5,17 @@ import signal
 import sys
 import os
 import fcntl
-import pickle
 import uuid
+import yaml
 from contextlib import contextmanager
+from google.cloud import storage
 from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
-from streamvis import util, plotstate, pagelayout
+from streamvis import util, data_pb2 as pb
+from streamvis.page import IndexPage, PageLayout
 
 class LockManager:
     def __init__(self):
@@ -39,165 +41,59 @@ class CleanupHandler(Handler):
 
     
 class Server:
-    def __init__(self, run_name):
-        """
-        run_name: a name to scope this run
-        """
+    def __init__(self, gcs_fetch_period=5.0, page_update_period=1.0):
         self.update_lock = threading.Lock()
-        self.run_state = { run_name: {} }
-        self.run_name = run_name
-        self.is_pubsub = False
-        self.write_log_fh = None
-        self.read_log_fh = None
+        self.schema = {}
+        # metadata and points are append-only logs, collective the server data 'state'
+        self.metadata = []
+        self.points = []
 
+        # should this (and the blob?) be protected? 
+        self.blob_offset = 0
         self.page_lock = LockManager()
-        self.pages = {}
+        self.pages = {} # map of session_id -> {page.PageLayout or page.IndexPage}
         self.update_pending = False # pretected by page_lock, tells if update needed 
+        self.gcs_fetch_period = gcs_fetch_period # seconds 
+        self.page_update_period = page_update_period
 
-    def init_write_log(self, write_log_path):
-        try:
-            self.write_log_fh = open(write_log_path, 'ab')
-        except OSError as ex:
-            raise RuntimeError(f'Could not open {write_log_path=} for writing: {ex}')
-
-    """
-    The server uses either a log file or a pubsub subscription (exactly one of
-    these).  The semantics are as follows:
-
-    resource           init_read_log    init_pubsub 
-    data               log_file         topic    
-    handle             filehandle       subscription
-    location           seek to start    seek to start
-
-    The semantics differ in that once streamvis reads a message on pubsub, it is
-    acknowledged and then goes away.  Whereas, when streamvis reads an entry in the
-    log file, the message remains, and could be read again by another streamvis
-    server instance.
-
-    In both cases, streamvis manages the handle - creating it on startup, and
-    destroying it on shutdown.  It also seeks the handle to the beginning of the
-    data.
-    """
-
-    def init_read_log(self, read_log_path):
+    def load_schema(self, schema_file):
         """
-        Open `read_log_path` for binary reading, creating the file if not exists.
+        Parses and sets the schema, determines how plots are created from data
         """
-        if os.path.exists(read_log_path):
-            try:
-                self.read_log_fh = open(read_log_path, 'rb')
-                print(f'Opened log file \'{read_log_path}\' for reading.')
-            except OSError as ex:
-                raise RuntimeError(
-                    f'{read_log_path=} could not be opened for reading: {ex}')
-            return
         try:
-            open(read_log_path, 'a').close()
-            self.read_log_fh = open(read_log_path, 'rb')
-            print(f'Created new log file \'{read_log_path}\' opened for reading.')
-            print('Launch a client process to write to this file')
-        except OSError as ex:
+            with open(schema_file, 'r') as fh: 
+                schema = yaml.safe_load(fh)
+        except Exception as ex:
             raise RuntimeError(
-                f'{read_log_path=} did not exist and couldn\'t be created: {ex}')
+                    f'Server could not open or parse schema file {schema_file}. '
+                    f'Exception was: {ex}')
+        self.schema = schema
 
-    def init_pubsub(self, project_id, topic_id): 
+    def init_gcs(self, bucket_name, blob_name):
         """
-        Set up the server to use Pub/Sub.  
+        Initialize the data source as a GCS blob
         """
-        print('Starting streamvis server...', flush=True)
-        from google.cloud import pubsub_v1
-        self.is_pubsub = True
-        self.project_id = project_id
-        subscription_id = 'streamvis-{}'.format(str(uuid.uuid4())[:8])
-
-        # the subscriber client object must exist during the subscription
-        self.sub_client = pubsub_v1.SubscriberClient()
-        self.topic_path = self.sub_client.topic_path(project_id, topic_id)
-        with pubsub_v1.PublisherClient() as client:
-            if not util.topic_exists(client, project_id, topic_id):
-                raise RuntimeError(
-                    f'Topic {self.topic_path} did not exist.  '
-                    f'Create it separately with:\n'
-                    f'gcloud pubsub topics create {topic_id}')
-
-        self.sub_path = self.sub_client.subscription_path(project_id, subscription_id)
-        self.sub_client.create_subscription(request=
-                dict(name=self.sub_path, 
-                    topic=self.topic_path, 
-                    enable_message_ordering=True,
-                    # enable_exactly_once_delivery=True,
-                    filter=f'attributes.run = "{self.run_name}"'
-                    )
-                )
-
-        # the future is not needed since we wait indefinitely
-        sub = self.sub_client.subscribe(self.sub_path, callback=self.pubsub_callback)
-        req = dict(subscription=self.sub_path, time='1970-01-01T00:00:00.00Z')
-        self.sub_client.seek(req)
-        print(f'Created subscription: {subscription_id}')
+        client = storage.Client()
+        self.bucket = client.get_bucket(bucket_name)
+        self.blob_name = blob_name
 
     def shutdown(self):
-        if self.is_pubsub:
-            from google.cloud import pubsub_v1
-            self.sub_client.delete_subscription(request={'subscription': self.sub_path})
-            print(f'Deleted subscription {self.sub_path}')
-
-        if self.read_log_fh is not None:
-            self.read_log_fh.close()
-        if self.write_log_fh is not None:
-            print(f'Wrote {self.write_log_fh.tell()} bytes to write_log file '
-                    f'{self.write_log_fh.name}')
-            self.write_log_fh.close()
+        """
+        Cleanup actions.  What is needed for GCS?
+        """
+        pass
 
     @contextmanager
     def get_state(self, blocking=False):
         locked = self.update_lock.acquire(blocking=blocking)
         try:
             if locked:
-                yield self.run_state.get(self.run_name, None)
+                yield dict(metadata=self.metadata, points=self.points)
             else:
                 yield None
         finally:
             if locked:
                 self.update_lock.release()
-
-    """
-    Server runs in either 'file' mode or 'pubsub' mode.  
-
-    file mode: logfile_callback updates state - called from Tornado IOLoop
-    pubsub mode: pubsub_callback updates state - called from pubsub separate thread
-    """
-    async def logfile_callback(self):
-        # don't want to block
-        def update(state):
-            # runs while state is locked
-            while True:
-                try:
-                    log_entry = pickle.load(self.read_log_fh)
-                    name = log_entry.plot_name
-                    plot_state = state.setdefault(name, plotstate.PlotState(name))
-                    plot_state.update(log_entry)
-                except EOFError:
-                    break
-                except Exception as ex:
-                    print(f'Could not process log_entry from log file: {ex}',
-                            file=sys.stderr)
-                    sys.exit(1)
-
-        while True:
-            await asyncio.sleep(1)
-            with self.get_state(blocking=False) as locked_state:
-                if locked_state is None:
-                    continue
-                fcntl.flock(self.read_log_fh, fcntl.LOCK_EX)
-                update(locked_state)
-                fcntl.flock(self.read_log_fh, fcntl.LOCK_UN)
-
-            with self.page_lock:
-                self.update_pending = True
-                # print(f'main loop logfile_callback, {len(self.pages)=}')
-                # for page in self.pages.values():
-                    # page.schedule_callback()
 
     async def update_pages(self):
         """
@@ -205,42 +101,54 @@ class Server:
         or a new page 
         """
         while True:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(self.page_update_period)
             with self.page_lock:
-                for page in self.pages.values():
-                    if self.update_pending or not page.page_built:
+                if self.update_pending:
+                    for page in self.pages.values():
                         page.schedule_callback()
-                # Here is a bug 
                 self.update_pending = False
 
-    def pubsub_callback(self, message):
+    def fetch_new_data(self):
         """
+        Read any new data from the blob, updating the current position
         """
-        # print(f'in pubsub_callback with {message.message_id}')
-        message.ack()
-        try:
-            log_entry = util.LogEntry.from_pubsub_message(message)
-        except Exception as ex:
-            print('Could not create log_entry from pubsub message: {ex}', file=sys.stderr)
+        blob = self.bucket.blob(self.blob_name)
+        blob.reload()
+        if self.blob_offset == blob.size:
             return
 
-        with self.get_state(blocking=True) as state:
-            name = log_entry.plot_name
-            plot_state = state.setdefault(name, plotstate.PlotState(name))
-            try:
-                plot_state.update(log_entry)
-            except Exception as ex:
-                print(f'Could not process log_entry from pubsub message: {ex}.  Skipping.',
-                        file=sys.stderr)
-                return
+        messages = blob.download_as_bytes(start=self.blob_offset)
+        self.blob_offset += len(messages)
 
-        if self.write_log_fh is not None:
-            pickle.dump(log_entry, self.write_log_fh)
+        try:
+            items = util.unpack_messages(messages)
+        except Exception as ex:
+            raise RuntimeError(f'Could not unpack messages from GCS log file {blob.name}')
+
+        new_meta = []
+        new_points = []
+        for item in items:
+            if isinstance(item, pb.MetaData):
+                new_meta.append(item)
+            elif isinstance(item, pb.Points):
+                new_points.extend(item.p)
+            else:
+                raise RuntimeError(
+                    f'Received unknown message type {type(item)} from GCS log file '
+                    f'{blob.name}')
+
+        with self.get_state(blocking=True) as state:
+            # print(f'adding {len(new_points)} new data to server')
+            state['metadata'].extend(new_meta)
+            state['points'].extend(new_points)
 
         with self.page_lock:
             self.update_pending = True
-            # for page in self.pages.values():
-                # page.schedule_callback()
+
+    async def gcs_callback(self):
+        while True:
+            await asyncio.sleep(self.gcs_fetch_period)
+            self.fetch_new_data()
 
     def add_page(self, doc):
         """
@@ -256,50 +164,32 @@ class Server:
         session_id = doc.session_context.id
 
         if len(req.arguments) == 0:
-            page = pagelayout.IndexPage(self, doc)
+            page = IndexPage(self, doc)
         else:
-            page = pagelayout.PageLayout(self, doc)
-            page.process_request(req)
+            page = PageLayout(self, doc)
             page.set_pagesize(1800, 900)
+            page.process_request(req)
 
         with self.page_lock:
             self.pages[session_id] = page
 
-def make_server(port, run_name, project, topic, read_log_path, write_log_path):
+def make_server(port, schema_file, gcs_bucket, gcs_blob):  
     """
-    port: webserver port
-    run_name: arbitrary name for this
-    project: Google Cloud Platform project id with Pub/Sub API enabled
-    topic: Pub/Sub topic for client/server communication.
+    port: localhost port to run this server on
+    schema_file:  YAML schema file defining plots
+    gcs_bucket: name of a Google Cloud Storage bucket
+    gcs_blob:  name of a blob in this bucket
     """
-    sv_server = Server(run_name)
-    if project is None and read_log_path is None:
-        raise RuntimeError(
-            f'No information source provided.  Either provide `project` and `topic` '
-            f'or `read_log_path`')
-    if (project is None) != (topic is None):
-        raise RuntimeError(
-            f'`project` and `topic` must be provided together or both absent')
-    if write_log_path and read_log_path:
-        raise RuntimeError(
-            f'`write_log_path` and `read_log_path` cannot both be provided. '
-            f'Received {write_log_path=}, {read_log_path=}')
+    sv_server = Server()
+    sv_server.load_schema(schema_file)
+    sv_server.init_gcs(gcs_bucket, gcs_blob)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop_wrap = tornado.ioloop.IOLoop.current()
 
-    if project is not None:
-        sv_server.init_pubsub(project, topic)
-
-    if read_log_path is not None:
-        sv_server.init_read_log(read_log_path)
-        loop.create_task(sv_server.logfile_callback())
-
-    if write_log_path is not None:
-        sv_server.init_write_log(write_log_path)
-
     loop.create_task(sv_server.update_pages())
+    loop.create_task(sv_server.gcs_callback())
 
     def shutdown_handler(signum, frame):
         print(f'Server received {signal.Signals(signum).name}')
@@ -318,34 +208,8 @@ def make_server(port, run_name, project, topic, read_log_path, write_log_path):
 
 def run():
     import fire
-    def file(port: int, run_name: str, log_file_path: str):
-        """
-        Visualize data from `log_file_path`
-
-        :param port: webserver port
-        :param run_name: unused
-        :param log_file_path: Path to existing local log file containing data to be
-                              visualized.  File may be produced by a previous server run 
-                              in `pubsub` mode, or produced by a previous run of the 
-                              streamvis client.
-        """
-        return make_server(port, run_name, None, None, log_file_path, None)
-
-    def pubsub(port: int, run_name: str, project: str, topic: str, log_file: str =None):
-        """
-        Visualize data from pubsub subscription
-
-        :param port: webserver port
-        :param run_name: unused
-        :param project: GCP project_id of existing project with Pub/Sub API enabled
-        :param topic: GCP Pub/Sub topic id.  Must already exist.  Create with gcloud
-                      or GCP console.
-        :param log_file: path to local file to log all received data if provided
-        """
-        return make_server(port, run_name, project, topic, None, log_file)
-
-    cmds = dict(file=file, pubsub=pubsub)
-    fire.Fire(cmds)
-
+    fire.Fire(make_server)
+    
 if __name__ == '__main__':
     run()
+

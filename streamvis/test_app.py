@@ -1,22 +1,13 @@
 import numpy as np
 import math
+import fire
 from time import sleep
-from random import randint
-from streamvis import DataLogger, GridSpec
+from streamvis import DataLogger
 
-def make_logger(run_name, project, topic, write_log_path):
-    if (project is None) != (topic is None):
-        raise RuntimeError(
-            f'`project` and `topic` must be provided together or both absent')
-    if project is None and write_log_path is None:
-        raise RuntimeError(
-            f'At least `project` or `write_log_path` must be provided')
-
-    logger = DataLogger(run_name)
-    if project is not None:
-        logger.init_pubsub(project, topic)
-    if write_log_path is not None:
-        logger.init_write_log(write_log_path)
+def make_logger(scope, bucket_name, blob_name):
+    logger = DataLogger(scope)
+    buffer_items = 10
+    logger.init_gcs(bucket_name, blob_name, buffer_items)
 
     N = 50
     L = 20
@@ -34,12 +25,14 @@ def make_logger(run_name, project, topic, write_log_path):
         left_data = left_data + np.random.randn(N, 2) * 0.1
         layer_mult = np.linspace(0, 10, L)
 
-        logger.tandem_lines('top_left', top_data, palette='Viridis256') 
+        logger.write('top_left_1', x=step, y=math.sin(1 + step / 10))
+        logger.write('top_left_2', x=step, y=0.5 * math.sin(1.5 + step / 20))
+        logger.write('top_left_3', x=step, y=1.5 * math.sin(2 + step / 15))
 
         # Distribute the L dimension along grid cells
         data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
-        logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
-                grid_columns=5, grid_spacing=1.0)
+        # logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
+         #        grid_columns=5, grid_spacing=1.0)
 
         print(f'Logged {step=}')
         """
@@ -55,34 +48,6 @@ def make_logger(run_name, project, topic, write_log_path):
                 append=False, color=ColorSpec('Viridis256'))
         """
 
-def run():
-    import fire
-    def pubsub(run_name: str, project: str, topic: str, log_file: str = None):
-        """
-        Example test logger using Pub/Sub publishing and optional write log
-
-        :param run_name: unused
-        :param project: GCP project_id of existing project with Pub/Sub API enabled
-        :param topic: GCP Pub/Sub topic id.  Topic must already exist (will be
-                      created by the server)
-        :param log_file: path to local file to log all data produced.  File will be
-                         created if not exists.
-        """
-        return make_logger(run_name, project, topic, log_file)
-
-    def file(run_name: str, log_file: str):
-        """
-        Example test logger writing to a log file only
-
-        :param run_name: unused
-        :param log_file: path to local file to log all data produced.  File will be
-                         created if not exists.
-        """
-        return make_logger(run_name, None, None, log_file)
-
-    cmds = dict(pubsub=pubsub, file=file)
-    fire.Fire(cmds)
-
 if __name__ == '__main__':
-    run()
+    fire.Fire(make_logger)
 

@@ -1,0 +1,8 @@
+top_left:
+  scope_pattern: .*
+  name_pattern: top_left.*
+  glyph: line
+  columns:
+    - x
+    - y
+
