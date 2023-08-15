@@ -4,8 +4,6 @@ import threading
 import signal
 import sys
 import os
-import fcntl
-import uuid
 import yaml
 from contextlib import contextmanager
 from google.cloud import storage
@@ -52,7 +50,9 @@ class Server:
         self.blob_offset = 0
         self.page_lock = LockManager()
         self.pages = {} # map of session_id -> {page.PageLayout or page.IndexPage}
-        self.update_pending = False # pretected by page_lock, tells if update needed 
+        # pretected by page_lock.  this is set when the server receives new data
+        # and needs to update all pages
+        self.data_update_pending = False 
         self.gcs_fetch_period = gcs_fetch_period # seconds 
         self.page_update_period = page_update_period
 
@@ -97,16 +97,16 @@ class Server:
 
     async def update_pages(self):
         """
-        A callback that triggers page updating if either there is an update_pending,
-        or a new page 
+        A callback that triggers page updating if there is new data to
+        incorporate into plots
         """
         while True:
             await asyncio.sleep(self.page_update_period)
             with self.page_lock:
-                if self.update_pending:
+                if self.data_update_pending:
                     for page in self.pages.values():
                         page.schedule_callback()
-                self.update_pending = False
+                self.data_update_pending = False
 
     def fetch_new_data(self):
         """
@@ -143,7 +143,7 @@ class Server:
             state['points'].extend(new_points)
 
         with self.page_lock:
-            self.update_pending = True
+            self.data_update_pending = True
 
     async def gcs_callback(self):
         while True:
@@ -162,6 +162,7 @@ class Server:
         """
         req = doc.session_context.request
         session_id = doc.session_context.id
+        print(f'got {session_id=}')
 
         if len(req.arguments) == 0:
             page = IndexPage(self, doc)
@@ -169,9 +170,16 @@ class Server:
             page = PageLayout(self, doc)
             page.set_pagesize(1800, 900)
             page.process_request(req)
+            page.schedule_callback()
 
         with self.page_lock:
             self.pages[session_id] = page
+            print(f'server has {len(self.pages)} pages')
+
+    def delete_page(self, session_id):
+        with self.page_lock:
+            del self.pages[session_id]
+            print(f'deleted page {session_id}.  server now has {len(self.pages)} pages.')
 
 def make_server(port, schema_file, gcs_bucket, gcs_blob):  
     """

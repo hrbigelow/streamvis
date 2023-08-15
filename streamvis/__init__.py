@@ -1,2 +1,2 @@
 from .server import Server
-from .logger import DataLogger, GridSpec 
+from .logger import DataLogger

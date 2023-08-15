@@ -2,6 +2,8 @@ top_left:
   scope_pattern: .*
   name_pattern: top_left.*
   glyph: line
+  # glyph_kwargs:
+  #  palette: Viridis256
   columns:
     - x
     - y

@@ -18,7 +18,7 @@ class IndexPage:
         self.page_built = False
 
     def destroy(self, session_context):
-        del self.server.pages[self.session_id]
+        self.server.delete_page(self.session_id)
 
     def build_page(self):
         self.container = row()
@@ -55,9 +55,7 @@ class PageLayout:
         self.server_points_pos = 0 
 
     def destroy(self, session_context):
-        # This seems very suspicious, because
-        # self.server.pages[self.session_id] == self 
-        del self.server.pages[self.session_id]
+        self.server.delete_page(self.session_id)
 
     def _set_layout(self, plots, box_elems, box_part, plot_part):
         """
@@ -120,7 +118,6 @@ class PageLayout:
         This function only accesses the server schema, not the data state
         """
         args = request.arguments
-
         known_plots = self.server.schema.keys()
 
         def maybe_get(args, param):
@@ -215,13 +212,10 @@ class PageLayout:
             box.children.append(fig)
             # print(f'in build_page, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
-
-    def get_data_source(self, index):
-        box_index, elem_index = self.coords[index]
-        fig = self.container.children[box_index].children[elem_index]
-        return fig.renderers[0].data_source
+        print('finished building page')
 
     def schedule_callback(self):
+        print(f'in page {self.session_id} scheduling update callback')
         self.doc.add_next_tick_callback(self.update_callback)
 
     @staticmethod
@@ -237,26 +231,25 @@ class PageLayout:
         """
         Scheduled as a next-tick callback when server state is updated
         """
+        # print(f'in page {self.session_id} before reserving state')
         with self.server.get_state(blocking=False) as state:
+            # print(f'in page {self.session_id} update_callback, reserved server state')
             if self.server_points_pos == len(state['points']):
-                # no new data
-                self.schedule_callback()
                 return
             
             # update any figures if out of date version
             new_points = state['points'][self.server_points_pos:]
-            # print(f'got {len(new_points)} new points')
             all_data_groups = state['metadata']
             for fig in self.doc.select(selector={'type': figure}):
-                # print('bla: ', fig.name)
                 plot_schema = self.server.schema[fig.name]
+                glyph_kwargs = plot_schema.get('glyph_kwargs', {})
                 data_groups = self.matching_groups(plot_schema, all_data_groups)
                 for group in data_groups:
                     glyphs = fig.select({'name': str(group.id)})
                     if len(glyphs) == 0:
                         cols = plot_schema['columns']
                         cds = ColumnDataSource({c: [] for c in cols})
-                        fig.line(*cols, source=cds, name=str(group.id))
+                        fig.line(*cols, source=cds, name=str(group.id), **glyph_kwargs)
                     glyph = fig.select({'name': str(group.id)})[0]
                     new_cds_data = util.points_to_cds(new_points, group)
                     glyph.data_source.stream(new_cds_data)
