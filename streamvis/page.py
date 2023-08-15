@@ -15,12 +15,11 @@ class IndexPage:
         self.doc = doc
         self.session_id = doc.session_context.id
         self.doc.on_session_destroyed(self.destroy)
-        self.page_built = False
 
     def destroy(self, session_context):
         self.server.delete_page(self.session_id)
 
-    def build_page(self):
+    def build(self):
         self.container = row()
         text = '<h2>Streamvis Server Index Page</h2>'
         self.container.children.append(column([Div(text=text)]))
@@ -182,7 +181,7 @@ class PageLayout:
             box_part = parse_csv('width', width_arg, len(box_elems))
             
         self._set_layout(plots, box_elems, box_part, plot_part)
-        self.build_page()
+        self.build()
 
     def get_figsize(self, index):
         width = int(self.widths[index] * self.page_width)
@@ -193,7 +192,7 @@ class PageLayout:
         self.page_width = width
         self.page_height = height
 
-    def build_page(self):
+    def build(self):
         """
         Build the page for the first time
         """
@@ -210,7 +209,7 @@ class PageLayout:
             fig_kwargs.update(self.get_figsize(index))
             fig = figure(name=plot_name, **fig_kwargs)
             box.children.append(fig)
-            # print(f'in build_page, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
+            # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
         print('finished building page')
 
@@ -239,7 +238,7 @@ class PageLayout:
             
             # update any figures if out of date version
             new_points = state['points'][self.server_points_pos:]
-            all_data_groups = state['metadata']
+            all_data_groups = state['groups']
             for fig in self.doc.select(selector={'type': figure}):
                 plot_schema = self.server.schema[fig.name]
                 glyph_kwargs = plot_schema.get('glyph_kwargs', {})

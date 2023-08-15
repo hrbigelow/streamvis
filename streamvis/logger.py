@@ -4,7 +4,6 @@ import random
 import time
 import signal
 from . import util
-from . import data_pb2 as pb
 
 class DataLogger:
     """
@@ -14,7 +13,7 @@ class DataLogger:
     def __init__(self, scope):
         self.configured_plots = set()
         self.scope = scope
-        self.metadata = {}
+        self.point_groups = {}
         self.seqnum = {}
         random.seed(time.time())
 
@@ -32,8 +31,8 @@ class DataLogger:
             self.blob.upload_from_string('')
         suffix = hex(random.randint(0, 0x1000000))[2:]
         self.tmp_blob = bucket.blob(blob_name + '-' + suffix) 
-        self.buffer_items = buffer_items
-        self.points = pb.Points()
+        self.message_buf = []
+        self.buffer_max_size = buffer_items
 
     def _append_gcs(self, content):
         """
@@ -47,70 +46,33 @@ class DataLogger:
 
     def _write_message(self, message):
         """
-        do a buffered write of the message.
-        If message is pb.Point, it is buffered in self.points
-        If it is pb.MetaData, it is written immediately
+        buffered write of the message
         """
-        if isinstance(message, pb.MetaData):
-            packed = util.pack_message(message)
+        if len(self.message_buf) == self.buffer_max_size:
+            packed = util.pack_messages(self.message_buf)
             self._append_gcs(packed)
-        elif isinstance(message, pb.Point):
-            self.points.p.append(message)
-            if len(self.points.p) >= self.buffer_items:
-                packed = util.pack_message(self.points)
-                self._append_gcs(packed)
-                self.points = pb.Points()
-        else:
-            raise RuntimeError(
-                    'DataLogger::write accepts only MetaData or Point.  Received '
-                    f'{type(message)}')
+            self.message_buf.clear()
+        self.message_buf.append(messages)
 
-    def write(self, meta_name, **values):
+    def write(self, group_name, **values):
         """
-        Writes new data, possibly creating a new 
+        Writes new data, possibly creating a new MetaData item
         """
-        if meta_name not in self.metadata:
-            meta = pb.MetaData()
-            meta.id = random.randint(0, 2**32)
-            meta.scope = self.scope
-            meta.name = meta_name
-            for name, val in values.items():
-                if not isinstance(val, (int, float)):
-                    raise RuntimeError(
-                        'DataLogger::write: `values` contains a non-{int,float} '
-                        f'value: {values}')
-                datum = meta.data.add()
-                datum.name = name
-                datum.is_integer = isinstance(val, int)
-
-            self.metadata[meta_name] = meta
-            self.seqnum[meta_name] = 0
-            self._write_message(meta)
-
-        meta = self.metadata[meta_name]
-        item = pb.Point()
-        item.meta_id = meta.id
-        item.seqnum = self.seqnum[meta_name]
-        self.seqnum[meta_name] += 1
-        for datum in meta.data:
-            if datum.name not in values:
-                raise RuntimeError(
-                    f'DataLogger::write: `values` does not contain datum {datum.name} '
-                    f'previously appearing in the metadata field.  '
-                    f'Expected data are {meta.data})') 
-            if datum.is_integer:
-                item.idata.append(values[datum.name])
-            else:
-                item.fdata.append(values[datum.name])
-
-        if len(values) != len(meta.data):
+        if not all(isinstance(val, (int, float)) for val in values.values()):
             raise RuntimeError(
-                f'DataLogger::write: `values` contained extra entries. '
-                f'values: {values}\nvs.'
-                f'meta.data: {meta.data}')
+                'DataLogger::write: `values` contains a non-{int,float} value: {values}')
 
-        self._write_message(item)
+        if group_name not in self.point_groups:
+            field_types = { f: isinstance(val, int) for f, val in values.items() }
+            point_group = util.make_point_group(self.scope, group_name, **field_types)
+            self.point_groups[group_name] = point_group
+            self.seqnum[group_name] = 0
+            self._write_message(point_group)
+        point_group = self.point_groups[group_name]
 
+        point = util.make_point(point_group, self.seqnum[group_name], **values)
+        self.seqnum[group_name] += 1
+        self._write_message(point)
 
     def shutdown(self):
         """

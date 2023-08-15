@@ -13,19 +13,19 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ndata.proto\")\n\x05\x44\x61tum\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x12\n\nis_integer\x18\x02 \x01(\x08\"I\n\x08MetaData\x12\n\n\x02id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x14\n\x04\x64\x61ta\x18\x04 \x03(\x0b\x32\x06.Datum\"F\n\x05Point\x12\x0f\n\x07meta_id\x18\x01 \x01(\r\x12\x0e\n\x06seqnum\x18\x02 \x01(\r\x12\r\n\x05idata\x18\x03 \x03(\x05\x12\r\n\x05\x66\x64\x61ta\x18\x04 \x03(\x02\"\x1b\n\x06Points\x12\x11\n\x01p\x18\x01 \x03(\x0b\x32\x06.Pointb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ndata.proto\")\n\x05\x46ield\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x12\n\nis_integer\x18\x02 \x01(\x08\"M\n\nPointGroup\x12\n\n\x02id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x16\n\x06\x66ields\x18\x04 \x03(\x0b\x32\x06.Field\"G\n\x05Point\x12\x10\n\x08group_id\x18\x01 \x01(\r\x12\x0e\n\x06seqnum\x18\x02 \x01(\r\x12\r\n\x05idata\x18\x03 \x03(\x05\x12\r\n\x05\x66\x64\x61ta\x18\x04 \x03(\x02\"\x1b\n\x06Points\x12\x11\n\x01p\x18\x01 \x03(\x0b\x32\x06.Pointb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'data_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _DATUM._serialized_start=14
-  _DATUM._serialized_end=55
-  _METADATA._serialized_start=57
-  _METADATA._serialized_end=130
-  _POINT._serialized_start=132
-  _POINT._serialized_end=202
-  _POINTS._serialized_start=204
-  _POINTS._serialized_end=231
+  _FIELD._serialized_start=14
+  _FIELD._serialized_end=55
+  _POINTGROUP._serialized_start=57
+  _POINTGROUP._serialized_end=134
+  _POINT._serialized_start=136
+  _POINT._serialized_end=207
+  _POINTS._serialized_start=209
+  _POINTS._serialized_end=236
 # @@protoc_insertion_point(module_scope)

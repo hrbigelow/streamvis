@@ -12,7 +12,7 @@ from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
-from streamvis import util, data_pb2 as pb
+from streamvis import util
 from streamvis.page import IndexPage, PageLayout
 
 class LockManager:
@@ -42,8 +42,8 @@ class Server:
     def __init__(self, gcs_fetch_period=5.0, page_update_period=1.0):
         self.update_lock = threading.Lock()
         self.schema = {}
-        # metadata and points are append-only logs, collective the server data 'state'
-        self.metadata = []
+        # groups and points are append-only logs, collective the server data 'state'
+        self.point_groups = []
         self.points = []
 
         # should this (and the blob?) be protected? 
@@ -88,7 +88,7 @@ class Server:
         locked = self.update_lock.acquire(blocking=blocking)
         try:
             if locked:
-                yield dict(metadata=self.metadata, points=self.points)
+                yield dict(point_groups=self.point_groups, points=self.points)
             else:
                 yield None
         finally:
@@ -122,24 +122,15 @@ class Server:
 
         try:
             items = util.unpack_messages(messages)
+            new_groups, new_points = util.separate_messages(items)
         except Exception as ex:
-            raise RuntimeError(f'Could not unpack messages from GCS log file {blob.name}')
-
-        new_meta = []
-        new_points = []
-        for item in items:
-            if isinstance(item, pb.MetaData):
-                new_meta.append(item)
-            elif isinstance(item, pb.Points):
-                new_points.extend(item.p)
-            else:
-                raise RuntimeError(
-                    f'Received unknown message type {type(item)} from GCS log file '
-                    f'{blob.name}')
+            raise RuntimeError(
+                    f'Could not unpack messages from GCS log file {blob.name}. '
+                    f'Got exception: {ex}')
 
         with self.get_state(blocking=True) as state:
             # print(f'adding {len(new_points)} new data to server')
-            state['metadata'].extend(new_meta)
+            state['groups'].extend(new_groups)
             state['points'].extend(new_points)
 
         with self.page_lock:
@@ -166,6 +157,7 @@ class Server:
 
         if len(req.arguments) == 0:
             page = IndexPage(self, doc)
+            page.build()
         else:
             page = PageLayout(self, doc)
             page.set_pagesize(1800, 900)
