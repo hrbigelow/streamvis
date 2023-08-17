@@ -12,9 +12,11 @@
     streamvis_server 5006 data/demo.yaml hdfs://bucket/path/to/file
     streamvis_server 5006 data/demo.yaml /path/to/file
 
-Starts the server on localhost:PORT, using the yaml SCHEMA file to configure how the
+Starts the web server on localhost:PORT, using the yaml SCHEMA file to configure how the
 data in PATH is plotted.  PATH may be any locator accepted by
 [tf.io.gfile.GFile](https://www.tensorflow.org/api_docs/python/tf/io/gfile/GFile).
+Visit localhost:PORT to see interactive plots, and watch the data progressively
+appear as your data-producing application runs.
 
 The non-local (`gs://` etc) forms of PATH enable you to run your data producing
 application and the server on different machines, and communicate through the shared
@@ -23,16 +25,20 @@ resource at PATH.
 In your data-producing application:
 
 ```python
-from streamvis import DataLogger
+from streamvis.logger import DataLogger
 # `scope` is a name that will be applied to all data points produced by this process
 logger = DataLogger(scope='run24')
-logger.init(path='gs://bucket/path/to/file', buffer_max_size=100) 
+logger.init(path='gs://bucket/path/to/file', buffer_max_elem=100) 
 
 ...
 for step in range(100):
     # generate some data and log it
-    logger.write(group_name='kldiv', x=step, y=some_kldiv_val)
-    logger.write(group_name='weight_norm', x=step, y=some_norm_val)
+    logger.write('kldiv', x=step, y=some_kldiv_val)
+    logger.write('weight_norm', x=step, y=some_norm_val)
+
+# buffer is flushed automatically every `buffer_max_elem` data points, but
+# you may call this at the end or at an interrupt handler:
+logger.flush_buffer()
 ```
 
 The SCHEMA is in yaml format, for example:
@@ -76,6 +82,10 @@ There is no visualization-specific data logged to PATH,  However, data points
 (`Point` protobuf message) logically refer to one `PointGroup` protobuf via the
 `group_id` field.  The SCHEMA provided to the server allows you to define which
 `PointGroup`s should be included in a given plot.
+
+You can use the same PATH for multiple runs of your application.  If two runs are
+considered logically the same (such as when you are resuming from a training
+checkpoint), use the same `scope` when instantiating the `DataLogger`.
 
 ## Multi-plot page layouts
 

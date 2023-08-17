@@ -1,6 +1,6 @@
 top_left:
   scope_pattern: .*
-  name_pattern: top_left.*
+  group_pattern: top_left.*
   glyph: line
   # glyph_kwargs:
   #  palette: Viridis256
