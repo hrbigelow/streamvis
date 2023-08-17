@@ -1,10 +1,26 @@
-import numpy as np
-import math
 import fire
-from time import sleep
-from streamvis.logger import DataLogger
+from streamvis import server
 
-def make_logger(scope, path):
+def inventory(path):
+    """
+    Print a summary inventory of data in `path`
+    """
+    fh = GFile(path, 'rb')
+    packed = fh.read()
+    fh.close()
+    messages = util.unpack(packed)
+    groups, all_points = util.separate_messages(messages)
+    # print(f'Inventory for {path}')
+    print('id\tscope\tname\tindex\ttotal_vals')
+    for g in groups:
+        points = list(filter(lambda p: p.group_id == g.id, all_points))
+        total_vals = sum(util.num_point_data(p) for p in points)
+        print(f'{g.id}\t{g.scope}\t{g.name}\t{g.index}\t{total_vals}') 
+
+def demo_app(scope, path):
+    """
+    A demo application to log data with `scope` to `path`
+    """
     logger = DataLogger(scope)
     buffer_max_elem = 100
     logger.init(path, buffer_max_elem)
@@ -48,6 +64,15 @@ def make_logger(scope, path):
                 append=False, color=ColorSpec('Viridis256'))
         """
 
+def run():
+    cmds = { 
+            'serve': server.make_server,
+            'demo': demo_app,
+            'list': inventory
+            }
+    fire.Fire(cmds)
+
 if __name__ == '__main__':
-    fire.Fire(make_logger)
+    run()
+
 

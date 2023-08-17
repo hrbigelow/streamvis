@@ -6,11 +6,22 @@
 
 ## Quick Start
 
-    streamvis_server PORT SCHEMA PATH
-    streamvis_server 5006 data/demo.yaml gs://bucket/path/to/file
-    streamvis_server 5006 data/demo.yaml s3://bucket/path/to/file
-    streamvis_server 5006 data/demo.yaml hdfs://bucket/path/to/file
-    streamvis_server 5006 data/demo.yaml /path/to/file
+```sh
+# start the server
+# streamvis serve PORT SCHEMA PATH
+streamvis serve 5006 data/demo.yaml gs://bucket/path/to/file
+streamvis serve 5006 data/demo.yaml s3://bucket/path/to/file
+streamvis serve 5006 data/demo.yaml hdfs://bucket/path/to/file
+streamvis serve 5006 data/demo.yaml /path/to/file
+
+# run a test data producing demo app 
+# streamvis demo SCOPE PATH
+streamvis demo run24 gs://bucket/path/to/file
+
+# summarize the data in a log file
+# streamvis list PATH
+streamvis list gs://bucket/path/to/file
+```
 
 Starts the web server on localhost:PORT, using the yaml SCHEMA file to configure how the
 data in PATH is plotted.  PATH may be any locator accepted by
@@ -32,9 +43,21 @@ logger.init(path='gs://bucket/path/to/file', buffer_max_elem=100)
 
 ...
 for step in range(100):
-    # generate some data and log it
+    # generate some data and log it. 
+    # This is the 0D (scalar) logging
     logger.write('kldiv', x=step, y=some_kldiv_val)
     logger.write('weight_norm', x=step, y=some_norm_val)
+
+# or, log in batches of points (1D logging) 
+# accepts Python list, numpy, jax/pytorch/tensorflow tensors
+for step in range(100, 200, 10):
+    logger.write('kldiv', x=list(range(step, step+10)), y=kldiv_val_list)
+    logger.write('weight_norm', x=list(range(step, step+10)), y=norm_val_list)
+
+# or, log to a series of plots
+for step in range(200, 300, 10):
+    # attn[layer, point], value at `layer` for a particular step
+    logger.write('attn_layer', x=list(range(step, step+10)), y=attn)
 
 # buffer is flushed automatically every `buffer_max_elem` data points, but
 # you may call this at the end or at an interrupt handler:
@@ -87,11 +110,12 @@ You can use the same PATH for multiple runs of your application.  If two runs ar
 considered logically the same (such as when you are resuming from a training
 checkpoint), use the same `scope` when instantiating the `DataLogger`.
 
-## Multi-plot page layouts
+## Multiple browser tabs and multi-plot page layouts
 
 If you have several different plots, you may want to view subsets of them in
-different layouts that you don't know ahead of time.  The `streamvis_server` lets you
-do this using parameters to specify layouts organized as rows or columns.
+different browser tabs, and design page layouts that you don't know ahead of time.
+The `streamvis_server` lets you do this using URL parameters to specify layouts
+organized as rows or columns.
 
 ### Row-based layout
 

@@ -174,9 +174,7 @@ class Server:
 
 def make_server(port, schema_file, path):  
     """
-    port: localhost port to run this server on
-    schema_file:  YAML schema file defining plots
-    path:  filesystem path, s3:// or gs:// path
+    Launch a server on `port` using `schema_file` to configure plots of data in `path`
     """
     sv_server = Server()
     sv_server.load_schema(schema_file)
@@ -203,11 +201,4 @@ def make_server(port, schema_file, path):
 
     print(f'Web server is running on http://localhost:{port}')
     bsrv.run_until_shutdown()
-
-def run():
-    import fire
-    fire.Fire(make_server)
-    
-if __name__ == '__main__':
-    run()
 
