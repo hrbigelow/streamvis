@@ -1,29 +1,47 @@
 syntax = "proto3";
 
+enum FieldType {
+  FLOAT = 0;
+  INT = 1;
+}
+
 message Field {
   string name = 1;
-  bool is_integer = 2;
+  FieldType type = 2;
 }
 
-/* The PointGroup message provides a way to select a group of points 
-The fields `scope` and `name` serve as the selector, and the `data` field
-names the individual data fields in the Point fields
+/* Adapted from
+ * tensorflow/core/example/example.proto
+ * tensorflow/core/example/example/feature.proto
 */
-message PointGroup {
-  uint32 id = 1; // primary key
-  string scope = 2; // first-level name
-  string name = 3;   // second-level name
-  repeated Field fields = 4;
+message FloatList {
+  repeated float value = 1 [packed = true];
+}
+message IntList {
+  repeated int32 value = 1 [packed = true];
 }
 
-message Point {
-  uint32 group_id = 1; // foreign key to a MetaData message
-  uint32 seqnum = 2;  // provides an ordering for all points in the group_id 
-  repeated int32 idata = 3; // integer data
-  repeated float fdata = 4; // floating point data 
+// Containers for non-sequential data.
+message Values {
+  // Each feature can be exactly one kind.
+  oneof data {
+    FloatList floats = 2;
+    IntList ints = 3;
+  }
+}
+
+// describes a group of points
+message Group {
+  uint32 id = 1; // primary key
+  string scope = 2;
+  string name = 3;
+  uint32 index = 4;
+  repeated Field fields = 5;
 }
 
 message Points {
-  repeated Point p = 1;
+  uint32 group_id = 1;
+  uint32 batch = 2;
+  repeated Values values = 3;
 }
 

@@ -6,6 +6,7 @@ import sys
 import os
 import yaml
 from contextlib import contextmanager
+from tensorflow.io.gfile import GFile
 from google.cloud import storage
 from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
@@ -39,12 +40,11 @@ class CleanupHandler(Handler):
 
     
 class Server:
-    def __init__(self, gcs_fetch_period=5.0, page_update_period=1.0):
+    def __init__(self, data_fetch_period=5.0, page_update_period=1.0):
         self.update_lock = threading.Lock()
         self.schema = {}
         # groups and points are append-only logs, collective the server data 'state'
-        self.point_groups = []
-        self.points = []
+        self.state = dict(groups=[], points=[])
 
         # should this (and the blob?) be protected? 
         self.blob_offset = 0
@@ -53,7 +53,7 @@ class Server:
         # pretected by page_lock.  this is set when the server receives new data
         # and needs to update all pages
         self.data_update_pending = False 
-        self.gcs_fetch_period = gcs_fetch_period # seconds 
+        self.data_fetch_period = data_fetch_period # seconds 
         self.page_update_period = page_update_period
 
     def load_schema(self, schema_file):
@@ -69,13 +69,11 @@ class Server:
                     f'Exception was: {ex}')
         self.schema = schema
 
-    def init_gcs(self, bucket_name, blob_name):
+    def init(self, path):
         """
-        Initialize the data source as a GCS blob
+        Initialize the data source
         """
-        client = storage.Client()
-        self.bucket = client.get_bucket(bucket_name)
-        self.blob_name = blob_name
+        self.path = path
 
     def shutdown(self):
         """
@@ -88,7 +86,7 @@ class Server:
         locked = self.update_lock.acquire(blocking=blocking)
         try:
             if locked:
-                yield dict(point_groups=self.point_groups, points=self.points)
+                yield self.state
             else:
                 yield None
         finally:
@@ -112,20 +110,21 @@ class Server:
         """
         Read any new data from the blob, updating the current position
         """
-        blob = self.bucket.blob(self.blob_name)
-        blob.reload()
-        if self.blob_offset == blob.size:
+        fh = GFile(self.path, 'rb')
+        fh.seek(self.blob_offset)
+        packed = fh.read()
+        fh.close()
+        if len(packed) == 0:
             return
 
-        messages = blob.download_as_bytes(start=self.blob_offset)
-        self.blob_offset += len(messages)
-
+        # TODO: protect this with lock?
+        self.blob_offset += len(packed)
         try:
-            items = util.unpack_messages(messages)
-            new_groups, new_points = util.separate_messages(items)
+            messages = util.unpack(packed)
+            new_groups, new_points = util.separate_messages(messages)
         except Exception as ex:
             raise RuntimeError(
-                    f'Could not unpack messages from GCS log file {blob.name}. '
+                    f'Could not unpack messages from GCS log file {self.path}. '
                     f'Got exception: {ex}')
 
         with self.get_state(blocking=True) as state:
@@ -138,7 +137,7 @@ class Server:
 
     async def gcs_callback(self):
         while True:
-            await asyncio.sleep(self.gcs_fetch_period)
+            await asyncio.sleep(self.data_fetch_period)
             self.fetch_new_data()
 
     def add_page(self, doc):
@@ -173,16 +172,15 @@ class Server:
             del self.pages[session_id]
             print(f'deleted page {session_id}.  server now has {len(self.pages)} pages.')
 
-def make_server(port, schema_file, gcs_bucket, gcs_blob):  
+def make_server(port, schema_file, path):  
     """
     port: localhost port to run this server on
     schema_file:  YAML schema file defining plots
-    gcs_bucket: name of a Google Cloud Storage bucket
-    gcs_blob:  name of a blob in this bucket
+    path:  filesystem path, s3:// or gs:// path
     """
     sv_server = Server()
     sv_server.load_schema(schema_file)
-    sv_server.init_gcs(gcs_bucket, gcs_blob)
+    sv_server.init(path)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

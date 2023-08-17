@@ -222,7 +222,7 @@ class PageLayout:
         matched = []
         for g in groups:
             if (re.match(plot_schema['scope_pattern'], g.scope) and
-                    re.match(plot_schema['name_pattern'], g.name)):
+                    re.match(plot_schema['group_pattern'], g.name)):
                 matched.append(g)
         return matched
 

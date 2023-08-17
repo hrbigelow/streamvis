@@ -2,12 +2,12 @@ import numpy as np
 import math
 import fire
 from time import sleep
-from streamvis import DataLogger
+from streamvis.logger import DataLogger
 
 def make_logger(scope, bucket_name, blob_name):
     logger = DataLogger(scope)
-    buffer_items = 10
-    logger.init_gcs(bucket_name, blob_name, buffer_items)
+    buffer_max_size = 10
+    logger.init(path, buffer_max_size)
 
     N = 50
     L = 20
