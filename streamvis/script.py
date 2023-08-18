@@ -1,5 +1,6 @@
 import fire
-from streamvis import server
+from tensorflow.io.gfile import GFile
+from streamvis import server, util
 
 def inventory(path):
     """
@@ -11,7 +12,7 @@ def inventory(path):
     messages = util.unpack(packed)
     groups, all_points = util.separate_messages(messages)
     # print(f'Inventory for {path}')
-    print('id\tscope\tname\tindex\ttotal_vals')
+    print('group.id\tscope\tname\tindex\tnum_points')
     for g in groups:
         points = list(filter(lambda p: p.group_id == g.id, all_points))
         total_vals = sum(util.num_point_data(p) for p in points)

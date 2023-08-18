@@ -31,9 +31,16 @@ appear as your data-producing application runs.
 
 The non-local (`gs://` etc) forms of PATH enable you to run your data producing
 application and the server on different machines, and communicate through the shared
-resource at PATH.  
+resource at PATH.  (To create a GCS bucket for example, see [creating a
+project](https://developers.google.com/workspace/guides/create-project) and [enabling
+APIs](https://developers.google.com/workspace/guides/enable-apis).)
 
-In your data-producing application:
+In your data-producing application you instantiate one `DataLogger` object and call
+its `write` method to log any data that you produce.  It is buffered logging, so
+there is no need to worry about how frequently you call it.  The `write` method can
+be used with unbatched or batched data.  This is merely a convenience for the user.
+The batched forms of `write` are logically identical to multiple calls of the
+unbatched form.
 
 ```python
 from streamvis.logger import DataLogger
@@ -64,30 +71,83 @@ for step in range(200, 300, 10):
 logger.flush_buffer()
 ```
 
-The SCHEMA is in yaml format, for example:
+The SCHEMA is in yaml format.  It is still in development, but here is a current demo
+with some explanation.
 
 ```yaml
-loss:
-  scope_pattern: run2?
-  group_pattern: (kldiv|weight_norm)
-  glyph: line
+kldiv:
+  # these two are required field, both must be valid regex for selecting which
+  # groups of data will be included in this plot
+  scope_pattern: .*
+  group_pattern: kldiv
+  # optional, these are keyword arguments to be provided as-is to the bokeh.plotting.figure
+  # constructor as listed here: 
+  # https://docs.bokeh.org/en/latest/docs/reference/plotting/figure.html#figure
+  figure_kwargs:
+    title: KL Divergence (bits)
+    x_axis_label: SGD Steps
+    y_axis_label: D[q(x_t|x_<t) || p(x_t|x_<t)]
+
+  # required.  currently only supports the value 'line'
+  glyph_kind: line
+
+  # optional.  any keyword arguments accepted by the given glyph, as listed here:
+  # https://docs.bokeh.org/en/latest/docs/reference/plotting/figure.html#bokeh.plotting.figure.line
+  glyph_kwargs:
+    line_color: blue
+
+  # required - an ordered list of data column names.  These names must correspond to
+  # the names used in the streamvis.logger.DataLogger.write command, for example:
+  # l.write('myplot', 0, x=5, y=[1,3,5]).  The order must correspond with the glyph
+  # expects
+  columns:
+    - x
+    - y
+
+cross_entropy:
+  scope_pattern: .*
+  group_pattern: cross_entropy
+  figure_kwargs:
+    title: Cross Entropy (bits)
+    x_axis_label: SGD Steps
+    y_axis_label: cross entropy (bits)
+  glyph_kind: line
+  glyph_kwargs:
+    line_color: red
+  columns:
+    - x
+    - y
+
+
+enc_attn_entropy:
+  scope_pattern: .*
+  group_pattern: enc_attn_entropy
+
+  # optional - if provided, must identify a name in bokeh.palettes.__palettes__ as
+  # described in https://docs.bokeh.org/en/latest/docs/reference/palettes.html.
+  # The individual glyph colors will be assigned by using the PointGroup.index field
+  # to index into the given palette.
+  palette: Viridis6
+  figure_kwargs:
+    title: Encoder Self Attention Entropy (bits)
+    x_axis_label: SGD Steps
+    y_axis_label: H(att_t) / log(num targets)
+  glyph_kind: line
   columns:
     - x
     - y
 ```
 
-This entry says that a line plot called `loss` will be created.  It will create one
-line for each group of (x,y) points logged.  The groups of points included in the
-plot are those with `group_name` matching `group_pattern` and `scope` matching
-`scope_pattern`.  The scope allows one to log multiple independent runs of your
-application to the same log file, and then create plots with specific subsets of
-these groups.
-
-In the above example, 
-
-To create a GCS bucket for example, see [creating a
-project](https://developers.google.com/workspace/guides/create-project) and [enabling
-APIs](https://developers.google.com/workspace/guides/enable-apis)
+In the above schema file, there are three top-level keys: `kldiv`, `cross_entropy`
+and `enc_attn_entropy`.  Each of these represents a figure to be rendered by the
+Streamvis server.  The `scope_pattern` and `group_pattern` attributes provide regex
+expressions for selecting PointGroups in the dataset to graph in the figure.
+`figure_kwargs` are arguments that are directly passed to the Bokeh `figure`
+constructor.  `glyph_kwargs`, similarly, are arguments that are directly passed to
+the glyph constructor.  The `columns` attribute specifies the order that the data
+fields from the `Points` will be fed into the Bokeh ColumnDataSource.  It should
+correspond semantically to the glyph constructor.  (Currently, Streamvis can only
+plot line plots).
 
 # Introduction
 

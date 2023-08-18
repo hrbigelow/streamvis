@@ -13,6 +13,9 @@ from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
 from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
+from bokeh.core.validation import silence
+from bokeh.core.validation.warnings import EMPTY_LAYOUT, MISSING_RENDERERS
+
 from streamvis import util
 from streamvis.page import IndexPage, PageLayout
 
@@ -40,9 +43,11 @@ class CleanupHandler(Handler):
 
     
 class Server:
-    def __init__(self, data_fetch_period=5.0, page_update_period=1.0):
+    def __init__(self, data_fetch_period=1.0, page_update_period=1.0):
+        silence(EMPTY_LAYOUT, True)
+        silence(MISSING_RENDERERS, True)
         self.update_lock = threading.Lock()
-        self.schema = {}
+        self.schema = {} 
         # groups and points are append-only logs, collective the server data 'state'
         self.state = dict(groups=[], points=[])
 
@@ -152,7 +157,7 @@ class Server:
         """
         req = doc.session_context.request
         session_id = doc.session_context.id
-        print(f'got {session_id=}')
+        # print(f'got {session_id=}')
 
         if len(req.arguments) == 0:
             page = IndexPage(self, doc)

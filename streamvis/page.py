@@ -4,6 +4,8 @@ from bokeh.layouts import column, row
 from bokeh.models.dom import HTML
 from bokeh.models import Div, ColumnDataSource
 from bokeh.plotting import figure
+from bokeh import palettes
+
 from streamvis import util
 
 class IndexPage:
@@ -205,16 +207,15 @@ class PageLayout:
                 box = row() if self.row_mode else column()
                 self.container.children.append(box)
             box = self.container.children[box_index]
-            fig_kwargs = schema[plot_name].get('kwargs', {})
+            fig_kwargs = schema[plot_name].get('figure_kwargs', {})
             fig_kwargs.update(self.get_figsize(index))
             fig = figure(name=plot_name, **fig_kwargs)
             box.children.append(fig)
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
-        print('finished building page')
+        # print('finished building page')
 
     def schedule_callback(self):
-        print(f'in page {self.session_id} scheduling update callback')
         self.doc.add_next_tick_callback(self.update_callback)
 
     @staticmethod
@@ -225,6 +226,19 @@ class PageLayout:
                     re.match(plot_schema['group_pattern'], g.name)):
                 matched.append(g)
         return matched
+
+    @staticmethod
+    def color(plot_schema, index):
+        palette = plot_schema.get('palette', None)
+        if palette is not None:
+            return palettes.__dict__[palette][index]
+        glyph_kwargs = plot_schema.get('glyph_kwargs', {})
+        return glyph_kwargs.get('line_color', 'black')
+
+    def validate_schema(self):
+        pass
+
+     
 
     def update_callback(self):
         """
@@ -246,9 +260,11 @@ class PageLayout:
                 for group in data_groups:
                     glyphs = fig.select({'name': str(group.id)})
                     if len(glyphs) == 0:
+                        color = self.color(plot_schema, group.index)
+                        fixup_glyph_kwargs = { **glyph_kwargs, 'line_color': color }
                         cols = plot_schema['columns']
                         cds = ColumnDataSource({c: [] for c in cols})
-                        fig.line(*cols, source=cds, name=str(group.id), **glyph_kwargs)
+                        fig.line(*cols, source=cds, name=str(group.id), **fixup_glyph_kwargs)
                     glyph = fig.select({'name': str(group.id)})[0]
                     new_cds_data = util.points_to_cds(new_points, group)
                     glyph.data_source.stream(new_cds_data)
