@@ -170,7 +170,25 @@ You can use the same PATH for multiple runs of your application.  If two runs ar
 considered logically the same (such as when you are resuming from a training
 checkpoint), use the same `scope` when instantiating the `DataLogger`.
 
-## Multiple browser tabs and multi-plot page layouts
+## Some Design Principles
+
+### Separation of data from presentation
+
+The logged data is agnostic to presentation, or membership in any particular
+visualization.  The data has a two-level structure - each datum is called a `Point`
+and all `Points` are part of exactly one `Group`.  The `Group` has three descriptors
+called `scope`, `name`, and `index`.  As mentioned above, `scope` and `name` are used
+by the schema to associate `Group`s to each figure.  `index` is used to further group
+the data into separate glyphs (currently, lines) within the same figure.
+
+### Easy to combine multiple experiments
+
+At the moment, Streamvis reads from a single log file.  But, this file can include
+results from multiple experiments.  Then, multiple schema files can each define
+specific subsets of data to visualize.  One possible extension for Streamvis could be
+to support multiple log files, however.
+
+### Multiple browser tabs and multi-plot page layouts
 
 If you have several different plots, you may want to view subsets of them in
 different browser tabs, and design page layouts that you don't know ahead of time.
