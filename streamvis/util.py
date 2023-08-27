@@ -86,6 +86,7 @@ def points_to_cds(points_list, group):
     selected = sorted(selected, key=lambda p: p.batch)
     proto_to_numpy = { pb.FieldType.INT: np.int32, pb.FieldType.FLOAT: np.float32 }
     cds = { f.name: np.array((), dtype=proto_to_numpy[f.type]) for f in group.fields }
+    print(f'starting convert for group {group.scope} {group.name} {group.index}')
     for points in selected:
         for value, field in zip(points.values, group.fields):
             if field.type == pb.FieldType.FLOAT:
@@ -93,7 +94,21 @@ def points_to_cds(points_list, group):
             elif field.type == pb.FieldType.INT:
                 nums = value.ints.value
             cds[field.name] = np.append(cds[field.name], nums)
+    print('ending convert')
     return cds 
+
+def values_tuples(points, group):
+    """
+    Gets the points values as a list of tuples, suitable for insert
+    into a relational table
+    """
+    vals = []
+    for value, field in zip(points.values, group.fields):
+        if field.type == pb.FieldType.FLOAT:
+            vals.append(value.floats.value)
+        elif field.type == pb.FieldType.INT:
+            vals.append(value.ints.value)
+    return list(zip(*vals))
 
 def make_group(scope, name, index, /, **field_types):
     """
@@ -121,6 +136,7 @@ def make_point(group, batch):
     for _ in range(len(group.fields)):
         points.values.add() 
     return points
+
 
 def validate(group, /, data):
     # validate field names and data types against group
@@ -158,6 +174,9 @@ def num_point_data(point):
         return len(values.floats.value)
     elif data_name == 'ints':
         return len(values.ints.value)
+
+def get_sql_type(field_type):
+    return pb.FieldType.Name(field_type)
 
 def get_numpy(data):
     """

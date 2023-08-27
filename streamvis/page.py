@@ -1,12 +1,17 @@
 import numpy as np
 import re
-from bokeh.layouts import column, row
+from functools import partial
+from panel.pane.holoviews import HoloViews 
+import panel as pn
+import holoviews as hv
+import holoviews.plotting.bokeh
+# from bokeh.layouts import column, row
 from bokeh.models.dom import HTML
-from bokeh.models import Div, ColumnDataSource
-from bokeh.plotting import figure
+# from bokeh.models import Div, ColumnDataSource
+# from bokeh.plotting import figure
 from bokeh import palettes
-
 from streamvis import util
+import pdb
 
 class IndexPage:
     """
@@ -21,19 +26,18 @@ class IndexPage:
     def destroy(self, session_context):
         self.server.delete_page(self.session_id)
 
-    def build(self):
-        self.container = row()
-        text = '<h2>Streamvis Server Index Page</h2>'
-        self.container.children.append(column([Div(text=text)]))
-        inner = '<br>'.join(plot for plot in self.server.schema.keys())
-        html = f'<p>{inner}</p>'
-        self.container.children[0].children[0] = Div(text=html)
-        self.doc.add_root(self.container)
+    def build_callback(self):
+        page = pn.Column()
+        head = pn.pane.Markdown('''# Streamvis Server Index Page''')
+        page.append(head)
 
-    def schedule_callback(self):
-        self.doc.add_next_tick_callback(self.update_callback)
+        for plot in self.server.schema.keys():
+            item = pn.pane.HTML(f'<p>{plot}</p>')
+            page.append(item)
 
-    def update_callback(self):
+        self.doc.add_root(page.get_root())
+
+    def update(self):
         # no-op because the schema doesn't change
         pass
 
@@ -53,7 +57,7 @@ class PageLayout:
         self.box_elems = None
         self.widths = None
         self.heights = None
-        self.server_points_pos = 0 
+        self.last_ord = 0 # the last seen ord value
 
     def destroy(self, session_context):
         self.server.delete_page(self.session_id)
@@ -183,7 +187,6 @@ class PageLayout:
             box_part = parse_csv('width', width_arg, len(box_elems))
             
         self._set_layout(plots, box_elems, box_part, plot_part)
-        self.build()
 
     def get_figsize(self, index):
         width = int(self.widths[index] * self.page_width)
@@ -194,29 +197,47 @@ class PageLayout:
         self.page_width = width
         self.page_height = height
 
-    def build(self):
+    def build_callback(self):
         """
-        Build the page for the first time
+        The contents of the page are stored in `self.model`, which is either a
+        pn.Column of pn.Rows or vice versa.  The elements of the inner container are
+        hv.Overlays labeled with the `plot_name`s given in the URI
         """
-        self.container = column() if self.row_mode else row() 
-        schema = self.server.schema
+        row_opts = dict(
+                flex_direction='row',
+                styles={'width': 'fit-content'},
+                min_width=self.page_width)
+
+        col_opts = dict( 
+                flex_direction='column',
+                styles={'height': 'fit-content'},
+                min_height=self.page_height)
+
+        opts = { True: row_opts, False: col_opts }
+
+        self.model = pn.FlexBox(**opts[not self.row_mode])
+        boxes = []
+        if self.row_mode:
+            main_parts, sub_parts = self.heights, self.widths
+        else:
+            main_parts, sub_parts = self.widths, self.heights
 
         for index, plot_name in enumerate(self.plot_names):
             box_index, _ = self.coords[index]
-            if box_index >= len(self.container.children):
-                box = row() if self.row_mode else column()
-                self.container.children.append(box)
-            box = self.container.children[box_index]
-            fig_kwargs = schema[plot_name].get('figure_kwargs', {})
+            if box_index >= len(boxes):
+                style = { 'flex-grow': str(main_parts[index]) }
+                these_opts = { **opts[self.row_mode] }
+                these_opts['styles'].update(style)
+                box = pn.FlexBox(**these_opts)
+                boxes.append(box)
+            box = boxes[box_index] 
+            fig_kwargs = self.server.schema[plot_name].get('figure_kwargs', {})
             fig_kwargs.update(self.get_figsize(index))
-            fig = figure(name=plot_name, **fig_kwargs)
-            box.children.append(fig)
-            # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
-        self.doc.add_root(self.container)
-        # print('finished building page')
-
-    def schedule_callback(self):
-        self.doc.add_next_tick_callback(self.update_callback)
+            fig = hv.Overlay([], group='G', label=plot_name) # .opts(**fig_kwargs)
+            fig = HoloViews(fig, styles={'flex-grow': str(sub_parts[index])})
+            box.append(fig)
+        self.model.extend(boxes)
+        # self.doc.add_next_tick_callback(self.update)
 
     @staticmethod
     def matching_groups(plot_schema, groups):
@@ -238,35 +259,55 @@ class PageLayout:
     def validate_schema(self):
         pass
 
-     
+    def get_plot(self, name):
+        fn = lambda l: isinstance(l, HoloViews) and l.object.label == name
+        return self.model.select(fn)[0].object
 
-    def update_callback(self):
+    def update_element_cb(self, plot_schema, plot_name, group, new_data):
         """
-        Scheduled as a next-tick callback when server state is updated
+        Possibly create a hv.Element (and associated hv.streams.Buffer)
+        send new_data into the Buffer
         """
-        # print(f'in page {self.session_id} before reserving state')
-        with self.server.get_state(blocking=False) as state:
-            # print(f'in page {self.session_id} update_callback, reserved server state')
-            if self.server_points_pos == len(state['points']):
+        olay = self.get_plot(plot_name)
+        label = f'Group_{group.id}'
+        line = olay.get('G.{label}')
+        reload_model = False
+        if line is None:
+            buf = hv.streams.Buffer(np.zeros((0,2)), length=10000000)
+            line = hv.DynamicMap(hv.Curve, streams=[buf], group='G', label=label)
+            olay.update(hv.Overlay([line]))
+            olay.collate()
+            reload_model = True
+
+        line.streams[0].send(new_data)
+        if reload_model:
+            self.doc.clear()
+            self.doc.add_root(self.model.get_root())
+
+    def update(self):
+        """
+        - Adds new plot data to existing curves
+        - Creates new curves for any new data groups
+        """
+        print('in update')
+        with self.server.update_lock:
+            if self.last_ord == self.server.global_ordinal:
+                print('returning early')
                 return
-            
-            # update any figures if out of date version
-            new_points = state['points'][self.server_points_pos:]
-            all_data_groups = state['groups']
-            for fig in self.doc.select(selector={'type': figure}):
-                plot_schema = self.server.schema[fig.name]
-                glyph_kwargs = plot_schema.get('glyph_kwargs', {})
-                data_groups = self.matching_groups(plot_schema, all_data_groups)
-                for group in data_groups:
-                    glyphs = fig.select({'name': str(group.id)})
-                    if len(glyphs) == 0:
-                        color = self.color(plot_schema, group.index)
-                        fixup_glyph_kwargs = { **glyph_kwargs, 'line_color': color }
-                        cols = plot_schema['columns']
-                        cds = ColumnDataSource({c: [] for c in cols})
-                        fig.line(*cols, source=cds, name=str(group.id), **fixup_glyph_kwargs)
-                    glyph = fig.select({'name': str(group.id)})[0]
-                    new_cds_data = util.points_to_cds(new_points, group)
-                    glyph.data_source.stream(new_cds_data)
-            self.server_points_pos = len(state['points'])
+            callback_fns = []
+            for plot_name in self.plot_names:
+                plot = self.get_plot(plot_name)
+                groups = self.server.plot_groups[plot_name]
+                plot_schema = self.server.schema[plot_name]
+                for group in groups:
+                    new_data = self.server.new_cds_data(group.id, self.last_ord + 1)
+                    update_fn = partial(self.update_element_cb,
+                            plot_schema, plot_name, group, new_data)
+                    callback_fns.append(update_fn)
+            self.last_ord = self.server.global_ordinal
+
+        for fn in callback_fns:
+            self.doc.add_next_tick_callback(fn)
+        print('finished update')
+
 
