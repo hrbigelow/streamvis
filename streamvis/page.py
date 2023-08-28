@@ -5,6 +5,7 @@ from bokeh.models.dom import HTML
 from bokeh.models import Div, ColumnDataSource
 from bokeh.plotting import figure
 from bokeh import palettes
+from functools import partial
 
 from streamvis import util
 
@@ -21,7 +22,10 @@ class IndexPage:
     def destroy(self, session_context):
         self.server.delete_page(self.session_id)
 
-    def build(self):
+    def build_callback(self):
+        """
+        Must be scheduled as next tick callback
+        """
         self.container = row()
         text = '<h2>Streamvis Server Index Page</h2>'
         self.container.children.append(column([Div(text=text)]))
@@ -31,9 +35,9 @@ class IndexPage:
         self.doc.add_root(self.container)
 
     def schedule_callback(self):
-        self.doc.add_next_tick_callback(self.update_callback)
+        self.doc.add_next_tick_callback(self.update)
 
-    def update_callback(self):
+    def update(self):
         # no-op because the schema doesn't change
         pass
 
@@ -53,7 +57,7 @@ class PageLayout:
         self.box_elems = None
         self.widths = None
         self.heights = None
-        self.server_points_pos = 0 
+        self.last_ord = 0 # the last seen ord value
 
     def destroy(self, session_context):
         self.server.delete_page(self.session_id)
@@ -183,7 +187,6 @@ class PageLayout:
             box_part = parse_csv('width', width_arg, len(box_elems))
             
         self._set_layout(plots, box_elems, box_part, plot_part)
-        self.build()
 
     def get_figsize(self, index):
         width = int(self.widths[index] * self.page_width)
@@ -194,9 +197,9 @@ class PageLayout:
         self.page_width = width
         self.page_height = height
 
-    def build(self):
+    def build_callback(self):
         """
-        Build the page for the first time
+        Build the page for the first time.  Must be scheduled as next-tick callback
         """
         self.container = column() if self.row_mode else row() 
         schema = self.server.schema
@@ -209,7 +212,7 @@ class PageLayout:
             box = self.container.children[box_index]
             fig_kwargs = schema[plot_name].get('figure_kwargs', {})
             fig_kwargs.update(self.get_figsize(index))
-            fig = figure(name=plot_name, **fig_kwargs)
+            fig = figure(name=plot_name, output_backend='webgl', **fig_kwargs)
             box.children.append(fig)
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
@@ -223,7 +226,7 @@ class PageLayout:
         matched = []
         for g in groups:
             if (re.match(plot_schema['scope_pattern'], g.scope) and
-                    re.match(plot_schema['group_pattern'], g.name)):
+                    re.match(plot_schema['name_pattern'], g.name)):
                 matched.append(g)
         return matched
 
@@ -238,35 +241,52 @@ class PageLayout:
     def validate_schema(self):
         pass
 
-     
+    def get_plot(self, plot_name):
+        return self.doc.select(selector={'name': plot_name})[0]
 
-    def update_callback(self):
+    def update_glyph_cb(self, plot_schema, fig, group, new_data):
         """
-        Scheduled as a next-tick callback when server state is updated
+        Update (and optionally create) a glyph in `fig` with `new_data`.
+        Uses `plot_schema` to configure the update, and `group` to identify
+        glyph-specific information
+        These calls need to be scheduled as a next_tick callback 
         """
-        # print(f'in page {self.session_id} before reserving state')
-        with self.server.get_state(blocking=False) as state:
-            # print(f'in page {self.session_id} update_callback, reserved server state')
-            if self.server_points_pos == len(state['points']):
+        # print(f'updating glyph for {fig.name} {group.id}')
+        glyphs = fig.select({'name': str(group.id)})
+        glyph_kwargs = plot_schema.get('glyph_kwargs', {})
+        if len(glyphs) == 0:
+            color = self.color(plot_schema, group.index)
+            fixup_glyph_kwargs = { **glyph_kwargs, 'line_color': color }
+            cols = plot_schema['columns']
+            cds = ColumnDataSource({c: [] for c in cols})
+            fig.line(*cols, source=cds, name=str(group.id), **fixup_glyph_kwargs)
+        glyph = fig.select({'name': str(group.id)})[0]
+        glyph.data_source.stream(new_data)
+
+    def update(self):
+        """
+        Update page with new data
+        """
+        # print('in update')
+        with self.server.data_lock.block():
+            print(f'{self.last_ord=}, {self.server.global_ordinal=}')
+            if self.last_ord == self.server.global_ordinal:
                 return
-            
-            # update any figures if out of date version
-            new_points = state['points'][self.server_points_pos:]
-            all_data_groups = state['groups']
-            for fig in self.doc.select(selector={'type': figure}):
-                plot_schema = self.server.schema[fig.name]
-                glyph_kwargs = plot_schema.get('glyph_kwargs', {})
-                data_groups = self.matching_groups(plot_schema, all_data_groups)
-                for group in data_groups:
-                    glyphs = fig.select({'name': str(group.id)})
-                    if len(glyphs) == 0:
-                        color = self.color(plot_schema, group.index)
-                        fixup_glyph_kwargs = { **glyph_kwargs, 'line_color': color }
-                        cols = plot_schema['columns']
-                        cds = ColumnDataSource({c: [] for c in cols})
-                        fig.line(*cols, source=cds, name=str(group.id), **fixup_glyph_kwargs)
-                    glyph = fig.select({'name': str(group.id)})[0]
-                    new_cds_data = util.points_to_cds(new_points, group)
-                    glyph.data_source.stream(new_cds_data)
-            self.server_points_pos = len(state['points'])
+
+            update_glyph_fns = []
+            for plot_name in self.plot_names:
+                fig = self.get_plot(plot_name)
+                groups = self.server.plot_groups[plot_name]
+                plot_schema = self.server.schema[plot_name]
+                for group in groups:
+                    new_data = self.server.new_cds_data(group.id, self.last_ord + 1)
+                    if new_data is None:
+                        continue
+                    fn = partial(self.update_glyph_cb, plot_schema, fig, group, new_data)
+                    update_glyph_fns.append(fn)
+            self.last_ord = self.server.global_ordinal
+
+        # print(f'Scheduling {len(update_glyph_fns)} callbacks')
+        for fn in update_glyph_fns:
+            self.doc.add_next_tick_callback(fn)
 

@@ -1,4 +1,5 @@
 import fire
+import numpy as np
 from tensorflow.io.gfile import GFile
 from streamvis import server, util
 
