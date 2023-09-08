@@ -52,6 +52,8 @@ def unpack(packed):
         kind = int.from_bytes(kind_code, 'big')
         length = int.from_bytes(length_code, 'big')
         content = packed[off+5:off+5+length]
+        if len(content) != length:
+            break
         if kind == 0:
             item = pb.Group()
         elif kind == 1:
@@ -61,7 +63,7 @@ def unpack(packed):
         item.ParseFromString(content)
         off += 5 + length
         items.append(item)
-    return items
+    return items, len(packed[off:])
 
 def validate(points, group):
     if points.group_id != group.id:
@@ -97,18 +99,18 @@ def points_to_cds(points_list, group):
     print('ending convert')
     return cds 
 
-def values_tuples(points, group):
+def values_tuples(gid_beg, group_id, points, sig):
     """
     Gets the points values as a list of tuples, suitable for insert
     into a relational table
     """
     vals = []
-    for value, field in zip(points.values, group.fields):
-        if field.type == pb.FieldType.FLOAT:
+    for value, (_, typ) in zip(points.values, sig):
+        if typ == pb.FieldType.FLOAT:
             vals.append(value.floats.value)
-        elif field.type == pb.FieldType.INT:
+        elif typ == pb.FieldType.INT:
             vals.append(value.ints.value)
-    return list(zip(*vals))
+    return [(gid, group_id, *v) for gid, v in enumerate(zip(*vals), gid_beg)]
 
 def make_group(scope, name, index, /, **field_types):
     """

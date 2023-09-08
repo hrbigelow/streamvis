@@ -34,6 +34,9 @@ class IndexPage:
         self.container.children[0].children[0] = Div(text=html)
         self.doc.add_root(self.container)
 
+        with self.server.page_lock.block():
+            self.server.pages[self.session_id] = self
+
     def schedule_callback(self):
         self.doc.add_next_tick_callback(self.update)
 
@@ -199,7 +202,8 @@ class PageLayout:
 
     def build_callback(self):
         """
-        Build the page for the first time.  Must be scheduled as next-tick callback
+        Build the page for the first time.  
+        Must be scheduled as next-tick callback
         """
         self.container = column() if self.row_mode else row() 
         schema = self.server.schema
@@ -216,7 +220,12 @@ class PageLayout:
             box.children.append(fig)
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
-        # print('finished building page')
+
+        # attach to page
+        with self.server.page_lock.block():
+            self.server.pages[self.session_id] = self
+
+        self.update()
 
     def schedule_callback(self):
         self.doc.add_next_tick_callback(self.update_callback)
@@ -231,12 +240,20 @@ class PageLayout:
         return matched
 
     @staticmethod
-    def color(plot_schema, index):
-        palette = plot_schema.get('palette', None)
-        if palette is not None:
-            return palettes.__dict__[palette][index]
-        glyph_kwargs = plot_schema.get('glyph_kwargs', {})
-        return glyph_kwargs.get('line_color', 'black')
+    def color(plot_schema, scope_name_index, index):
+        colordef = plot_schema.get('color', None)
+        if colordef is None:
+            colordef = dict(
+                    palette='Viridis',
+                    max_groups=1,
+                    max_indices=1,
+                    group_wise=True
+                    )
+        if colordef['group_wise']:
+            palette_index = scope_name_index * colordef['max_indices'] + index
+        else:
+            palette_index = index * colordef['max_groups'] + scope_name_index
+        return palettes.__dict__[colordef['palette']][palette_index]
 
     def validate_schema(self):
         pass
@@ -244,7 +261,7 @@ class PageLayout:
     def get_plot(self, plot_name):
         return self.doc.select(selector={'name': plot_name})[0]
 
-    def update_glyph_cb(self, plot_schema, fig, group, new_data):
+    def update_glyph_cb(self, plot_schema, plot_name, fig, group, new_data):
         """
         Update (and optionally create) a glyph in `fig` with `new_data`.
         Uses `plot_schema` to configure the update, and `group` to identify
@@ -255,7 +272,8 @@ class PageLayout:
         glyphs = fig.select({'name': str(group.id)})
         glyph_kwargs = plot_schema.get('glyph_kwargs', {})
         if len(glyphs) == 0:
-            color = self.color(plot_schema, group.index)
+            scope_name_index = self.server.scope_name_index(plot_name, group)
+            color = self.color(plot_schema, scope_name_index, group.index)
             fixup_glyph_kwargs = { **glyph_kwargs, 'line_color': color }
             cols = plot_schema['columns']
             cds = ColumnDataSource({c: [] for c in cols})
@@ -265,26 +283,29 @@ class PageLayout:
 
     def update(self):
         """
-        Update page with new data
+        Update page with new data.
         """
         # print('in update')
+        # print(f'{self.last_ord=}, {self.server.global_ordinal=}')
         with self.server.data_lock.block():
-            print(f'{self.last_ord=}, {self.server.global_ordinal=}')
             if self.last_ord == self.server.global_ordinal:
                 return
 
-            update_glyph_fns = []
-            for plot_name in self.plot_names:
-                fig = self.get_plot(plot_name)
-                groups = self.server.plot_groups[plot_name]
-                plot_schema = self.server.schema[plot_name]
-                for group in groups:
-                    new_data = self.server.new_cds_data(group.id, self.last_ord + 1)
-                    if new_data is None:
-                        continue
-                    fn = partial(self.update_glyph_cb, plot_schema, fig, group, new_data)
-                    update_glyph_fns.append(fn)
+        update_glyph_fns = []
+        for plot_name in self.plot_names:
+            fig = self.get_plot(plot_name)
+            groups = self.server.plot_groups[plot_name]
+            plot_schema = self.server.schema[plot_name]
+            for group in groups:
+                new_data = self.server.new_cds_data(group.id, self.last_ord + 1)
+                if new_data is None:
+                    continue
+                fn = partial(self.update_glyph_cb, plot_schema, fig, group, new_data)
+                update_glyph_fns.append(fn)
+
+        with self.server.data_lock.block():
             self.last_ord = self.server.global_ordinal
+        # print(f'In page {self.session_id} at position {self.last_ord}')
 
         # print(f'Scheduling {len(update_glyph_fns)} callbacks')
         for fn in update_glyph_fns:

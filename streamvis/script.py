@@ -1,20 +1,22 @@
 import fire
 import numpy as np
+import re
 from tensorflow.io.gfile import GFile
 from streamvis import server, util
 
-def inventory(path):
+def inventory(path, scope_pattern='.*'):
     """
-    Print a summary inventory of data in `path`
+    Print a summary inventory of data in `path` matching scope_pattern
     """
     fh = GFile(path, 'rb')
     packed = fh.read()
     fh.close()
-    messages = util.unpack(packed)
+    messages, remain_bytes = util.unpack(packed)
     groups, all_points = util.separate_messages(messages)
     # print(f'Inventory for {path}')
     print('group.id\tscope\tname\tindex\tnum_points')
-    for g in groups:
+    filter_fn = lambda g: re.match(scope_pattern, g.scope)
+    for g in filter(filter_fn, groups):
         points = list(filter(lambda p: p.group_id == g.id, all_points))
         total_vals = sum(util.num_point_data(p) for p in points)
         print(f'{g.id}\t{g.scope}\t{g.name}\t{g.index}\t{total_vals}') 

@@ -8,6 +8,7 @@ import sys
 import os
 import yaml
 import re
+import functools
 from collections import defaultdict
 from contextlib import contextmanager
 from tensorflow.io.gfile import GFile
@@ -34,8 +35,7 @@ class LockManager:
         return self
 
     def __enter__(self):
-        self.lock.acquire(blocking=self.do_block)
-        return None
+        return self.lock.acquire(blocking=self.do_block)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.lock.release()
@@ -54,24 +54,24 @@ class CleanupHandler(Handler):
 
     
 class Server:
-    def __init__(self, refresh_seconds=10.0):
+    def __init__(self, fetch_bytes=100000, refresh_seconds=10.0, scope_pattern='.*'):
         silence(EMPTY_LAYOUT, True)
         silence(MISSING_RENDERERS, True)
-        self.data_lock = LockManager()
-        self.schema = {} # plot_name => schema
-        self.global_ordinal = 0 # globally unique ID across all tables
-        self.groups = {} # group_id => Group
-        self.sig_to_table = {} # signature => table name
-        self.plot_to_sig = {} # plot_name => signature
 
-        # should this (and the blob?) be protected? 
-        self.blob_offset = 0
+        self.schema = {} # plot_name => schema
+
+        self.data_lock = LockManager()
+        self.tables = {} # table => sig (fetch_new_data)
+        self.groups = {} # group_id => Group (refresh_server)
+        self.global_ordinal = 0 # globally unique ID (refresh_server) (add_page)
+        self.plot_to_sig = {} # plot_name => signature (fetch_new_data)
+        self.blob_offset = 0 # (fetch_new_data)
+        self.fetch_bytes = fetch_bytes
+        self.refresh_seconds = refresh_seconds
+        self.scope_pattern = scope_pattern
+
         self.page_lock = LockManager()
         self.pages = {} # map of session_id -> {page.PageLayout or page.IndexPage}
-        # pretected by page_lock.  this is set when the server receives new data
-        # and needs to update all pages
-        self.data_update_pending = False 
-        self.refresh_seconds = refresh_seconds
 
     def load_schema(self, schema_file):
         """
@@ -94,31 +94,34 @@ class Server:
         self.path = path
         self.connection = sqlite3.connect(':memory:', check_same_thread=False)
 
+    @staticmethod
+    def table_name(sig):
+        return 't' + str(abs(hash(sig)))
+
     def add_group(self, group):
         """
         Add entry to self.groups, maybe self.points_tables and self.plot_sig
-        Call this under self.data_lock
         """
         sig = tuple((f.name, f.type) for f in group.fields)
+        table = self.table_name(sig)
 
         self.groups[group.id] = group
         cursor = self.connection.cursor()
 
-        if sig not in self.sig_to_table:
-            table_name = f't{len(self.sig_to_table)}'
-            self.sig_to_table[sig] = table_name 
+        if table not in self.tables:
+            self.tables[table] = sig
             fields = ',\n'.join(f'{f.name} {util.get_sql_type(f.type)}' for f in
                     group.fields)
             create_table_stmt = f"""
-            CREATE TABLE {table_name} (
+            CREATE TABLE {table} (
                ord INT,
                group_id INT,
                {fields}
             )
             """
             create_index_stmt = f"""
-            CREATE UNIQUE INDEX {table_name}_gid_ord
-            ON {table_name} (group_id, ord)
+            CREATE UNIQUE INDEX {table}_gid_ord
+            ON {table} (group_id, ord)
             """
             cursor.execute(create_table_stmt)
             cursor.execute(create_index_stmt)
@@ -130,60 +133,81 @@ class Server:
                     f'Group {group} matching schema for plot {plot_name} '
                     f'had signature {sig} which did not match existing signature'
                     f' {existing_sig}')
-            if (re.match(plot_schema['scope_pattern'], group.scope) and
+            if (re.match(self.scope_pattern, group.scope) and
                     re.match(plot_schema['name_pattern'], group.name)):
                 self.plot_groups[plot_name].append(group)
 
+    def scope_name_index(self, plot_name, query_group):
+        """
+        Computes the index of the (scope, name) pair associated with `plot_name` for
+        the current server scope.  Indexes are assigned to each distinct (scope,
+        name) pair in the order they are encountered in the log file.
+        """
+        index = 0
+        temp = {}
+        query_scope_name = query_group.scope, query_group.name
+        with self.data_lock.block():
+            filter_fn = lambda g: re.match(self.scope_pattern, g.scope)
+            for group in filter(filter_fn, self.plot_groups[plot_name]):
+                scope_name = group.scope, group.name
+                if scope_name not in temp:
+                    temp[scope_name] = index
+                    index += 1
+                if scope_name == query_scope_name:
+                    break
+        return temp[query_scope_name]
+
+    def load_rows(self, table, rows):
+        if len(rows) == 0:
+            return
+        num_fields = len(rows[0])
+        placeholder = ', '.join('?' for _ in range(num_fields))
+        insert_stmt = f'INSERT INTO {table} VALUES ({placeholder})'
+        cursor = self.connection.cursor()
+        cursor.executemany(insert_stmt, rows)
+
     def add_points(self, points_list):
-        """
-        Add the points contents to the database
-        """
-        accu = defaultdict(list)
-        for point in points_list:
-            group = self.groups[point.group_id]
-            accu[group.id].extend(util.values_tuples(point, group))
-            
-        for group_id, vals in accu.items():
-            group = self.groups[group_id]
-            sig = tuple((f.name, f.type) for f in group.fields)
-            table_name = self.sig_to_table[sig]
-            with self.data_lock.block():
+        @functools.lru_cache
+        def get_table(group_id):
+            g = self.groups[group_id]
+            sig = tuple((f.name, f.type) for f in g.fields)
+            return self.table_name(sig)
+
+        for table, sig in self.tables.items():
+            rows = []
+            for pt in filter(lambda p: get_table(p.group_id) == table, points_list):
                 go = self.global_ordinal
+                vals = util.values_tuples(go, pt.group_id, pt, sig)
                 self.global_ordinal += len(vals)
-            ords = range(go, go + len(vals))
-            vals = [(o, group.id, *p) for o, p in zip(ords, vals)]
-            placeholder = ', '.join('?' for _ in range(len(sig) + 2))
-            insert_stmt = f'INSERT INTO {table_name} VALUES ({placeholder})'
-            with self.data_lock.block():
-                cursor = self.connection.cursor()
-                cursor.executemany(insert_stmt, vals)
-                self.connection.commit()
+                rows.extend(vals)
+            self.load_rows(table, rows)
 
     def new_cds_data(self, group_id, min_ordinal):
         """
         Return new CDS data for the glyph >= min_ordinal 
-        May only be called under the data_lock.
         """
         # print(f'in new_cds_data for {group_id} at {min_ordinal}')
-        group = self.groups[group_id]
-        sig = tuple((f.name, f.type) for f in group.fields)
-        column_names = [s[0] for s in sig]
-        sql_select = ', '.join(column_names)
-        table_name = self.sig_to_table[sig]
-        new_points_stmt = f"""
-        SELECT {sql_select} 
-        FROM {table_name} 
-        WHERE group_id = {group_id}
-        AND ord >= {min_ordinal}
-        ORDER BY ord
-        """
-        cursor = self.connection.cursor()
-        cursor.execute(new_points_stmt)
-        results = np.array(cursor.fetchall()).transpose()
-        if results.size == 0:
-            return None
-        # return np.array(results)
-        return dict(zip(column_names, results))
+        with self.data_lock as lock_acquired:
+            if not lock_acquired:
+                return None
+            group = self.groups[group_id]
+            sig = tuple((f.name, f.type) for f in group.fields)
+            table = self.table_name(sig)
+            column_names = [s[0] for s in sig]
+            sql_select = ', '.join(column_names)
+            new_points_stmt = f"""
+            SELECT {sql_select} 
+            FROM {table} 
+            WHERE group_id = {group_id}
+            AND ord >= {min_ordinal}
+            ORDER BY ord
+            """
+            cursor = self.connection.cursor()
+            cursor.execute(new_points_stmt)
+            results = np.array(cursor.fetchall()).transpose()
+            if results.size == 0:
+                return None
+            return dict(zip(column_names, results))
 
     def shutdown(self):
         """
@@ -195,51 +219,51 @@ class Server:
         """
         Read any new data from the blob, updating the current position
         """
-        # print('in fetch_new_data')
         try:
             fh = GFile(self.path, 'rb')
             fh.seek(self.blob_offset)
-            packed = fh.read()
-            # print(f'read {len(packed)} bytes')
+            packed = fh.read(self.fetch_bytes)
         except BaseException as ex:
-            return
-            # print(f'Got exception {ex}')
+            raise RuntimeError(f'Could not read from {self.path}: {ex}')
         finally:
             fh.close()
 
         if len(packed) == 0:
-            return
+            return True
 
-        # no need to protect this with lock.  It is only called here
-        # and gcs_callback calls fetch_new_data in a loop
-        self.blob_offset += len(packed)
         try:
-            messages = util.unpack(packed)
+            messages, remain_bytes = util.unpack(packed)
+            processed_bytes = len(packed) - remain_bytes
+            self.blob_offset += processed_bytes 
+            end_reached = (len(packed) < self.fetch_bytes)
             new_groups, new_points = util.separate_messages(messages)
         except Exception as ex:
             raise RuntimeError(
                     f'Could not unpack messages from GCS log file {self.path}. '
                     f'Got exception: {ex}')
 
-        for g in new_groups:
-            self.add_group(g)
-        self.add_points(new_points)
+        with self.data_lock.block():
+            for g in new_groups:
+                self.add_group(g)
+            self.add_points(new_points)
+        return end_reached
 
     def update_pages(self):
         for page in self.pages.values():
-            with self.page_lock:
-                page.update()
+            page.update()
 
     async def refresh_server(self):
+        loop = asyncio.get_running_loop()
         while True:
-            # print('in refresh_server')
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, self.fetch_new_data)
+            end_reached = await loop.run_in_executor(None, self.fetch_new_data)
             await loop.run_in_executor(None, self.update_pages)
-            await asyncio.sleep(self.refresh_seconds)
+            cycle_delay = self.refresh_seconds if end_reached else 0.2
+            await asyncio.sleep(cycle_delay)
 
     def add_page(self, doc):
         """
+        Runs concurrently with refresh_server
+
         Add a page object to the state machine
         REST API arguments:
         plots: comma-separate names of plots
@@ -260,35 +284,24 @@ class Server:
             page.process_request(req)
 
         doc.add_next_tick_callback(page.build_callback)
-        page.update()
-
-        with self.page_lock:
-            self.pages[session_id] = page
-            print(f'server has {len(self.pages)} pages')
 
     def delete_page(self, session_id):
-        with self.page_lock:
+        with self.page_lock.block():
             del self.pages[session_id]
             print(f'deleted page {session_id}.  server now has {len(self.pages)} pages.')
 
-def make_server(port, schema_file, log_file, refresh_seconds=10):  
+def make_server(port, schema_file, log_file, scope_pattern='.*', fetch_bytes=2**24,
+        refresh_seconds=10):  
     """
     Launch a server on `port` using `schema_file` to configure plots of data in `path`
     """
-    sv_server = Server(refresh_seconds)
+    sv_server = Server(fetch_bytes, refresh_seconds, scope_pattern)
     sv_server.load_schema(schema_file)
     sv_server.init_data(log_file)
-    # print(f'loading {log_file} ... ', end='', flush=True)
-    # sv_server.fetch_new_data()
-    # print(f'done.  Loaded {sv_server.global_ordinal} records')
     handler = FunctionHandler(sv_server.add_page)
     cleanup = CleanupHandler(sv_server)
     bokeh_app = Application(handler, cleanup)
     bokeh_server = BokehServer({'/': bokeh_app}, port=port)
-
-    # loop = asyncio.get_running_loop()
-    # loop.run_forever()
-
     bokeh_server.io_loop.asyncio_loop.create_task(sv_server.refresh_server())
 
     def shutdown_handler(signum, frame):
@@ -298,10 +311,7 @@ def make_server(port, schema_file, log_file, refresh_seconds=10):
     signal.signal(signal.SIGQUIT, shutdown_handler)
     signal.signal(signal.SIGHUP, shutdown_handler) 
 
-    # loop_wrap = tornado.ioloop.IOLoop.current()
-
     print(f'Web server is running on http://localhost:{port}')
     bokeh_server.run_until_shutdown()
-    # bokeh_server.start()
 
 
