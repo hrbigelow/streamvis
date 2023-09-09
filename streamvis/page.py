@@ -241,19 +241,17 @@ class PageLayout:
 
     @staticmethod
     def color(plot_schema, scope_name_index, index):
-        colordef = plot_schema.get('color', None)
-        if colordef is None:
-            colordef = dict(
-                    palette='Viridis',
-                    max_groups=1,
-                    max_indices=1,
-                    group_wise=True
-                    )
-        if colordef['group_wise']:
-            palette_index = scope_name_index * colordef['max_indices'] + index
+        cdef = plot_schema.get('color', {})
+        cdef.setdefault('palette', 'Viridis8')
+        cdef.setdefault('max_groups', 1)
+        cdef.setdefault('max_indices', 1)
+        cdef.setdefault('group_wise', True)
+
+        if cdef['group_wise']:
+            palette_index = scope_name_index * cdef['max_indices'] + index
         else:
-            palette_index = index * colordef['max_groups'] + scope_name_index
-        return palettes.__dict__[colordef['palette']][palette_index]
+            palette_index = index * cdef['max_groups'] + scope_name_index
+        return palettes.__dict__[cdef['palette']][palette_index]
 
     def validate_schema(self):
         pass
@@ -300,7 +298,7 @@ class PageLayout:
                 new_data = self.server.new_cds_data(group.id, self.last_ord + 1)
                 if new_data is None:
                     continue
-                fn = partial(self.update_glyph_cb, plot_schema, fig, group, new_data)
+                fn = partial(self.update_glyph_cb, plot_schema, plot_name, fig, group, new_data)
                 update_glyph_fns.append(fn)
 
         with self.server.data_lock.block():

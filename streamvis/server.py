@@ -290,8 +290,8 @@ class Server:
             del self.pages[session_id]
             print(f'deleted page {session_id}.  server now has {len(self.pages)} pages.')
 
-def make_server(port, schema_file, log_file, scope_pattern='.*', fetch_bytes=2**24,
-        refresh_seconds=10):  
+def make_server(port, schema_file, log_file, fetch_bytes=2**24, refresh_seconds=10,
+        scope_pattern='*.'):  
     """
     Launch a server on `port` using `schema_file` to configure plots of data in `path`
     """

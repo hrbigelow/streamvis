@@ -197,9 +197,13 @@ def get_numpy(data):
             f'data.detach().numpy() or np.array(data).  '
             f'Got type(data) = {type(data)}')
 
+    # For the moment, converting everything to float32 
+    data = data.astype(np.float32)
+    """
     if data.dtype == np.int64:
         data = data.astype(np.int32)
     elif data.dtype == np.float64:
         data = data.astype(np.float32)
+    """
     return data
 

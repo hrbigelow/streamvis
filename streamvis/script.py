@@ -1,8 +1,11 @@
 import fire
+import math
+import time
 import numpy as np
 import re
 from tensorflow.io.gfile import GFile
 from streamvis import server, util
+from streamvis.logger import DataLogger
 
 def inventory(path, scope_pattern='.*'):
     """
@@ -34,7 +37,7 @@ def demo_app(scope, path):
     left_data = np.random.randn(N, 2)
 
     for step in range(0, 10000, 10):
-        sleep(1.0)
+        time.sleep(1.0)
         # top_data[group, point], where group is a logical grouping of points that
         # form a line, and point is one of those points
         top_data = np.array(
