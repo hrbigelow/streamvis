@@ -141,7 +141,7 @@ def make_point(group, batch):
 
 
 def validate(group, /, data):
-    # validate field names and data types against group
+    # validate keys and data types of `data` against group fields
     numpy_to_proto = { 
             np.dtype('int32'): pb.FieldType.INT, 
             np.dtype('float32'): pb.FieldType.FLOAT 
@@ -164,6 +164,8 @@ def add_to_point(group, point, /, **data):
     validate(group, data)
     for value, field in zip(point.values, group.fields):
         nums = data[field.name]
+        if nums.ndim == 0:
+            nums = nums[None]
         if field.type == pb.FieldType.INT:
             value.ints.value.extend(nums)
         elif field.type == pb.FieldType.FLOAT:

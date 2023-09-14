@@ -35,29 +35,44 @@ class DataLogger:
 
     @staticmethod
     def upscale_inputs(data):
+        """
+        Reshape all data to have shape: (index,point) 
+        """
         def up2(k, v):
             if v.ndim == 0:
                 return v[None,None]
             elif v.ndim == 1:
-                return v[None,:]
+                return v[:,None]
             elif v.ndim == 2:
                 return v
             else:
-                raise RuntimeError(f'{k} has rank {v.ndim} value. Only 0, 1, or 2D allowed')
-        keys = data.keys()
-        vals = np.broadcast_arrays(*[up2(k, v) for k, v in data.items()])
+                raise RuntimeError(
+                    f'Datum {k} had shape {v.shape}.  Only rank 0, 1, or 2 data are '
+                    f'allowed')
+
+        keys, vals = list(zip(*data.items()))
+        vals = [up2(k, v) for k, v in data.items()]
+        try:
+            vals = np.broadcast_arrays(*vals)
+        except BaseException:
+            raise RuntimeError(
+                f'Data shapes aren\'t broadcastable: ' +
+                ', '.join(f'{k}: {v.shape}' for k, v in data.items()))
+
         return dict(zip(keys, vals))
 
-    def write(self, group_name, index=None, /, **data):
+    def write(self, group_name, /, **data):
         """
         Writes new data, possibly creating one or more Group items
         group_name:  the `name` field of the Group(s) created
         index: the `index` field of the Group created
-        data: map of field_name => data, where data can be one of:
+        data: map of field_name => item, with the following logic.
 
-        - scalar:  data = single data point coordinate.  
-        - 1d tensor:  data[p] coordinate for data point p
-        - 2d tensor:  data[i, p] coordinate for group index i and data point p
+        1. all data items (whether rank 0, 1, or 2) are implicitly broadcasted 
+           with shape (1,1).  The final shape denotes (index, point)
+
+        2. points are then written to (group_name, index)
+
         """
         # validate index and data
         try:
@@ -68,36 +83,26 @@ class DataLogger:
 
         try:
             data = self.upscale_inputs(data)
-        except RuntimeError as ex:
+        except BaseException as ex:
             raise RuntimeError(f'{group_name=}, got exception {ex}')
 
-        leading_dim = next(v.shape[0] for v in data.values())
-        if index is None:
-            index = tuple(range(leading_dim))
-        elif isinstance(index, int):
-            index = (index,)
-        if len(index) != leading_dim:
-            raise RuntimeError(
-                f'logger.write: {group_name=} {index=}.  `index` incompatible with '
-                f'maximal leading data dimension {leading_dim}\n'
-                f'index must be None (automatically inferred)\n'
-                f'an integer if leading_dim == 1, or a tuple of integers of size\n'
-                f'leading_dim')
-
+        item = next(iter(data.values()))
+        indices = range(item.shape[0])
+        
         # create all non-existent group objects
         field_types = { k: v.dtype for k, v in data.items() }
-        for i in index:
-            if self.find_group(group_name, i) == -1:
-                new_group = util.make_group(self.scope, group_name, i, **field_types)
+        for gi in indices:
+            if self.find_group(group_name, gi) == -1:
+                new_group = util.make_group(self.scope, group_name, gi, **field_types)
                 self.fh.write(util.pack_message(new_group))
                 self.groups.append(new_group)
                 self.points.append(None)
 
-        for i in index:
-            obj_idx = self.find_group(group_name, i)
+        for gi in indices:
+            obj_idx = self.find_group(group_name, gi)
             gobj = self.groups[obj_idx]
             pobj = self.points[obj_idx]
-            slice_data = { k: v[i] for k, v in data.items() }
+            slice_data = { k: v[gi] for k, v in data.items() }
             if pobj is None:
                 pobj = util.make_point(gobj, self.batch)
                 self.batch += 1

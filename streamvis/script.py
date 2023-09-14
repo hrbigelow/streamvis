@@ -17,12 +17,13 @@ def inventory(path, scope_pattern='.*'):
     messages, remain_bytes = util.unpack(packed)
     groups, all_points = util.separate_messages(messages)
     # print(f'Inventory for {path}')
-    print('group.id\tscope\tname\tindex\tnum_points')
+    print('group.id\tscope\tname\tsignature\tindex\tnum_points')
     filter_fn = lambda g: re.match(scope_pattern, g.scope)
     for g in filter(filter_fn, groups):
         points = list(filter(lambda p: p.group_id == g.id, all_points))
         total_vals = sum(util.num_point_data(p) for p in points)
-        print(f'{g.id}\t{g.scope}\t{g.name}\t{g.index}\t{total_vals}') 
+        signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
+        print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total_vals}') 
 
 def demo_app(scope, path):
     """
@@ -50,7 +51,12 @@ def demo_app(scope, path):
         left_data = left_data + np.random.randn(N, 2) * 0.1
         layer_mult = np.linspace(0, 10, L)
 
-        logger.write('top_left', x=step, y=top_data)
+        logger.write('top_left', x=[list(range(step, step+10))], y=top_data)
+
+        mid_data = top_data[:,0]
+
+        # (I,), None form
+        logger.write('middle', x=step, y=mid_data)
 
         # Distribute the L dimension along grid cells
         # data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
