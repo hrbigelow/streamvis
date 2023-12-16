@@ -3,6 +3,21 @@ import random
 from . import data_pb2 as pb
 import pdb
 
+def get_log_handle(path, mode):
+    """
+    Provide an ordinary filehandle or GFile, whichever is needed, to avoid
+    unnecessary tensorflow dependency
+    """
+    if path.startswith('gs://'):
+        try:
+            from tensorflow.io.gfile import GFile
+        except ModuleNotFoundError:
+            raise RuntimeError(f'{path=} is a GFile path, install tensorflow first')
+        fh = GFile(path, mode)
+    else:
+        fh = open(path, mode)
+    return fh
+
 def separate_messages(messages):
     """
     Separate the messages into an array of Point and PointGroup messages
@@ -99,10 +114,12 @@ def points_to_cds(points_list, group):
     print('ending convert')
     return cds 
 
-def values_tuples(gid_beg, group_id, points, sig):
+def values_tuples(gid_beg, points, sig):
     """
+    `points`: a Points message
+    `sig`: a signature derived from Group.fields 
     Gets the points values as a list of tuples, suitable for insert
-    into a relational table
+    into a relational table.
     """
     vals = []
     for value, (_, typ) in zip(points.values, sig):
@@ -110,7 +127,7 @@ def values_tuples(gid_beg, group_id, points, sig):
             vals.append(value.floats.value)
         elif typ == pb.FieldType.INT:
             vals.append(value.ints.value)
-    return [(gid, group_id, *v) for gid, v in enumerate(zip(*vals), gid_beg)]
+    return [(gid, points.group_id, *v) for gid, v in enumerate(zip(*vals), gid_beg)]
 
 def make_group(scope, name, index, /, **field_types):
     """

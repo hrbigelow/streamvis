@@ -1,5 +1,4 @@
 import numpy as np
-from tensorflow.io.gfile import GFile
 import random
 import time
 import signal
@@ -26,7 +25,7 @@ class DataLogger:
         path:  filesystem path or gs:// resource
         buffer_max_elem:  number of data items to buffer
         """
-        self.fh = GFile(path, 'ab')
+        self.fh = util.get_log_handle(path, 'ab')
         self.buffer_max_elem = buffer_max_elem
 
     def find_group(self, group_name, index):
@@ -37,12 +36,17 @@ class DataLogger:
     def upscale_inputs(data):
         """
         Reshape all data to have shape: (index,point) 
+        Shape transformations will be:
+        () -> (1, 1)
+        (point,) -> (1, point)
+        (index,point) -> (index,point)
         """
         def up2(k, v):
             if v.ndim == 0:
                 return v[None,None]
             elif v.ndim == 1:
-                return v[:,None]
+                return v[None,:]
+                # return v[:,None]
             elif v.ndim == 2:
                 return v
             else:
@@ -73,13 +77,19 @@ class DataLogger:
 
         2. points are then written to (group_name, index)
 
+        The common idioms for writing series of points:
+
+        x[point], y[index, point]
         """
         # validate index and data
-        try:
-            data = { k: util.get_numpy(v) for k, v in data.items() }
-        except RuntimeError as ex:
-            raise RuntimeError(
-                f'{group_name=}, could not convert `data` to numpy arrays:\n{data=}')
+        for k, v in data.items():
+            try:
+                v = util.get_numpy(v)
+                data[k] = v
+            except RuntimeError as ex:
+                raise RuntimeError(
+                    f'{group_name=}, could not convert data key `{k}` to '
+                    f'numpy arrays:\n{v=}')
 
         try:
             data = self.upscale_inputs(data)

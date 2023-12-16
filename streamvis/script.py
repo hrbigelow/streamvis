@@ -3,27 +3,47 @@ import math
 import time
 import numpy as np
 import re
-from tensorflow.io.gfile import GFile
 from streamvis import server, util
 from streamvis.logger import DataLogger
 
-def inventory(path, scope_pattern='.*'):
-    """
-    Print a summary inventory of data in `path` matching scope_pattern
-    """
-    fh = GFile(path, 'rb')
+def _load(path):
+    fh = util.get_log_handle(path, 'rb')
     packed = fh.read()
     fh.close()
     messages, remain_bytes = util.unpack(packed)
     groups, all_points = util.separate_messages(messages)
+    return groups, all_points
+
+def inventory(path, scopes='.*', names='.*'):
+    """
+    Print a summary inventory of data in `path` matching scopes
+    """
+    groups, all_points = _load(path)
     # print(f'Inventory for {path}')
     print('group.id\tscope\tname\tsignature\tindex\tnum_points')
-    filter_fn = lambda g: re.match(scope_pattern, g.scope)
+    def filter_fn(g):
+        return re.match(scopes, g.scope) and re.match(names, g.name)
     for g in filter(filter_fn, groups):
         points = list(filter(lambda p: p.group_id == g.id, all_points))
         total_vals = sum(util.num_point_data(p) for p in points)
         signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
         print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total_vals}') 
+
+def export(path, scopes='.*'):
+    """
+    Export contents of data in `path` matching `scopes` in tsv format
+    """
+    groups, all_points = _load(path)
+    filter_fn = lambda g: re.match(scopes, g.scope)
+    for g in filter(filter_fn, groups):
+        sig = tuple((f.name, f.type) for f in g.fields)
+        points = [pt for pt in all_points if pt.group_id == g.id]
+        for pt in points:
+            valtups = util.values_tuples(0, pt, sig)
+            for _, group_id, *vals in valtups:
+                valstr = '\t'.join(f'{v:.3f}' for v in vals)
+                print(f'{group_id}\t{pt.batch}\t{g.scope}\t{g.name}\t{g.index}\t{valstr}')
+    
 
 def demo_app(scope, path):
     """
@@ -81,7 +101,8 @@ def run():
     cmds = { 
             'serve': server.make_server,
             'demo': demo_app,
-            'list': inventory
+            'list': inventory,
+            'export': export
             }
     fire.Fire(cmds)
 

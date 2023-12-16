@@ -11,7 +11,6 @@ import re
 import functools
 from collections import defaultdict
 from contextlib import contextmanager
-from tensorflow.io.gfile import GFile
 from google.cloud import storage
 from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
@@ -54,7 +53,11 @@ class CleanupHandler(Handler):
 
     
 class Server:
-    def __init__(self, fetch_bytes=100000, refresh_seconds=10.0, scope_pattern='.*'):
+    def __init__(self, fetch_bytes=100000, refresh_seconds=10.0, scopes='.*', names='.*'):
+        """
+        scopes: regex to match on Group.scope (see data.proto)
+        name_pattern: regex to match on Group.name 
+        """
         silence(EMPTY_LAYOUT, True)
         silence(MISSING_RENDERERS, True)
 
@@ -68,10 +71,20 @@ class Server:
         self.blob_offset = 0 # (fetch_new_data)
         self.fetch_bytes = fetch_bytes
         self.refresh_seconds = refresh_seconds
-        self.scope_pattern = scope_pattern
+        self.scope_pattern = scopes
+        self.name_pattern = names
 
         self.page_lock = LockManager()
         self.pages = {} # map of session_id -> {page.PageLayout or page.IndexPage}
+        self.validate_patterns(scope_pattern=scopes, name_pattern=names)
+    @staticmethod
+    def validate_patterns(**kwargs):
+        for arg_name, arg_val in kwargs.items():
+            try:
+                re.compile(arg_val)
+            except re.error as ex:
+                raise RuntimeError(
+                    f'Received invalid regex for {arg_name}: `{arg_val}`: {ex}')
 
     def load_schema(self, schema_file):
         """
@@ -84,6 +97,14 @@ class Server:
             raise RuntimeError(
                     f'Server could not open or parse schema file {schema_file}. '
                     f'Exception was: {ex}')
+        # validate schema
+        for plot_name, plot_schema in schema.items():
+            try:
+                self.validate_patterns(name_pattern=plot_schema['name_pattern'])
+            except Exception as ex:
+                raise RuntimeError(
+                    f'Plot {plot_name} in schema file {schema_file} '
+                    f'contained error:\n{ex}')
         self.schema = schema
         self.plot_groups = { name: [] for name in self.schema.keys() } 
 
@@ -134,8 +155,11 @@ class Server:
                     f'had signature {sig} which did not match existing signature'
                     f' {existing_sig}')
             if (re.match(self.scope_pattern, group.scope) and
-                    re.match(plot_schema['name_pattern'], group.name)):
+                re.match(self.name_pattern, group.name) and
+                re.match(plot_schema['name_pattern'], group.name)):
                 self.plot_groups[plot_name].append(group)
+                # print(f'{self.name_pattern} {self.scope_pattern} '
+                      # f'Adding {group.scope} {group.name}')
 
     def scope_name_index(self, plot_name, query_group):
         """
@@ -177,7 +201,7 @@ class Server:
             rows = []
             for pt in filter(lambda p: get_table(p.group_id) == table, points_list):
                 go = self.global_ordinal
-                vals = util.values_tuples(go, pt.group_id, pt, sig)
+                vals = util.values_tuples(go, pt, sig)
                 self.global_ordinal += len(vals)
                 rows.extend(vals)
             self.load_rows(table, rows)
@@ -220,7 +244,7 @@ class Server:
         Read any new data from the blob, updating the current position
         """
         try:
-            fh = GFile(self.path, 'rb')
+            fh = util.get_log_handle(self.path, 'rb')
             fh.seek(self.blob_offset)
             packed = fh.read(self.fetch_bytes)
         except BaseException as ex:
@@ -290,12 +314,12 @@ class Server:
             del self.pages[session_id]
             print(f'deleted page {session_id}.  server now has {len(self.pages)} pages.')
 
-def make_server(port, schema_file, log_file, fetch_bytes=2**24, refresh_seconds=10,
-        scope_pattern='*.'):  
+def make_server(port, schema_file, log_file, refresh_seconds=10, scopes='.*', names='.*'):  
     """
     Launch a server on `port` using `schema_file` to configure plots of data in `path`
     """
-    sv_server = Server(fetch_bytes, refresh_seconds, scope_pattern)
+    fetch_bytes = 10**10 # hack
+    sv_server = Server(fetch_bytes, refresh_seconds, scopes, names)
     sv_server.load_schema(schema_file)
     sv_server.init_data(log_file)
     handler = FunctionHandler(sv_server.add_page)

@@ -2,7 +2,7 @@ import numpy as np
 import re
 from bokeh.layouts import column, row
 from bokeh.models.dom import HTML
-from bokeh.models import Div, ColumnDataSource
+from bokeh.models import Div, ColumnDataSource, Legend
 from bokeh.plotting import figure
 from bokeh import palettes
 from functools import partial
@@ -215,8 +215,15 @@ class PageLayout:
                 self.container.children.append(box)
             box = self.container.children[box_index]
             fig_kwargs = schema[plot_name].get('figure_kwargs', {})
-            fig_kwargs.update(self.get_figsize(index))
-            fig = figure(name=plot_name, output_backend='webgl', **fig_kwargs)
+            # fig_kwargs.update(self.get_figsize(index))
+            size_opts = self.get_figsize(index)
+            fig = figure(name=plot_name, output_backend='webgl', **size_opts)
+            if 'legend' in fig_kwargs:
+                legend = Legend(**fig_kwargs['legend'])
+                fig.add_layout(legend)
+            fig.title.update(**fig_kwargs.get('title', {}))
+            fig.xaxis.update(**fig_kwargs.get('xaxis', {}))
+            fig.yaxis.update(**fig_kwargs.get('yaxis', {}))
             box.children.append(fig)
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
@@ -241,16 +248,23 @@ class PageLayout:
 
     @staticmethod
     def color(plot_schema, scope_name_index, index):
+        """
+        Assign a color to a point group based on Yaml color[formula] value
+        """
         cdef = plot_schema.get('color', {})
         cdef.setdefault('palette', 'Viridis8')
         cdef.setdefault('max_groups', 1)
         cdef.setdefault('max_indices', 1)
-        cdef.setdefault('group_wise', True)
+        cdef.setdefault('formula', 'name_index')
 
-        if cdef['group_wise']:
+        if cdef['formula'] == 'name_index':
             palette_index = scope_name_index * cdef['max_indices'] + index
-        else:
+        elif cdef['formula'] == 'index_name':
             palette_index = index * cdef['max_groups'] + scope_name_index
+        elif cdef['formula'] == 'name':
+            palette_index = scope_name_index
+        elif cdef['formula'] == 'index':
+            palette_index = index
         return palettes.__dict__[cdef['palette']][palette_index]
 
     def validate_schema(self):
@@ -272,7 +286,11 @@ class PageLayout:
         if len(glyphs) == 0:
             scope_name_index = self.server.scope_name_index(plot_name, group)
             color = self.color(plot_schema, scope_name_index, group.index)
-            fixup_glyph_kwargs = { **glyph_kwargs, 'line_color': color }
+            fixup_glyph_kwargs = { 
+                                  **glyph_kwargs, 
+                                  'line_color': color,
+                                  'legend_label': f'{group.scope}-{group.name}-{group.index}'
+                                  }
             cols = plot_schema['columns']
             cds = ColumnDataSource({c: [] for c in cols})
             fig.line(*cols, source=cds, name=str(group.id), **fixup_glyph_kwargs)
