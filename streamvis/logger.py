@@ -10,7 +10,10 @@ class DataLogger:
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self, scope):
+    def __init__(self, scope: str):
+        """
+        scope: a string which defines the scope in the logical point grouping
+        """
         self.configured_plots = set()
         self.scope = scope
         self.groups = []
@@ -66,11 +69,14 @@ class DataLogger:
         return dict(zip(keys, vals))
 
     def write(self, group_name, /, **data):
-        """
-        Writes new data, possibly creating one or more Group items
-        group_name:  the `name` field of the Group(s) created
-        index: the `index` field of the Group created
-        data: map of field_name => item, with the following logic.
+        """Writes new data, possibly creating one or more Group items.
+
+        Inputs:
+        group_name:  
+          the `name` field of the (scope, name, index) tuple that will be associated
+          with these points.
+        data: 
+          map of field_name => item, with the following logic.
 
         1. all data items (whether rank 0, 1, or 2) are implicitly broadcasted 
            with shape (1,1).  The final shape denotes (index, point)
@@ -89,7 +95,7 @@ class DataLogger:
             except RuntimeError as ex:
                 raise RuntimeError(
                     f'{group_name=}, could not convert data key `{k}` to '
-                    f'numpy arrays:\n{v=}')
+                    f'numpy arrays:\n{v=}\n{ex}')
 
         try:
             data = self.upscale_inputs(data)

@@ -114,6 +114,7 @@ class PageLayout:
     def process_request(self, request):
         """
         API:
+        scopes: regex pattern of scopes to include 
         rows:   semi-colon separated list of csv names lists
         cols:   semi-colon separate list of csv names lists
         
@@ -122,6 +123,8 @@ class PageLayout:
 
         Exactly one of `rows` or `cols` must be given.  Both `width` and `height` are
         optional.
+
+        scopes is optional.  if absent, defaults to '.+'
 
         This function only accesses the server schema, not the data state
         """
@@ -169,6 +172,13 @@ class PageLayout:
         if (rows is None) == (cols is None):
             raise RuntimeError(
                 f'Exactly one of `rows` or `cols` query parameter must be given')
+        scope_pat = maybe_get(args, "scopes")
+        if scope_pat is None:
+            scope_pat = ".*"
+        try:
+            self.scope_pat = re.compile(scope_pat)
+        except re.PatternError as ex:
+            raise RuntimeError(f"scopes argument '{scope_pat}' is not a valid regex")
 
         plots = [] 
         box_elems = [] # 
@@ -207,6 +217,7 @@ class PageLayout:
         """
         self.container = column() if self.row_mode else row() 
         schema = self.server.schema
+
 
         for index, plot_name in enumerate(self.plot_names):
             box_index, _ = self.coords[index]
@@ -250,22 +261,37 @@ class PageLayout:
     def color(plot_schema, scope_name_index, index):
         """
         Assign a color to a point group based on Yaml color[formula] value
+
+        Inputs:
+          plot_schema: 
+            the section of the schema yaml file for this plot
+          scope_name_index: 
+            a monotonic integer index assigned to (scope, name) pairs as they appear
+            in the log file.  See server.Server::scope_name_index
+          index:
+            integer assigned to each data point.  See logger.DataLogger::write  
         """
         cdef = plot_schema.get('color', {})
         cdef.setdefault('palette', 'Viridis8')
-        cdef.setdefault('max_groups', 1)
-        cdef.setdefault('max_indices', 1)
+        cdef.setdefault('num_colors', 10)
+        cdef.setdefault('num_indices', 1)
+        cdef.setdefault('num_groups', 1)
         cdef.setdefault('formula', 'name_index')
 
         if cdef['formula'] == 'name_index':
-            palette_index = scope_name_index * cdef['max_indices'] + index
+            palette_index = scope_name_index * cdef['num_indices'] + index
         elif cdef['formula'] == 'index_name':
-            palette_index = index * cdef['max_groups'] + scope_name_index
+            palette_index = index * cdef['min_groups'] + scope_name_index
         elif cdef['formula'] == 'name':
             palette_index = scope_name_index
         elif cdef['formula'] == 'index':
             palette_index = index
-        return palettes.__dict__[cdef['palette']][palette_index]
+
+        pal = palettes.__dict__[cdef['palette']]
+        pal = palettes.interp_palette(pal, cdef['num_colors'])
+        palette_index = palette_index % cdef['num_colors']
+        return pal[palette_index]
+
 
     def validate_schema(self):
         pass
@@ -298,9 +324,7 @@ class PageLayout:
         glyph.data_source.stream(new_data)
 
     def update(self):
-        """
-        Update page with new data.
-        """
+        """Update page with new data."""
         # print('in update')
         # print(f'{self.last_ord=}, {self.server.global_ordinal=}')
         with self.server.data_lock.block():
@@ -311,6 +335,7 @@ class PageLayout:
         for plot_name in self.plot_names:
             fig = self.get_plot(plot_name)
             groups = self.server.plot_groups[plot_name]
+            groups = [g for g in groups if re.match(self.scope_pat, g.scope)]
             plot_schema = self.server.schema[plot_name]
             for group in groups:
                 new_data = self.server.new_cds_data(group.id, self.last_ord + 1)

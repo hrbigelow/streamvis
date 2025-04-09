@@ -29,6 +29,16 @@ def inventory(path, scopes='.*', names='.*'):
         signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
         print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total_vals}') 
 
+def scopes(path):
+    """Print a list of all scopes, in order of first appearance"""
+    groups, _ = _load(path)
+    seen = set()
+    for g in groups:
+        if g.scope in seen:
+            continue
+        seen.add(g.scope)
+        print(g.scope)
+
 def export(path, scopes='.*'):
     """
     Export contents of data in `path` matching `scopes` in tsv format
@@ -102,6 +112,7 @@ def run():
             'serve': server.make_server,
             'demo': demo_app,
             'list': inventory,
+            'scopes': scopes,
             'export': export
             }
     fire.Fire(cmds)

@@ -53,7 +53,7 @@ class CleanupHandler(Handler):
 
     
 class Server:
-    def __init__(self, fetch_bytes=100000, refresh_seconds=10.0, scopes='.*', names='.*'):
+    def __init__(self, fetch_bytes=100000, refresh_seconds=2.0, scopes='.*', names='.*'):
         """
         scopes: regex to match on Group.scope (see data.proto)
         name_pattern: regex to match on Group.name 
