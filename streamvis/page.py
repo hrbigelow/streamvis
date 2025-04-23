@@ -309,17 +309,26 @@ class PageLayout:
         # print(f'updating glyph for {fig.name} {group.id}')
         glyphs = fig.select({'name': str(group.id)})
         glyph_kwargs = plot_schema.get('glyph_kwargs', {})
+        glyph_kind = plot_schema.get('glyph_kind')
+            
         if len(glyphs) == 0:
-            scope_name_index = self.server.scope_name_index(plot_name, group)
-            color = self.color(plot_schema, scope_name_index, group.index)
-            fixup_glyph_kwargs = { 
-                                  **glyph_kwargs, 
-                                  'line_color': color,
-                                  'legend_label': f'{group.scope}-{group.name}-{group.index}'
-                                  }
+            # import pdb
+            # pdb.set_trace()
             cols = plot_schema['columns']
             cds = ColumnDataSource({c: [] for c in cols})
-            fig.line(*cols, source=cds, name=str(group.id), **fixup_glyph_kwargs)
+
+            scope_name_index = self.server.scope_name_index(plot_name, group)
+            color = self.color(plot_schema, scope_name_index, group.index)
+            label = f"{group.scope}-{group.name}-{group.index}"
+            if glyph_kind == "line":
+                fig.line(*cols, source=cds, name=str(group.id), color=color,
+                         legend_label=label, **glyph_kwargs)
+            elif glyph_kind == "scatter":
+                fig.circle(*cols, name=str(group.id), source=cds, color=color,
+                           legend_label=label, **glyph_kwargs) 
+            else:
+                raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
+
         glyph = fig.select({'name': str(group.id)})[0]
         glyph.data_source.stream(new_data)
 

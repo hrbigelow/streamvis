@@ -3,6 +3,7 @@ import math
 import time
 import numpy as np
 import re
+from collections import defaultdict
 from streamvis import server, util
 from streamvis.logger import DataLogger
 
@@ -18,15 +19,23 @@ def inventory(path, scopes='.*', names='.*'):
     """
     Print a summary inventory of data in `path` matching scopes
     """
-    groups, all_points = _load(path)
+    all_groups, all_points = _load(path)
     # print(f'Inventory for {path}')
-    print('group.id\tscope\tname\tsignature\tindex\tnum_points')
     def filter_fn(g):
         return re.match(scopes, g.scope) and re.match(names, g.name)
-    for g in filter(filter_fn, groups):
-        points = list(filter(lambda p: p.group_id == g.id, all_points))
-        total_vals = sum(util.num_point_data(p) for p in points)
+    groups = list(filter(filter_fn, all_groups))
+    group_ids = set(g.id for g in groups)
+
+    print('group.id\tscope\tname\tsignature\tindex\tnum_points')
+    totals = defaultdict(int) # group_id -> num_points
+    for p in all_points:
+        if p.group_id not in group_ids:
+            continue
+        totals[p.group_id] += util.num_point_data(p)
+
+    for g in groups:
         signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
+        total_vals = totals[g.id]
         print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total_vals}') 
 
 def scopes(path):
