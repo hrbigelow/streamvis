@@ -150,10 +150,11 @@ class Server:
         for plot_name, plot_schema in self.schema.items():
             existing_sig = self.plot_to_sig.setdefault(plot_name, sig)
             if sig != existing_sig:
-                raise RuntimeError(
-                    f'Group {group} matching schema for plot {plot_name} '
-                    f'had signature {sig} which did not match existing signature'
-                    f' {existing_sig}')
+                print(f'Warning: '
+                      f'Group {group} matching schema for plot {plot_name} '
+                      f'had signature {sig} which did not match existing signature'
+                      f' {existing_sig}.  Skipping...')
+                continue
             if (re.match(self.scope_pattern, group.scope) and
                 re.match(self.name_pattern, group.name) and
                 re.match(plot_schema['name_pattern'], group.name)):
