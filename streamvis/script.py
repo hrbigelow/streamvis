@@ -6,20 +6,54 @@ import re
 from collections import defaultdict
 from streamvis import server, util
 from streamvis.logger import DataLogger
+from . import data_pb2 as pb
 
 def _load(path):
     fh = util.get_log_handle(path, 'rb')
     packed = fh.read()
     fh.close()
-    messages, remain_bytes = util.unpack(packed)
-    groups, all_points = util.separate_messages(messages)
-    return groups, all_points
 
-def inventory(path, scopes='.*', names='.*'):
+    return util.separate_messages(util.unpack(packed))
+
+def inventory(path, scopes='.*'):
+    """Print a summary inventory of data in `path` matching scopes."""
+    fh = util.get_log_handle(path, 'rb')
+    packed = fh.read()
+    fh.close()
+    totals = {}
+    seen_groups = {} # group_id -> pb.Group 
+    scope_pat = re.compile(scopes)
+    for item in util.unpack(packed):
+        if isinstance(item, pb.Group):
+            assert item.id not in seen_groups, f"Group {item.id} logged more than once"
+            seen_groups[item.id]  = item # to check validity
+            if not scope_pat.fullmatch(item.scope):
+                continue
+            totals[item.id] = 0
+        elif isinstance(item, pb.Points):
+            assert item.group_id in seen_groups, f"Item with group {item.group_id} logged before group"
+            if item.group_id not in totals:
+                continue
+            totals[item.group_id] += util.num_point_data(item)
+        elif isinstance(item, pb.Control):
+            if item.action == pb.Action.DELETE:
+                for group_id in list(totals):
+                    group = seen_groups[group_id]
+                    if group.scope == item.scope:
+                        del totals[group_id]
+        else:
+            raise RuntimeError(f"Unknown item type: {type(item)}")
+
+    for group_id, total in totals.items():
+        g = seen_groups[group_id]
+        signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
+        print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total}') 
+
+def inventory_bck(path, scopes='.*', names='.*'):
     """
     Print a summary inventory of data in `path` matching scopes
     """
-    all_groups, all_points = _load(path)
+    all_groups, all_points, _ = _load(path)
     # print(f'Inventory for {path}')
     def filter_fn(g):
         return re.match(scopes, g.scope) and re.match(names, g.name)
@@ -40,13 +74,23 @@ def inventory(path, scopes='.*', names='.*'):
 
 def scopes(path):
     """Print a list of all scopes, in order of first appearance"""
-    groups, _ = _load(path)
-    seen = set()
-    for g in groups:
-        if g.scope in seen:
-            continue
-        seen.add(g.scope)
-        print(g.scope)
+    fh = util.get_log_handle(path, 'rb')
+    packed = fh.read()
+    fh.close()
+    seen_scopes_list = []
+    seen_scopes_set = set()
+    for item in util.unpack(packed):
+        if isinstance(item, pb.Group):
+            if item.scope not in seen_scopes_set:
+                seen_scopes_set.add(item.scope)
+                seen_scopes_list.append(item.scope)
+        elif isinstance(item, pb.Control):
+            if item.action == pb.Action.DELETE:
+                seen_scopes_set.remove(item.scope)
+                seen_scopes_list.remove(item.scope)
+            
+    for scope in seen_scopes_list:
+        print(scope)
 
 def export(path, scopes='.*'):
     """

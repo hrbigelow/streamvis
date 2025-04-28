@@ -1,5 +1,7 @@
+import asyncio
 from typing import Dict, List, Union
 from dataclasses import dataclass
+import threading
 import numpy as np
 import re
 import _io
@@ -54,6 +56,7 @@ class PageLayout(BasePage):
     def __init__(self, server, doc):
         super().__init__(server, doc)
         self.session = Session(doc.session_context.id, server.log_file)
+        self.update_lock = threading.Lock()
         self.coords = None
         self.nbox = None
         self.box_elems = None
@@ -206,7 +209,7 @@ class PageLayout(BasePage):
         self.page_width = width
         self.page_height = height
 
-    def build_page_cb(self):
+    def build_page_cb(self, done: asyncio.Future):
         """Build the page for the first time.  
 
         Must be scheduled as next-tick callback
@@ -233,8 +236,7 @@ class PageLayout(BasePage):
             plot.figure = fig
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
-        self.doc.add_periodic_callback(self.refresh_data,
-                                       self.server.refresh_seconds)
+        done.set_result(None)
 
     @staticmethod
     def color(plot_schema, scope_name_index, index):
@@ -275,11 +277,12 @@ class PageLayout(BasePage):
         # add a glyph for the group if it doesn't exist
         if len(plot.figure.select({"name": str(group.id)})) > 0:
             return
+        all_groups = [self.session.groups[int(r.name)] for r in plot.figure.renderers]
+        scope_name_index = len(set((g.scope, g.name) for g in all_groups))
 
         cols = plot.schema['columns']
         cds = ColumnDataSource({c: [] for c in cols})
 
-        scope_name_index = self.scope_name_index(plot.name, group)
         color = PageLayout.color(plot.schema, scope_name_index, group.index)
         label = f"{group.scope}-{group.name}-{group.index}"
         glyph_kind = plot.schema.get("glyph_kind")
@@ -297,7 +300,6 @@ class PageLayout(BasePage):
 
     def refresh_data(self):
         """Read a chunk of log file and incorporate it into the session."""
-
         session = self.session
         packed = session.fh.read(self.server.fetch_bytes)
         gen = util.unpack(packed)
@@ -313,11 +315,14 @@ class PageLayout(BasePage):
                     if item.group_id not in session.groups:
                         continue
                     session.points[item.group_id].append(item)
-                elif isinstance(item, pb.Action):
-                    for group in list(session.groups.values()):
-                        if group.scope == item.scope:
-                            del session.groups[group.id]
-                            del session.points[group.id]
+                elif isinstance(item, pb.Control):
+                    if item.action == pb.Action.DELETE:
+                        for group in list(session.groups.values()):
+                            if group.scope == item.scope:
+                                del session.groups[group.id]
+                                del session.points[group.id]
+                    else:
+                        raise RuntimeError(f"Unknown action type: {pb.Action.Name(item.action)}")
                 else:
                     raise RuntimeError(f"Got unknown protobuf item type: {type(item)}")
 
@@ -331,15 +336,16 @@ class PageLayout(BasePage):
         for group_id, points in session.points.items():
             group = session.groups[group_id]
             cds_data = util.points_to_cds_data(group, points)
-            cds_map[group_id] = (group, cds_data)
+            cds_map[str(group_id)] = (group, cds_data)
             session.points[group_id].clear()
 
         def update_cb():
             # remove unbacked renderers
             for plot in session.plots:
-                for r in plot.figure.select(GlyphRenderer):
-                    if r.name not in cds_map:
-                        plot.figure.renderers.remove(r)
+                for r in list(plot.figure.renderers):
+                    if r.name in cds_map:
+                        continue
+                    plot.figure.renderers.remove(r)
 
             # refresh plots by group
             for group, cds_data in cds_map.values():

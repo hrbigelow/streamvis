@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Iterable
 import struct
 import numpy as np
 import random
@@ -20,7 +20,7 @@ def get_log_handle(path, mode):
         fh = open(path, mode)
     return fh
 
-def separate_messages(messages):
+def separate_messages(messages: Iterable):
     """Separate the messages into an array of Point and PointGroup messages."""
     groups = []
     points = []
@@ -37,14 +37,13 @@ def separate_messages(messages):
     return groups, points, controls
 
 KIND_CODES = { pb.Group: b'\x00', pb.Points: b'\x01', pb.Control: b'\x02' }
+MESSAGE_TYPES = { 0: pb.Group, 1: pb.Points, 2: pb.Control }
 
 def pack_message(message):
-    """
-    Create a delimited protobuf message as bytes
-    """
+    """Create a delimited protobuf message as bytes."""
+    kind_code = KIND_CODES.get(type(message))
     content = message.SerializeToString()
-    length_code = len(content).to_bytes(4, 'big')
-    kind_code = KIND_CODES.get(message)
+    length_code = struct.pack('>I', len(content))
     return kind_code + length_code + content 
 
 def pack_messages(messages):
@@ -75,7 +74,6 @@ def unpack(packed: bytes):
     off = 0
     end = len(packed)
     view = memoryview(packed)
-    message_types = { 0: pb.Group, 1: pb.Points, 2: pb.Action }
 
     while off != end:
         if off + 5 > end:
@@ -87,9 +85,9 @@ def unpack(packed: bytes):
         if off + 5 + length > end:
             break
 
-        if kind not in message_types:
+        if kind not in MESSAGE_TYPES:
             raise RuntimeError(f'Unknown kind {kind}, length {length}')
-        item = message_types[kind]()
+        item = MESSAGE_TYPES[kind]()
         item.ParseFromString(bytes(view[off+5:off+5+length]))
         off += 5 + length
         yield item
@@ -137,9 +135,9 @@ def points_to_cds_data(group: pb.Group, points_list: List[pb.Points]) -> Dict[st
     for points in points_list:
         for val, (name, ty) in zip(points.values, sig):
             if ty == pb.FieldType.FLOAT:
-                cds_data[name].append(val.floats.value)
+                cds_data[name].extend(val.floats.value)
             elif ty == pb.FieldType.INT:
-                cds_data[name].append(val.ints.value)
+                cds_data[name].extend(val.ints.value)
 
     for name, ary in cds_data.items():
         cds_data[name] = np.array(ary)

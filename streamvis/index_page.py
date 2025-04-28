@@ -1,3 +1,4 @@
+import asyncio
 from .base import BasePage
 from bokeh.models import Div
 from bokeh.layouts import column, row
@@ -8,7 +9,7 @@ class IndexPage(BasePage):
         super().__init__(server, doc)
         self.session_id = doc.session_context.id
 
-    def build_page_cb(self):
+    def build_page_cb(self, done: asyncio.Future):
         """Must be scheduled as next tick callback."""
         self.container = row()
         text = '<h2>Streamvis Server Index Page</h2>'
@@ -17,7 +18,8 @@ class IndexPage(BasePage):
         html = f'<p>{inner}</p>'
         self.container.children[0].children[0] = Div(text=html)
         self.doc.add_root(self.container)
+        done.set_result(None)
 
-        with self.server.page_lock.block():
-            self.server.pages[self.session_id] = self
+    def refresh_data(self):
+        pass
 

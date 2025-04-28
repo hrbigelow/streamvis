@@ -3,6 +3,7 @@ import random
 import time
 import signal
 from . import util
+from . import data_pb2 as pb
 import pdb
 
 class DataLogger:
@@ -128,6 +129,16 @@ class DataLogger:
         self.elem_count += sum(v.size for v in data.values())
         if self.elem_count >= self.buffer_max_elem:
             self.flush_buffer()
+
+    def delete_current_scope(self):
+        """Logs a Control with a DELETE action to the log file with this logger's scope.
+
+        This will be processed by the server to delete all points and groups
+        belonging to this scope from all figures.  To purge these from the log file,
+        currently the server must be stopped and the implementation will be TODO"""
+        msg = pb.Control(scope=self.scope, action="DELETE")
+        self.fh.write(util.pack_message(msg))
+
 
     def flush_buffer(self): 
         packed = util.pack_messages([p for p in self.points if p is not None])

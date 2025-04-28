@@ -25,22 +25,6 @@ from streamvis import util
 from streamvis.page import PageLayout
 from streamvis.index_page import IndexPage
 
-class LockManager:
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.do_block = False
-
-    def block(self):
-        self.do_block = True
-        return self
-
-    def __enter__(self):
-        return self.lock.acquire(blocking=self.do_block)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.lock.release()
-        self.do_block = False
-
 class CleanupHandler(Handler):
     def __init__(self, sv_server):
         super().__init__()
@@ -65,12 +49,9 @@ class Server:
         self.schema = {} # plot_name => schema
         self.pages = {} # session_id => PageLayout
 
-        self.data_lock = LockManager()
         self.log_file = log_file
         self.fetch_bytes = fetch_bytes
         self.refresh_seconds = refresh_seconds
-
-        self.page_lock = LockManager()
 
     @staticmethod
     def validate_patterns(**kwargs):
@@ -89,7 +70,7 @@ class Server:
         except Exception as ex:
             raise RuntimeError(
                     f'Server could not open or parse schema file {schema_file}. '
-                    f'Exception was: {ex}')
+                    f'Exception was: {ex}') from ex
         # validate schema
         for plot_name, plot_schema in schema.items():
             try:
@@ -97,44 +78,12 @@ class Server:
             except Exception as ex:
                 raise RuntimeError(
                     f'Plot {plot_name} in schema file {schema_file} '
-                    f'contained error:\n{ex}')
+                    f'contained error:\n{ex}') from ex
         self.schema = schema
-
-    def scope_name_index(self, plot_name, query_group):
-        """
-        Computes the index of the (scope, name) pair associated with `plot_name` for
-        the current server scope.  Indexes are assigned to each distinct (scope,
-        name) pair in the order they are encountered in the log file.
-        """
-        index = 0
-        temp = {}
-        query_scope_name = query_group.scope, query_group.name
-        with self.data_lock.block():
-            filter_fn = lambda g: re.match(self.scope_pattern, g.scope)
-            for group in filter(filter_fn, self.plot_groups[plot_name]):
-                scope_name = group.scope, group.name
-                if scope_name not in temp:
-                    temp[scope_name] = index
-                    index += 1
-                if scope_name == query_scope_name:
-                    break
-        return temp[query_scope_name]
 
     def shutdown(self):
         """Cleanup actions.  What is needed for GCS?."""
         pass
-
-    def update_pages(self):
-        for page in self.pages.values():
-            page.update()
-
-    async def refresh_server(self):
-        loop = asyncio.get_running_loop()
-        while True:
-            # end_reached = await loop.run_in_executor(None, self.fetch_new_data)
-            await loop.run_in_executor(None, self.update_pages)
-            cycle_delay = self.refresh_seconds if end_reached else 0.2
-            await asyncio.sleep(cycle_delay)
 
     def add_page(self, doc):
         """Runs concurrently with refresh_server.
@@ -160,14 +109,8 @@ class Server:
 
         # This seems only necessary if
         self.pages[session_id] = page
-        page.start()
+        asyncio.create_task(page.start())
 
-        # doc.add_next_tick_callback(page.build_callback)
-
-    def delete_page(self, session_id):
-        with self.page_lock.block():
-            del self.pages[session_id]
-            print(f'deleted page {session_id}.  server now has {len(self.pages)} pages.')
 
 def make_server(port, schema_file, log_file, refresh_seconds=10):  
     """
