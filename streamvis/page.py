@@ -1,71 +1,65 @@
+from dataclasses import dataclass
 import numpy as np
 import re
 from bokeh.layouts import column, row
 from bokeh.models.dom import HTML
-from bokeh.models import Div, ColumnDataSource, Legend
+from bokeh.models import ColumnDataSource, Legend
 from bokeh.plotting import figure
 from bokeh import palettes
-from functools import partial
 
 from streamvis import util
 
-class IndexPage:
-    """
-    An index page, providing links to each available plot
-    """
-    def __init__(self, server, doc):
-        self.server = server
-        self.doc = doc
-        self.session_id = doc.session_context.id
-        self.doc.on_session_destroyed(self.destroy)
+class Plot:
+    name: str
+    schema: Dict
+    name_pat: re.Pattern
+    figure: 'figure'
 
-    def destroy(self, session_context):
-        self.server.delete_page(self.session_id)
+    def __init__(self, name: str, global_schema: Dict):
+        self.name = name
+        self.schema = global_schema.get(name)
+        if self.schema is None:
+            raise RuntimeError(
+                f"No name '{name}' found in global_schema. "
+                f"Available names: {', '.join(name for name in global_schema.keys())}")
+        pat = self.schema.get(name_pattern)
+        if pat is None:
+            raise RuntimeError(
+                f"Plot schema '{name}' didn't contain a 'name_pattern' field")
+        self.name_pat = re.compile(pat)
 
-    def build_callback(self):
-        """
-        Must be scheduled as next tick callback
-        """
-        self.container = row()
-        text = '<h2>Streamvis Server Index Page</h2>'
-        self.container.children.append(column([Div(text=text)]))
-        inner = '<br>'.join(plot for plot in self.server.schema.keys())
-        html = f'<p>{inner}</p>'
-        self.container.children[0].children[0] = Div(text=html)
-        self.doc.add_root(self.container)
+class Session:
+    id: int
+    plots: List[Plot] 
+    groups: Dict[pb.Group, List[pb.Point]]
+    scope_pat: re.Pattern
+    fh: Optional[_io._IOBase, 'GFile']
 
-        with self.server.page_lock.block():
-            self.server.pages[self.session_id] = self
-
-    def schedule_callback(self):
-        self.doc.add_next_tick_callback(self.update)
-
-    def update(self):
-        # no-op because the schema doesn't change
-        pass
+    def __init__(self, id: int, log_file: str):
+        self.id = id
+        self.plots = []
+        self.groups = {}
+        self.scope_pat = None 
+        self.fh = util.get_log_handle(log_file, 'rb')
 
 class PageLayout:
-    """
-    Represents a browser page
-    """
+    """Represents a browser page."""
     def __init__(self, server, doc):
         self.server = server
         # index into the server message log
-        self.read_pos = 0
         self.doc = doc
-        self.session_id = doc.session_context.id
+        self.session = Session(doc.session_context.id, server.log_file)
         self.doc.on_session_destroyed(self.destroy)
         self.coords = None
         self.nbox = None
         self.box_elems = None
         self.widths = None
         self.heights = None
-        self.last_ord = 0 # the last seen ord value
 
     def destroy(self, session_context):
-        self.server.delete_page(self.session_id)
+        del self.server.pages[self.session_id]
 
-    def _set_layout(self, plots, box_elems, box_part, plot_part):
+    def _set_layout(self, box_elems, box_part, plot_part):
         """
         The overall page layout is a list of 'boxes', with each box containing
         one or more plots.  The boxes are either all Bokeh row or column objects.
@@ -81,8 +75,6 @@ class PageLayout:
         plot_part:  plot_part[i] = relative size of plot i
 
         """
-        self.plot_names = plots
-        self.versions = [-1] * len(plots)
         self.box_elems = box_elems
 
         denom = sum(box_part)
@@ -116,7 +108,7 @@ class PageLayout:
         API:
         scopes: regex pattern of scopes to include 
         rows:   semi-colon separated list of csv names lists
-        cols:   semi-colon separate list of csv names lists
+        cols:   semi-colon separated list of csv names lists
         
         width:  csv numbers list
         height: csv numbers list
@@ -176,7 +168,7 @@ class PageLayout:
         if scope_pat is None:
             scope_pat = ".*"
         try:
-            self.scope_pat = re.compile(scope_pat)
+            self.session.scope_pat = re.compile(scope_pat)
         except re.PatternError as ex:
             raise RuntimeError(f"scopes argument '{scope_pat}' is not a valid regex")
 
@@ -199,7 +191,10 @@ class PageLayout:
             plot_part = parse_csv('height', height_arg, len(plots))
             box_part = parse_csv('width', width_arg, len(box_elems))
             
-        self._set_layout(plots, box_elems, box_part, plot_part)
+        for plot_name in plots:
+            self.session.plots.append(Plot(plot_name, self.server.schema))
+
+        self._set_layout(box_elems, box_part, plot_part)
 
     def get_figsize(self, index):
         width = int(self.widths[index] * self.page_width)
@@ -210,25 +205,26 @@ class PageLayout:
         self.page_width = width
         self.page_height = height
 
-    def build_callback(self):
-        """
-        Build the page for the first time.  
+    def start(self):
+        self.doc.add_next_tick_callback(self.build_page_cb)
+
+    def build_page_cb(self):
+        """Build the page for the first time.  
+
         Must be scheduled as next-tick callback
         """
         self.container = column() if self.row_mode else row() 
-        schema = self.server.schema
 
-
-        for index, plot_name in enumerate(self.plot_names):
+        for index, plot in enumerate(self.session.plots):
             box_index, _ = self.coords[index]
             if box_index >= len(self.container.children):
                 box = row() if self.row_mode else column()
                 self.container.children.append(box)
             box = self.container.children[box_index]
-            fig_kwargs = schema[plot_name].get('figure_kwargs', {})
+            fig_kwargs = plot.schema.get('figure_kwargs', {})
             # fig_kwargs.update(self.get_figsize(index))
             size_opts = self.get_figsize(index)
-            fig = figure(name=plot_name, output_backend='webgl', **size_opts)
+            fig = figure(name=plot.name, output_backend='webgl', **size_opts)
             if 'legend' in fig_kwargs:
                 legend = Legend(**fig_kwargs['legend'])
                 fig.add_layout(legend)
@@ -236,26 +232,11 @@ class PageLayout:
             fig.xaxis.update(**fig_kwargs.get('xaxis', {}))
             fig.yaxis.update(**fig_kwargs.get('yaxis', {}))
             box.children.append(fig)
+            plot.figure = fig
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
-
-        # attach to page
-        with self.server.page_lock.block():
-            self.server.pages[self.session_id] = self
-
-        self.update()
-
-    def schedule_callback(self):
-        self.doc.add_next_tick_callback(self.update_callback)
-
-    @staticmethod
-    def matching_groups(plot_schema, groups):
-        matched = []
-        for g in groups:
-            if (re.match(plot_schema['scope_pattern'], g.scope) and
-                    re.match(plot_schema['name_pattern'], g.name)):
-                matched.append(g)
-        return matched
+        self.doc.add_periodic_callback(self.refresh_data,
+                                       self.server.refresh_seconds)
 
     @staticmethod
     def color(plot_schema, scope_name_index, index):
@@ -292,72 +273,77 @@ class PageLayout:
         palette_index = palette_index % cdef['num_colors']
         return pal[palette_index]
 
+    def maybe_add_glyph(self, plot: Plot, group: pb.Group):
+        # add a glyph for the group if it doesn't exist
+        if len(plot.figure.select({"name": str(group.id)})) > 0:
+            return
 
-    def validate_schema(self):
-        pass
+        cols = plot.schema['columns']
+        cds = ColumnDataSource({c: [] for c in cols})
 
-    def get_plot(self, plot_name):
-        return self.doc.select(selector={'name': plot_name})[0]
+        scope_name_index = self.scope_name_index(plot.name, group)
+        color = PageLayout.color(plot.schema, scope_name_index, group.index)
+        label = f"{group.scope}-{group.name}-{group.index}"
+        glyph_kind = plot.schema.get("glyph_kind")
+        glyph_kwargs = plot.schema.get("glyph_kwargs", {})
 
-    def update_glyph_cb(self, plot_schema, plot_name, fig, group, new_data):
-        """
-        Update (and optionally create) a glyph in `fig` with `new_data`.
-        Uses `plot_schema` to configure the update, and `group` to identify
-        glyph-specific information
-        These calls need to be scheduled as a next_tick callback 
-        """
-        # print(f'updating glyph for {fig.name} {group.id}')
-        glyphs = fig.select({'name': str(group.id)})
-        glyph_kwargs = plot_schema.get('glyph_kwargs', {})
-        glyph_kind = plot_schema.get('glyph_kind')
-            
-        if len(glyphs) == 0:
-            # import pdb
-            # pdb.set_trace()
-            cols = plot_schema['columns']
-            cds = ColumnDataSource({c: [] for c in cols})
+        if glyph_kind == "line":
+            plot.figure.line(*cols, source=cds, name=str(group.id), color=color,
+                             legend_label=label, **glyph_kwargs)
+        elif glyph_kind == "scatter":
+            plot.figure.circle(*cols, name=str(group.id), source=cds, color=color,
+                               legend_label=label, **glyph_kwargs) 
+        else:
+            raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
-            scope_name_index = self.server.scope_name_index(plot_name, group)
-            color = self.color(plot_schema, scope_name_index, group.index)
-            label = f"{group.scope}-{group.name}-{group.index}"
-            if glyph_kind == "line":
-                fig.line(*cols, source=cds, name=str(group.id), color=color,
-                         legend_label=label, **glyph_kwargs)
-            elif glyph_kind == "scatter":
-                fig.circle(*cols, name=str(group.id), source=cds, color=color,
-                           legend_label=label, **glyph_kwargs) 
-            else:
-                raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
-        glyph = fig.select({'name': str(group.id)})[0]
-        glyph.data_source.stream(new_data)
+    def refresh_data(self):
+        """Read a chunk of log file and incorporate it into the session."""
 
-    def update(self):
-        """Update page with new data."""
-        # print('in update')
-        # print(f'{self.last_ord=}, {self.server.global_ordinal=}')
-        with self.server.data_lock.block():
-            if self.last_ord == self.server.global_ordinal:
-                return
+        session = self.session
+        packed = session.fh.read(self.chunk_size)
+        gen = util.unpack(packed)
+        while True:
+            try:
+                item = next(gen)
+                if isinstance(item, pb.Group):
+                    if (session.scope_pat.fullmatch(item.scope)
+                        and session.name_pat.fullmatch(item.name)):
+                    session.groups[item] = []
+                elif isinstance(item, pb.Point):
+                    if item.group_id not in session.groups:
+                        continue
+                    session.groups[item.group_id].append(item)
+                elif isinstance(item, pb.Action):
+                    for group in list(session.groups.values()):
+                        if group.scope == item.scope:
+                            del session.groups[group.id]
+            except StopIteration as exc:
+                remain = exc.value
+                if remain:
+                    session.fh.seek(-remain)
 
-        update_glyph_fns = []
-        for plot_name in self.plot_names:
-            fig = self.get_plot(plot_name)
-            groups = self.server.plot_groups[plot_name]
-            groups = [g for g in groups if re.match(self.scope_pat, g.scope)]
-            plot_schema = self.server.schema[plot_name]
-            for group in groups:
-                new_data = self.server.new_cds_data(group.id, self.last_ord + 1)
-                if new_data is None:
-                    continue
-                fn = partial(self.update_glyph_cb, plot_schema, plot_name, fig, group, new_data)
-                update_glyph_fns.append(fn)
+            cds_map = {}
+            for group in session.groups:
+                cds_data = util.points_to_cds_data(group, session.groups[group])
+                cds_map[group] = cds_data
+                session.groups[group].clear()
 
-        with self.server.data_lock.block():
-            self.last_ord = self.server.global_ordinal
-        # print(f'In page {self.session_id} at position {self.last_ord}')
+        def update_cb():
+            # remove unbacked renderers
+            for plot in session.plots:
+                for r in plot.figure.select(GlyphRenderer):
+                    if r.name not in session.groups:
+                        plot.figure.renderers.remove(r)
 
-        # print(f'Scheduling {len(update_glyph_fns)} callbacks')
-        for fn in update_glyph_fns:
-            self.doc.add_next_tick_callback(fn)
+            # refresh plots by group
+            for group, cds_data in cds_map:
+                for plot in session.plots:
+                    if not plot.name_pat.fullmatch(group.name):
+                        continue
+                    self.maybe_add_glyph(plot, group)
+                    for glyph in plot.figure.select({"name": str(group.id)}):
+                        glyph.data_source.stream(cds_data)
+
+        self.plot.page.doc.add_next_tick_callback(update_cb)
 

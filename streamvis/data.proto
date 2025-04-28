@@ -45,3 +45,12 @@ message Points {
   repeated Values values = 3;
 }
 
+enum Action {
+  DELETE = 0;
+}
+
+message Control {
+  string scope = 1;
+  Action action = 2;
+}
+

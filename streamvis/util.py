@@ -19,19 +19,22 @@ def get_log_handle(path, mode):
     return fh
 
 def separate_messages(messages):
-    """
-    Separate the messages into an array of Point and PointGroup messages
-    """
+    """Separate the messages into an array of Point and PointGroup messages."""
     groups = []
     points = []
+    controls = []
     for item in messages:
         if isinstance(item, pb.Group):
             groups.append(item)
         elif isinstance(item, pb.Points):
             points.append(item)
+        elif isinstance(item, pb.Control):
+            controls.append(item)
         else:
             raise RuntimeError(f'Received unknown message type {type(item)}')
-    return groups, points 
+    return groups, points, controls
+
+KIND_CODES = { pb.Group: b'\x00', pb.Points: b'\x01', pb.Control: b'\x02' }
 
 def pack_message(message):
     """
@@ -39,46 +42,56 @@ def pack_message(message):
     """
     content = message.SerializeToString()
     length_code = len(content).to_bytes(4, 'big')
-    if isinstance(message, pb.Group):
-        kind_code = b'\x00'
-    elif isinstance(message, pb.Points):
-        kind_code = b'\x01'
+    kind_code = KIND_CODES.get(message)
     return kind_code + length_code + content 
 
 def pack_messages(messages):
-    """
-    Create a delimited packed string from protobuf messages
-    """
-    groups, points = separate_messages(messages)
+    """Create a delimited packed string from protobuf messages."""
+    groups, points, controls = separate_messages(messages)
     group_packed = b''.join(pack_message(g) for g in groups)
     points_packed = b''.join(pack_message(p) for p in points)
     return group_packed + points_packed
 
-def unpack(packed):
+def unpack(packed: bytes):
+    """Unpack bytes representing zero or more packed messages.
+    
+    yields all completely parsed items from the `packed` protobuf bytes.
+    returns the number of unprocessed bytes.
+
+    Use this as:
+
+    gen = unpacked(bytes)
+    while True:
+        try:
+            item = next(gen)
+        except StopIteration as exc
+            remain = exc.value
+            break
+        # do something with item
+    # do something with remain
     """
-    Unpack bytes representing zero or more packed messages
-    """
-    items = []
     off = 0
     end = len(packed)
+    view = memoryview(packed)
+    message_types = { 0: pb.Group, 1: pb.Points, 2: pb.Action }
+
     while off != end:
-        kind_code = packed[off:off+1]
-        length_code = packed[off+1:off+5]
-        kind = int.from_bytes(kind_code, 'big')
-        length = int.from_bytes(length_code, 'big')
-        content = packed[off+5:off+5+length]
-        if len(content) != length:
+        if off + 5 > end:
             break
-        if kind == 0:
-            item = pb.Group()
-        elif kind == 1:
-            item = pb.Points()
-        else:
+
+        kind = view[off]
+        length = struct.unpack(">I", view[off+1:off+5])[0]
+
+        if off + 5 + length > end:
+            break
+
+        if kind not in message_types:
             raise RuntimeError(f'Unknown kind {kind}, length {length}')
-        item.ParseFromString(content)
+        item = message_types[kind]()
+        item.ParseFromString(bytes(view[off+5:off+5+length]))
         off += 5 + length
-        items.append(item)
-    return items, len(packed[off:])
+        yield item
+    return len(packed) - off
 
 def validate(points, group):
     if points.group_id != group.id:
@@ -113,6 +126,22 @@ def points_to_cds(points_list, group):
             cds[field.name] = np.append(cds[field.name], nums)
     print('ending convert')
     return cds 
+
+def points_to_cds_data(group: pb.Group, points: List[pb.Point]) -> Dict[str, np.Array]:
+    """Convert a list of points from `group` to cds-formatted data."""
+    sig = tuple((f.name, f.type) for f in group.fields)
+    cds_data = { f.name: [] for f in group.fields }  
+
+    for val, (name, ty) in zip(points.values, sig):
+        if typ == pb.FieldType.FLOAT:
+            cds_data[name].append(val.floats.value)
+        elif typ == pb.FieldType.INT:
+            cds_data[name].append(val.ints.value)
+
+    for name, ary in cds_data.items():
+        cds_data[name] = np.array(ary)
+    return cds_data
+
 
 def values_tuples(gid_beg, points, sig):
     """
