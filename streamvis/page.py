@@ -1,13 +1,18 @@
+from typing import Dict, List, Union
 from dataclasses import dataclass
 import numpy as np
 import re
+import _io
 from bokeh.layouts import column, row
 from bokeh.models.dom import HTML
 from bokeh.models import ColumnDataSource, Legend
+from bokeh.models.renderers.glyph_renderer import GlyphRenderer
 from bokeh.plotting import figure
 from bokeh import palettes
+from . import data_pb2 as pb
+from . import util
+from .base import BasePage
 
-from streamvis import util
 
 class Plot:
     name: str
@@ -22,7 +27,7 @@ class Plot:
             raise RuntimeError(
                 f"No name '{name}' found in global_schema. "
                 f"Available names: {', '.join(name for name in global_schema.keys())}")
-        pat = self.schema.get(name_pattern)
+        pat = self.schema.get("name_pattern")
         if pat is None:
             raise RuntimeError(
                 f"Plot schema '{name}' didn't contain a 'name_pattern' field")
@@ -31,33 +36,29 @@ class Plot:
 class Session:
     id: int
     plots: List[Plot] 
-    groups: Dict[pb.Group, List[pb.Point]]
+    groups: Dict[int, pb.Group]
+    points: Dict[int, List[pb.Points]]
     scope_pat: re.Pattern
-    fh: Optional[_io._IOBase, 'GFile']
+    fh: Union[_io._IOBase, 'GFile']
 
     def __init__(self, id: int, log_file: str):
         self.id = id
         self.plots = []
         self.groups = {}
+        self.points = {}
         self.scope_pat = None 
         self.fh = util.get_log_handle(log_file, 'rb')
 
-class PageLayout:
+class PageLayout(BasePage):
     """Represents a browser page."""
     def __init__(self, server, doc):
-        self.server = server
-        # index into the server message log
-        self.doc = doc
+        super().__init__(server, doc)
         self.session = Session(doc.session_context.id, server.log_file)
-        self.doc.on_session_destroyed(self.destroy)
         self.coords = None
         self.nbox = None
         self.box_elems = None
         self.widths = None
         self.heights = None
-
-    def destroy(self, session_context):
-        del self.server.pages[self.session_id]
 
     def _set_layout(self, box_elems, box_part, plot_part):
         """
@@ -205,9 +206,6 @@ class PageLayout:
         self.page_width = width
         self.page_height = height
 
-    def start(self):
-        self.doc.add_next_tick_callback(self.build_page_cb)
-
     def build_page_cb(self):
         """Build the page for the first time.  
 
@@ -301,43 +299,50 @@ class PageLayout:
         """Read a chunk of log file and incorporate it into the session."""
 
         session = self.session
-        packed = session.fh.read(self.chunk_size)
+        packed = session.fh.read(self.server.fetch_bytes)
         gen = util.unpack(packed)
         while True:
             try:
                 item = next(gen)
                 if isinstance(item, pb.Group):
                     if (session.scope_pat.fullmatch(item.scope)
-                        and session.name_pat.fullmatch(item.name)):
-                    session.groups[item] = []
-                elif isinstance(item, pb.Point):
+                        and any (plot.name_pat.fullmatch(item.name) for plot in session.plots)):
+                        session.groups[item.id] = item
+                        session.points[item.id] = []
+                elif isinstance(item, pb.Points):
                     if item.group_id not in session.groups:
                         continue
-                    session.groups[item.group_id].append(item)
+                    session.points[item.group_id].append(item)
                 elif isinstance(item, pb.Action):
                     for group in list(session.groups.values()):
                         if group.scope == item.scope:
                             del session.groups[group.id]
+                            del session.points[group.id]
+                else:
+                    raise RuntimeError(f"Got unknown protobuf item type: {type(item)}")
+
             except StopIteration as exc:
                 remain = exc.value
                 if remain:
                     session.fh.seek(-remain)
+                break
 
-            cds_map = {}
-            for group in session.groups:
-                cds_data = util.points_to_cds_data(group, session.groups[group])
-                cds_map[group] = cds_data
-                session.groups[group].clear()
+        cds_map = {}
+        for group_id, points in session.points.items():
+            group = session.groups[group_id]
+            cds_data = util.points_to_cds_data(group, points)
+            cds_map[group_id] = (group, cds_data)
+            session.points[group_id].clear()
 
         def update_cb():
             # remove unbacked renderers
             for plot in session.plots:
                 for r in plot.figure.select(GlyphRenderer):
-                    if r.name not in session.groups:
+                    if r.name not in cds_map:
                         plot.figure.renderers.remove(r)
 
             # refresh plots by group
-            for group, cds_data in cds_map:
+            for group, cds_data in cds_map.values():
                 for plot in session.plots:
                     if not plot.name_pat.fullmatch(group.name):
                         continue
@@ -345,5 +350,5 @@ class PageLayout:
                     for glyph in plot.figure.select({"name": str(group.id)}):
                         glyph.data_source.stream(cds_data)
 
-        self.plot.page.doc.add_next_tick_callback(update_cb)
+        self.doc.add_next_tick_callback(update_cb)
 

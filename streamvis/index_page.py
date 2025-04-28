@@ -1,17 +1,14 @@
+from .base import BasePage
 from bokeh.models import Div
+from bokeh.layouts import column, row
 
-class IndexPage:
+class IndexPage(BasePage):
     """An index page, providing links to each available plot."""
     def __init__(self, server, doc):
-        self.server = server
-        self.doc = doc
+        super().__init__(server, doc)
         self.session_id = doc.session_context.id
-        self.doc.on_session_destroyed(self.destroy)
 
-    def destroy(self, session_context):
-        self.server.delete_page(self.session_id)
-
-    def build_callback(self):
+    def build_page_cb(self):
         """Must be scheduled as next tick callback."""
         self.container = row()
         text = '<h2>Streamvis Server Index Page</h2>'
@@ -23,11 +20,4 @@ class IndexPage:
 
         with self.server.page_lock.block():
             self.server.pages[self.session_id] = self
-
-    def schedule_callback(self):
-        self.doc.add_next_tick_callback(self.update)
-
-    def update(self):
-        # no-op because the schema doesn't change
-        pass
 

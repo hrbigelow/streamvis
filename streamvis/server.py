@@ -63,14 +63,14 @@ class Server:
         silence(MISSING_RENDERERS, True)
 
         self.schema = {} # plot_name => schema
-        self.sessions = {} # session_id => Session
+        self.pages = {} # session_id => PageLayout
 
         self.data_lock = LockManager()
         self.log_file = log_file
         self.fetch_bytes = fetch_bytes
         self.refresh_seconds = refresh_seconds
 
-        # self.page_lock = LockManager()
+        self.page_lock = LockManager()
 
     @staticmethod
     def validate_patterns(**kwargs):
@@ -157,10 +157,10 @@ class Server:
             page = PageLayout(self, doc)
             page.set_pagesize(1800, 900)
             page.process_request(req)
-            page.start()
 
         # This seems only necessary if
         self.pages[session_id] = page
+        page.start()
 
         # doc.add_next_tick_callback(page.build_callback)
 

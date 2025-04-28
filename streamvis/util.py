@@ -1,3 +1,5 @@
+from typing import List, Dict
+import struct
 import numpy as np
 import random
 from . import data_pb2 as pb
@@ -127,16 +129,17 @@ def points_to_cds(points_list, group):
     print('ending convert')
     return cds 
 
-def points_to_cds_data(group: pb.Group, points: List[pb.Point]) -> Dict[str, np.Array]:
+def points_to_cds_data(group: pb.Group, points_list: List[pb.Points]) -> Dict[str, np.array]:
     """Convert a list of points from `group` to cds-formatted data."""
     sig = tuple((f.name, f.type) for f in group.fields)
     cds_data = { f.name: [] for f in group.fields }  
 
-    for val, (name, ty) in zip(points.values, sig):
-        if typ == pb.FieldType.FLOAT:
-            cds_data[name].append(val.floats.value)
-        elif typ == pb.FieldType.INT:
-            cds_data[name].append(val.ints.value)
+    for points in points_list:
+        for val, (name, ty) in zip(points.values, sig):
+            if ty == pb.FieldType.FLOAT:
+                cds_data[name].append(val.floats.value)
+            elif ty == pb.FieldType.INT:
+                cds_data[name].append(val.ints.value)
 
     for name, ary in cds_data.items():
         cds_data[name] = np.array(ary)
