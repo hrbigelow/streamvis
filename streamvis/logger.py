@@ -130,13 +130,14 @@ class DataLogger:
         if self.elem_count >= self.buffer_max_elem:
             self.flush_buffer()
 
-    def delete_current_scope(self):
+    def delete_name(self, name: str):
         """Logs a Control with a DELETE action to the log file with this logger's scope.
+        and the provided `name`.
 
         This will be processed by the server to delete all points and groups
-        belonging to this scope from all figures.  To purge these from the log file,
-        currently the server must be stopped and the implementation will be TODO"""
-        msg = pb.Control(scope=self.scope, action="DELETE")
+        with scope and name.  To purge these from the log file, currently the server
+        must be stopped and the implementation will be TODO"""
+        msg = pb.Control(scope=self.scope, name=name, action="DELETE")
         self.fh.write(util.pack_message(msg))
 
 

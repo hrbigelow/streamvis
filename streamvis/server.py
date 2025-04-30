@@ -109,7 +109,7 @@ class Server:
 
         # This seems only necessary if
         self.pages[session_id] = page
-        asyncio.create_task(page.start())
+        page.start()
 
 
 def make_server(port, schema_file, log_file, refresh_seconds=10):  

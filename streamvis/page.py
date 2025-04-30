@@ -6,6 +6,7 @@ import numpy as np
 import re
 import _io
 from bokeh.layouts import column, row
+from bokeh.document import without_document_lock
 from bokeh.models.dom import HTML
 from bokeh.models import ColumnDataSource, Legend
 from bokeh.models.renderers.glyph_renderer import GlyphRenderer
@@ -297,7 +298,7 @@ class PageLayout(BasePage):
         else:
             raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
-
+    @without_document_lock
     def refresh_data(self):
         """Read a chunk of log file and incorporate it into the session."""
         session = self.session
@@ -318,7 +319,7 @@ class PageLayout(BasePage):
                 elif isinstance(item, pb.Control):
                     if item.action == pb.Action.DELETE:
                         for group in list(session.groups.values()):
-                            if group.scope == item.scope:
+                            if group.scope == item.scope and group.name == item.name:
                                 del session.groups[group.id]
                                 del session.points[group.id]
                     else:

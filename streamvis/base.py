@@ -11,14 +11,17 @@ class BasePage(ABC):
     def destroy(self, session_context):
         del self.server.pages[session_context.id]
 
-    async def start(self):
+    async def _start(self):
         built = asyncio.Future()
         self.doc.add_next_tick_callback(partial(self.build_page_cb, built))
         await built
-        while True:
-            self.refresh_data()
-            await asyncio.sleep(self.server.refresh_seconds)
+        self.doc.add_periodic_callback(
+                self.refresh_data, 
+                int(self.server.refresh_seconds * 1000))
 
+    def start(self):
+        self.refresh_task = asyncio.create_task(self._start())
+        self.refresh_task.add_done_callback(lambda fut: print(fut))
 
     @abstractmethod
     def build_page_cb(self, done: asyncio.Future):

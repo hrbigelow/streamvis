@@ -39,7 +39,7 @@ def inventory(path, scopes='.*'):
             if item.action == pb.Action.DELETE:
                 for group_id in list(totals):
                     group = seen_groups[group_id]
-                    if group.scope == item.scope:
+                    if group.scope == item.scope and group.name == item.name:
                         del totals[group_id]
         else:
             raise RuntimeError(f"Unknown item type: {type(item)}")
@@ -48,29 +48,6 @@ def inventory(path, scopes='.*'):
         g = seen_groups[group_id]
         signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
         print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total}') 
-
-def inventory_bck(path, scopes='.*', names='.*'):
-    """
-    Print a summary inventory of data in `path` matching scopes
-    """
-    all_groups, all_points, _ = _load(path)
-    # print(f'Inventory for {path}')
-    def filter_fn(g):
-        return re.match(scopes, g.scope) and re.match(names, g.name)
-    groups = list(filter(filter_fn, all_groups))
-    group_ids = set(g.id for g in groups)
-
-    print('group.id\tscope\tname\tsignature\tindex\tnum_points')
-    totals = defaultdict(int) # group_id -> num_points
-    for p in all_points:
-        if p.group_id not in group_ids:
-            continue
-        totals[p.group_id] += util.num_point_data(p)
-
-    for g in groups:
-        signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
-        total_vals = totals[g.id]
-        print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total_vals}') 
 
 def scopes(path):
     """Print a list of all scopes, in order of first appearance"""
@@ -86,8 +63,9 @@ def scopes(path):
                 seen_scopes_list.append(item.scope)
         elif isinstance(item, pb.Control):
             if item.action == pb.Action.DELETE:
-                seen_scopes_set.remove(item.scope)
-                seen_scopes_list.remove(item.scope)
+                seen_scopes_set.discard(item.scope)
+                if item.scope in seen_scopes_list:
+                    seen_scopes_list.remove(item.scope)
             
     for scope in seen_scopes_list:
         print(scope)
@@ -106,6 +84,12 @@ def export(path, scopes='.*'):
             for _, group_id, *vals in valtups:
                 valstr = '\t'.join(f'{v:.3f}' for v in vals)
                 print(f'{group_id}\t{pt.batch}\t{g.scope}\t{g.name}\t{g.index}\t{valstr}')
+
+def delete(path, scope: str, name: str):
+    """Delete the (scope, name) pair."""
+    logger = DataLogger(scope)
+    logger.init(path, 10)
+    logger.delete_name(name)
     
 
 def demo_app(scope, path):
@@ -166,7 +150,8 @@ def run():
             'demo': demo_app,
             'list': inventory,
             'scopes': scopes,
-            'export': export
+            'export': export,
+            'delete': delete,
             }
     fire.Fire(cmds)
 
