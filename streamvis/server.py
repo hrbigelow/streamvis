@@ -52,6 +52,7 @@ class Server:
         self.log_file = log_file
         self.fetch_bytes = fetch_bytes
         self.refresh_seconds = refresh_seconds
+        self.session_lock = asyncio.Lock()
 
     @staticmethod
     def validate_patterns(**kwargs):
@@ -107,7 +108,6 @@ class Server:
             page.set_pagesize(1800, 900)
             page.process_request(req)
 
-        # This seems only necessary if
         self.pages[session_id] = page
         page.start()
 

@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 from dataclasses import dataclass
 import threading
 import numpy as np
@@ -36,12 +36,27 @@ class Plot:
                 f"Plot schema '{name}' didn't contain a 'name_pattern' field")
         self.name_pat = re.compile(pat)
 
+    def color(self, index: int, num_colors: int):
+        color_opts = self.schema.get("color", {})
+        palette_name = color_opts.get("palette", "Viridis8")
+        pal = palettes.__dict__[palette_name]
+        pal = palettes.interp_palette(pal, num_colors)
+        return pal[index]
+
+    def key(self, group: pb.Group) -> Tuple[...]:
+        """Compute a key for this group.  Will be used to index a palette."""
+        color_opts = self.schema.get("color", {})
+        sig = color_opts.get("key_fun", "sni")
+        d = {"s": group.scope, "n": group.name, "i": group.index}
+        return tuple(d[ch] for ch in sig)
+
 class Session:
     id: int
     plots: List[Plot] 
     groups: Dict[int, pb.Group]
     points: Dict[int, List[pb.Points]]
     scope_pat: re.Pattern
+    name_pat: re.Pattern
     fh: Union[_io._IOBase, 'GFile']
 
     def __init__(self, id: int, log_file: str):
@@ -50,7 +65,22 @@ class Session:
         self.groups = {}
         self.points = {}
         self.scope_pat = None 
+        self.name_pat = None
         self.fh = util.get_log_handle(log_file, 'rb')
+
+    def glyph_index_map(self, plot: Plot) -> Dict['renderer', int]:
+        keys = set()
+        gi_map = {}
+        for r in list(plot.figure.renderers):
+            group = self.groups[int(r.name)]
+            key = plot.key(group)
+            keys.add(key)
+        key_ord = {k: i for i, k in enumerate(sorted(keys))}
+        for r in list(plot.figure.renderers):
+            group = self.groups[int(r.name)]
+            key = plot.key(group)
+            gi_map[r] = key_ord[key]
+        return gi_map
 
 class PageLayout(BasePage):
     """Represents a browser page."""
@@ -112,6 +142,7 @@ class PageLayout(BasePage):
         """
         API:
         scopes: regex pattern of scopes to include 
+        names:  regex pattern of names to include
         rows:   semi-colon separated list of csv names lists
         cols:   semi-colon separated list of csv names lists
         
@@ -122,15 +153,16 @@ class PageLayout(BasePage):
         optional.
 
         scopes is optional.  if absent, defaults to '.+'
+        names is optiona.  if absent, defaults to '.+'
 
         This function only accesses the server schema, not the data state
         """
         args = request.arguments
         known_plots = self.server.schema.keys()
 
-        def maybe_get(args, param):
+        def maybe_get(args, param, default=None):
             val = args.pop(param, None)
-            return val if val is None else val[0].decode()
+            return default if val is None else val[0].decode()
 
         def parse_grid(param, grid, plots, box_elems):
             if grid == '':
@@ -169,13 +201,16 @@ class PageLayout(BasePage):
         if (rows is None) == (cols is None):
             raise RuntimeError(
                 f'Exactly one of `rows` or `cols` query parameter must be given')
-        scope_pat = maybe_get(args, "scopes")
-        if scope_pat is None:
-            scope_pat = ".*"
+        scope_pat = maybe_get(args, "scopes", ".+")
         try:
             self.session.scope_pat = re.compile(scope_pat)
         except re.PatternError as ex:
             raise RuntimeError(f"scopes argument '{scope_pat}' is not a valid regex")
+        name_pat = maybe_get(args, "names", ".+")
+        try:
+            self.session.name_pat = re.compile(name_pat)
+        except re.PatternError as ex:
+            raise RuntimeError(f"names argument '{name_pat}' is not a valid regex")
 
         plots = [] 
         box_elems = [] # 
@@ -218,61 +253,32 @@ class PageLayout(BasePage):
         self.container = column() if self.row_mode else row() 
 
         for index, plot in enumerate(self.session.plots):
+            # print(f"{self.session.id}: {plot.name}")
             box_index, _ = self.coords[index]
             if box_index >= len(self.container.children):
                 box = row() if self.row_mode else column()
                 self.container.children.append(box)
             box = self.container.children[box_index]
             fig_kwargs = plot.schema.get('figure_kwargs', {})
+            title_kwargs = fig_kwargs.get("title", {})
+            xaxis_kwargs = fig_kwargs.get("xaxis", {})
+            yaxis_kwargs = fig_kwargs.get("yaxis", {})
+            top_kwargs = { k: v for k, v in fig_kwargs.items() 
+                          if k not in ("title", "xaxis", "yaxis")}
             # fig_kwargs.update(self.get_figsize(index))
             size_opts = self.get_figsize(index)
-            fig = figure(name=plot.name, output_backend='webgl', **size_opts)
+            fig = figure(name=plot.name, output_backend='webgl', **size_opts, **top_kwargs)
             if 'legend' in fig_kwargs:
                 legend = Legend(**fig_kwargs['legend'])
                 fig.add_layout(legend)
-            fig.title.update(**fig_kwargs.get('title', {}))
-            fig.xaxis.update(**fig_kwargs.get('xaxis', {}))
-            fig.yaxis.update(**fig_kwargs.get('yaxis', {}))
+            fig.title.update(**title_kwargs)
+            fig.xaxis.update(**xaxis_kwargs)
+            fig.yaxis.update(**yaxis_kwargs)
             box.children.append(fig)
             plot.figure = fig
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         self.doc.add_root(self.container)
-        done.set_result(None)
-
-    @staticmethod
-    def color(plot_schema, scope_name_index, index):
-        """
-        Assign a color to a point group based on Yaml color[formula] value
-
-        Inputs:
-          plot_schema: 
-            the section of the schema yaml file for this plot
-          scope_name_index: 
-            a monotonic integer index assigned to (scope, name) pairs as they appear
-            in the log file.  See server.Server::scope_name_index
-          index:
-            integer assigned to each data point.  See logger.DataLogger::write  
-        """
-        cdef = plot_schema.get('color', {})
-        cdef.setdefault('palette', 'Viridis8')
-        cdef.setdefault('num_colors', 10)
-        cdef.setdefault('num_indices', 1)
-        cdef.setdefault('num_groups', 1)
-        cdef.setdefault('formula', 'name_index')
-
-        if cdef['formula'] == 'name_index':
-            palette_index = scope_name_index * cdef['num_indices'] + index
-        elif cdef['formula'] == 'index_name':
-            palette_index = index * cdef['min_groups'] + scope_name_index
-        elif cdef['formula'] == 'name':
-            palette_index = scope_name_index
-        elif cdef['formula'] == 'index':
-            palette_index = index
-
-        pal = palettes.__dict__[cdef['palette']]
-        pal = palettes.interp_palette(pal, cdef['num_colors'])
-        palette_index = palette_index % cdef['num_colors']
-        return pal[palette_index]
+        done.set_result(f"built {self.session.id}")
 
     def maybe_add_glyph(self, plot: Plot, group: pb.Group):
         # add a glyph for the group if it doesn't exist
@@ -298,8 +304,8 @@ class PageLayout(BasePage):
         else:
             raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
-    @without_document_lock
-    def refresh_data(self):
+    # @without_document_lock
+    async def refresh_data(self):
         """Read a chunk of log file and incorporate it into the session."""
         session = self.session
         packed = session.fh.read(self.server.fetch_bytes)
@@ -309,6 +315,7 @@ class PageLayout(BasePage):
                 item = next(gen)
                 if isinstance(item, pb.Group):
                     if (session.scope_pat.fullmatch(item.scope)
+                        and session.name_pat.fullmatch(item.name)
                         and any (plot.name_pat.fullmatch(item.name) for plot in session.plots)):
                         session.groups[item.id] = item
                         session.points[item.id] = []
@@ -333,29 +340,40 @@ class PageLayout(BasePage):
                     session.fh.seek(-remain)
                 break
 
-        cds_map = {}
+        cds_map = {} # str(group_id) -> (group, cds_data)
         for group_id, points in session.points.items():
             group = session.groups[group_id]
             cds_data = util.points_to_cds_data(group, points)
             cds_map[str(group_id)] = (group, cds_data)
             session.points[group_id].clear()
 
-        def update_cb():
-            # remove unbacked renderers
-            for plot in session.plots:
-                for r in list(plot.figure.renderers):
-                    if r.name in cds_map:
-                        continue
-                    plot.figure.renderers.remove(r)
+        return cds_map
 
-            # refresh plots by group
-            for group, cds_data in cds_map.values():
-                for plot in session.plots:
-                    if not plot.name_pat.fullmatch(group.name):
-                        continue
-                    self.maybe_add_glyph(plot, group)
-                    for glyph in plot.figure.select({"name": str(group.id)}):
-                        glyph.data_source.stream(cds_data)
+    def send_patch_cb(self, cds_map, fut):
+        # remove unbacked renderers
+        for plot in self.session.plots:
+            for r in list(plot.figure.renderers):
+                if r.name in cds_map:
+                    continue
+                if not self.doc.session_context or self.doc.session_context.destroyed:
+                    break
+                plot.figure.renderers.remove(r)
 
-        self.doc.add_next_tick_callback(update_cb)
+        # refresh plots by group
+        for group, cds_data in cds_map.values():
+            if not self.doc.session_context or self.doc.session_context.destroyed:
+                break
+            for plot in self.session.plots:
+                if not plot.name_pat.fullmatch(group.name):
+                    continue
+                self.maybe_add_glyph(plot, group)
+                for r in plot.figure.select({"name": str(group.id)}):
+                    r.data_source.stream(cds_data)
 
+        for plot in self.session.plots:
+            gi_map = self.session.glyph_index_map(plot)
+            num_colors = max(gi_map.values()) + 1
+            for r, idx in gi_map.items():
+                r.glyph.line_color = plot.color(idx, num_colors)
+
+        fut.set_result(None)

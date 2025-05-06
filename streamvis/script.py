@@ -15,8 +15,8 @@ def _load(path):
 
     return util.separate_messages(util.unpack(packed))
 
-def inventory(path, scopes='.*'):
-    """Print a summary inventory of data in `path` matching scopes."""
+def _inventory(path, scopes='.*'):
+    """Compute the set of totals for each group"""
     fh = util.get_log_handle(path, 'rb')
     packed = fh.read()
     fh.close()
@@ -43,11 +43,27 @@ def inventory(path, scopes='.*'):
                         del totals[group_id]
         else:
             raise RuntimeError(f"Unknown item type: {type(item)}")
+    return seen_groups, totals
 
+def by_group(path, scopes='.*'):
+    seen_groups, totals = _inventory(path, scopes)
     for group_id, total in totals.items():
         g = seen_groups[group_id]
         signature = ','.join(f'{f.name}:{f.type}' for f in g.fields)
         print(f'{g.id}\t{g.scope}\t{g.name}\t{signature}\t{g.index}\t{total}') 
+
+def by_content(path, scopes='.*'):
+    total_by_content = {} # (scope, name) => count
+    seen_groups, totals = _inventory(path, scopes)
+    for group_id, count in totals.items():
+        group = seen_groups[group_id]
+        key = group.scope, group.name
+        total_by_content.setdefault(key, 0)
+        total_by_content[key] += count 
+
+    for (scope, name), count in total_by_content.items():
+        print(f"{scope}\t{name}\t{count}")
+
 
 def scopes(path):
     """Print a list of all scopes, in order of first appearance"""
@@ -148,7 +164,8 @@ def run():
     cmds = { 
             'serve': server.make_server,
             'demo': demo_app,
-            'list': inventory,
+            'groups': by_group,
+            'content': by_content,
             'scopes': scopes,
             'export': export,
             'delete': delete,
