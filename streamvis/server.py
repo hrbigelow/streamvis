@@ -40,8 +40,6 @@ class CleanupHandler(Handler):
 class Server:
     def __init__(self, log_file: str, fetch_bytes=100000, refresh_seconds=2.0):
         """
-        scopes: regex to match on Group.scope (see data.proto)
-        name_pattern: regex to match on Group.name 
         """
         silence(EMPTY_LAYOUT, True)
         silence(MISSING_RENDERERS, True)
@@ -72,14 +70,7 @@ class Server:
             raise RuntimeError(
                     f'Server could not open or parse schema file {schema_file}. '
                     f'Exception was: {ex}') from ex
-        # validate schema
-        for plot_name, plot_schema in schema.items():
-            try:
-                self.validate_patterns(name_pattern=plot_schema['name_pattern'])
-            except Exception as ex:
-                raise RuntimeError(
-                    f'Plot {plot_name} in schema file {schema_file} '
-                    f'contained error:\n{ex}') from ex
+        # validate schema: TODO
         self.schema = schema
 
     def shutdown(self):

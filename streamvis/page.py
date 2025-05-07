@@ -8,7 +8,7 @@ import _io
 from bokeh.layouts import column, row
 from bokeh.document import without_document_lock
 from bokeh.models.dom import HTML
-from bokeh.models import ColumnDataSource, Legend
+from bokeh.models import ColumnDataSource, Legend, LegendItem
 from bokeh.models.renderers.glyph_renderer import GlyphRenderer
 from bokeh.plotting import figure
 from bokeh import palettes
@@ -20,7 +20,6 @@ from .base import BasePage
 class Plot:
     name: str
     schema: Dict
-    name_pat: re.Pattern
     figure: 'figure'
 
     def __init__(self, name: str, global_schema: Dict):
@@ -30,11 +29,6 @@ class Plot:
             raise RuntimeError(
                 f"No name '{name}' found in global_schema. "
                 f"Available names: {', '.join(name for name in global_schema.keys())}")
-        pat = self.schema.get("name_pattern")
-        if pat is None:
-            raise RuntimeError(
-                f"Plot schema '{name}' didn't contain a 'name_pattern' field")
-        self.name_pat = re.compile(pat)
 
     def color(self, index: int, num_colors: int):
         color_opts = self.schema.get("color", {})
@@ -43,12 +37,12 @@ class Plot:
         pal = palettes.interp_palette(pal, num_colors)
         return pal[index]
 
-    def key(self, group: pb.Group) -> Tuple[...]:
-        """Compute a key for this group.  Will be used to index a palette."""
+    def label(self, group: pb.Group) -> str:
+        """Compute a label for this group.  Will be used to index a palette."""
         color_opts = self.schema.get("color", {})
         sig = color_opts.get("key_fun", "sni")
-        d = {"s": group.scope, "n": group.name, "i": group.index}
-        return tuple(d[ch] for ch in sig)
+        d = {"s": group.scope, "n": group.name[len(self.name):], "i": group.index}
+        return '-'.join(str(d[ch]) for ch in sig)
 
 class Session:
     id: int
@@ -68,19 +62,28 @@ class Session:
         self.name_pat = None
         self.fh = util.get_log_handle(log_file, 'rb')
 
-    def glyph_index_map(self, plot: Plot) -> Dict['renderer', int]:
-        keys = set()
-        gi_map = {}
+    def glyph_index_map(
+        self, plot: Plot
+    ) -> Tuple[List[str], Dict[str, List['renderer']]]:
+        """Return.
+
+        label_ord: label -> order index
+        label_to_rend_map: label -> List[renderer]
+        """
+        labels = set()
+        label_to_rend_map = {}
         for r in list(plot.figure.renderers):
             group = self.groups[int(r.name)]
-            key = plot.key(group)
-            keys.add(key)
-        key_ord = {k: i for i, k in enumerate(sorted(keys))}
+            label = plot.label(group)
+            labels.add(label)
+        label_ord = {k: i for i, k in enumerate(sorted(labels))}
         for r in list(plot.figure.renderers):
             group = self.groups[int(r.name)]
-            key = plot.key(group)
-            gi_map[r] = key_ord[key]
-        return gi_map
+            label = plot.label(group)
+            rs = label_to_rend_map.setdefault(label, [])
+            rs.append(r)
+        return label_ord, label_to_rend_map
+
 
 class PageLayout(BasePage):
     """Represents a browser page."""
@@ -268,9 +271,9 @@ class PageLayout(BasePage):
             # fig_kwargs.update(self.get_figsize(index))
             size_opts = self.get_figsize(index)
             fig = figure(name=plot.name, output_backend='webgl', **size_opts, **top_kwargs)
-            if 'legend' in fig_kwargs:
-                legend = Legend(**fig_kwargs['legend'])
-                fig.add_layout(legend)
+            legend_kwargs = fig_kwargs.get("legend", {})
+            legend = Legend(**legend_kwargs)
+            fig.add_layout(legend)
             fig.title.update(**title_kwargs)
             fig.xaxis.update(**xaxis_kwargs)
             fig.yaxis.update(**yaxis_kwargs)
@@ -290,17 +293,15 @@ class PageLayout(BasePage):
         cols = plot.schema['columns']
         cds = ColumnDataSource({c: [] for c in cols})
 
-        color = PageLayout.color(plot.schema, scope_name_index, group.index)
-        label = f"{group.scope}-{group.name}-{group.index}"
+        # color = PageLayout.color(plot.schema, scope_name_index, group.index)
         glyph_kind = plot.schema.get("glyph_kind")
         glyph_kwargs = plot.schema.get("glyph_kwargs", {})
 
+        color = "black"
         if glyph_kind == "line":
-            plot.figure.line(*cols, source=cds, name=str(group.id), color=color,
-                             legend_label=label, **glyph_kwargs)
+            plot.figure.line(*cols, source=cds, name=str(group.id), color=color, **glyph_kwargs)
         elif glyph_kind == "scatter":
-            plot.figure.circle(*cols, name=str(group.id), source=cds, color=color,
-                               legend_label=label, **glyph_kwargs) 
+            plot.figure.circle(*cols, name=str(group.id), source=cds, color=color, **glyph_kwargs) 
         else:
             raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
@@ -316,7 +317,7 @@ class PageLayout(BasePage):
                 if isinstance(item, pb.Group):
                     if (session.scope_pat.fullmatch(item.scope)
                         and session.name_pat.fullmatch(item.name)
-                        and any (plot.name_pat.fullmatch(item.name) for plot in session.plots)):
+                        and any (item.name.startswith(plot.name) for plot in session.plots)):
                         session.groups[item.id] = item
                         session.points[item.id] = []
                 elif isinstance(item, pb.Points):
@@ -364,16 +365,28 @@ class PageLayout(BasePage):
             if not self.doc.session_context or self.doc.session_context.destroyed:
                 break
             for plot in self.session.plots:
-                if not plot.name_pat.fullmatch(group.name):
+                if not group.name.startswith(plot.name):
                     continue
                 self.maybe_add_glyph(plot, group)
                 for r in plot.figure.select({"name": str(group.id)}):
                     r.data_source.stream(cds_data)
 
         for plot in self.session.plots:
-            gi_map = self.session.glyph_index_map(plot)
-            num_colors = max(gi_map.values()) + 1
-            for r, idx in gi_map.items():
-                r.glyph.line_color = plot.color(idx, num_colors)
+            label_ord, label_to_rend_map = self.session.glyph_index_map(plot)
+            num_colors = len(label_ord)
+            for label, rs in label_to_rend_map.items():
+                idx = label_ord[label]
+                for r in rs:
+                    r.glyph.line_color = plot.color(idx, num_colors)
+
+            legend = plot.figure.legend[0]
+            existing_label_ord = {item.label.value: item.index for item in legend.items}
+            if label_ord == existing_label_ord:
+                continue
+            legend.items.clear()
+            for label, rs in label_to_rend_map.items():
+                idx = label_ord[label]
+                legend_item = LegendItem(index=idx, label=label, renderers=rs)
+                legend.items.append(legend_item)
 
         fut.set_result(None)
