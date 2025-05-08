@@ -92,7 +92,7 @@ def export(path, scope_pat=".*"):
                 for group in list(groups.values()):
                     if group.scope == item.scope and group.name == item.name:
                         del groups[group.id]
-                        del points[group.id]
+                        points.pop(group.id, None)
         else:
             raise RuntimeError(f"Unknown item type: {type(item)}")
 
