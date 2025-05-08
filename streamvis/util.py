@@ -226,6 +226,7 @@ def num_point_data(point):
     elif data_name == 'ints':
         return len(values.ints.value)
 
+
 def get_sql_type(field_type):
     return pb.FieldType.Name(field_type)
 

@@ -64,6 +64,55 @@ def by_content(path, scopes='.*'):
     for (scope, name), count in total_by_content.items():
         print(f"{scope}\t{name}\t{count}")
 
+def export(path, scope_pat=".*"):
+    """Return all data full-matching scope_pat.
+
+    Returns:
+    content: (scope, name, index) => { x: np.ndarray, y: np.ndarray }
+    """
+    groups = {} # group_id => pb.Group
+    points = {} # group_id => pb.Point
+
+    fh = util.get_log_handle(path, 'rb')
+    packed = fh.read()
+    fh.close()
+    scope_pat = re.compile(scope_pat)
+    for item in util.unpack(packed):
+        if isinstance(item, pb.Group):
+            if not scope_pat.fullmatch(item.scope):
+                continue
+            groups[item.id] = item
+        elif isinstance(item, pb.Points):
+            if item.group_id not in groups:
+                continue
+            l = points.setdefault(item.group_id, [])
+            l.append(item)
+        elif isinstance(item, pb.Control):
+            if item.action == pb.Action.DELETE:
+                for group in list(groups.values()):
+                    if group.scope == item.scope and group.name == item.name:
+                        del groups[group.id]
+                        del points[group.id]
+        else:
+            raise RuntimeError(f"Unknown item type: {type(item)}")
+
+    # Collate by (scope, name, index)
+    content = {}
+    for group_id, group in groups.items():
+        key = group.scope, group.name, group.index
+        points_list = points.get(group_id, None)
+        if points_list is None:
+            continue
+        cds_data = util.points_to_cds_data(group, points_list)
+        if key not in content:
+            content[key] = cds_data
+        else:
+            data = content[key]
+            for k, v in data.items():
+                data[k] = np.concat([data[k], cds_data[k]])
+    return content
+
+
 
 def scopes(path):
     """Print a list of all scopes, in order of first appearance"""
@@ -85,21 +134,6 @@ def scopes(path):
             
     for scope in seen_scopes_list:
         print(scope)
-
-def export(path, scopes='.*'):
-    """
-    Export contents of data in `path` matching `scopes` in tsv format
-    """
-    groups, all_points = _load(path)
-    filter_fn = lambda g: re.match(scopes, g.scope)
-    for g in filter(filter_fn, groups):
-        sig = tuple((f.name, f.type) for f in g.fields)
-        points = [pt for pt in all_points if pt.group_id == g.id]
-        for pt in points:
-            valtups = util.values_tuples(0, pt, sig)
-            for _, group_id, *vals in valtups:
-                valstr = '\t'.join(f'{v:.3f}' for v in vals)
-                print(f'{group_id}\t{pt.batch}\t{g.scope}\t{g.name}\t{g.index}\t{valstr}')
 
 def delete(path, scope: str, name: str):
     """Delete the (scope, name) pair."""
@@ -165,7 +199,7 @@ def run():
             'serve': server.make_server,
             'demo': demo_app,
             'groups': by_group,
-            'content': by_content,
+            'list': by_content,
             'scopes': scopes,
             'export': export,
             'delete': delete,
