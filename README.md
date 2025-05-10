@@ -178,9 +178,15 @@ localhost:5006/?rows=A,B;C&width=1,2,1&height=1,2
 
 Query parameters:
 scopes: (optional, defaults to ".*")  regex to filter scopes
+names:  (required) specify this query parameter once per plot mentioned in `cols`.
+        This should include a regex to search and match any part of the name field of
+        the data.
 rows:   (required) semi-colon separated plot rows.  each plot row is a csv string list 
 width:  (optional) csv number list of relative plot widths
 height: (optional) csv number list of row heights
+axes:   (optional) csv list of designators for axis types for each plot.  Each item
+        in the list must be one of `lin`, `xlog`, `ylog`, or `xylog`.  defaults to:
+        lin,lin,lin,...  (one for each plot)
 
 Detail
 rows=A,B;C   # Top row contains plots A and B.  Bottom row is plot C
@@ -206,10 +212,17 @@ localhost:5006/?cols=A,B;C&width=2,1&height=1,2,1
 +-----+---------+
 
 Query parameters
-scopes: (optional, defaults to ".*")  regex to filter scopes
+scopes: (optional, defaults to ".*")  regex to filter scopes.  matches anywhere in
+        the scope field of the data.
+names:  (required) specify this query parameter once per plot mentioned in `cols`.
+        This should include a regex to search and match any part of the name field of
+        the data.
 cols:   (required) semi-colon separated plot columns.  each plot column is a csv string list
 width:  (optional) csv number list of column widths
 height: (optional) csv number list of relative plot heights
+axes:   (optional) csv list of designators for axis types for each plot.  Each item
+        in the list must be one of `lin`, `xlog`, `ylog`, or `xylog`.  defaults to:
+        lin,lin,lin,...  (one for each plot)
 
 Detail
 cols=A,B;C    # Left column contains plots A and B, right column contains plot C
