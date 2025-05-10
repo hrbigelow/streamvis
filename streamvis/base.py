@@ -32,6 +32,12 @@ class BasePage(ABC):
         while self.doc.session_context and not self.doc.session_context.destroyed:
             try:
                 cds_map = await self.refresh_data()
+            except asyncio.CancelledError:
+                pass
+            except Exception as ex:
+                print(f"got exception from refresh_data: {ex}.  finishing coro.")
+                break
+            try:
                 patch_done = asyncio.Future()
                 self.doc.add_next_tick_callback(lambda: self.send_patch_cb(cds_map, patch_done))
                 await patch_done
@@ -40,7 +46,7 @@ class BasePage(ABC):
                 pass
                 # print("refresh data cancelled")
             except Exception as ex:
-                print(f"got exception from refresh_data: {ex}.  finishing coro.")
+                print(f"got exception from send_patch_cb: {ex}.  finishing coro.")
                 break
 
     def start(self):

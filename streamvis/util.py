@@ -93,6 +93,7 @@ def unpack(packed: bytes):
         yield item
     return len(packed) - off
 
+
 def validate(points, group):
     if points.group_id != group.id:
         raise RuntimeError(f'validate: group.id doesn\'t match points.group_id')

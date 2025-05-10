@@ -216,3 +216,22 @@ cols=A,B;C    # Left column contains plots A and B, right column contains plot C
 width=2,1     # Left column is 1/3 of page width, right column is 2/3
 height=1,2,1  # Plots A and B take up 1/3 and 2/3 of page height.  Plot C is full page height
 ```
+
+## Python API
+
+```python
+from streamvis import script
+logfile = "..."
+scopes = script.scopes(path=logfile)
+names = script.names(path=logfile, scope=scopes[0])
+
+all_data = script.export(path=logfile)
+# all_data[scope][name][i] = { axis: ndarray }
+
+scope_data = script.export(path=logfile, scope=scopes[0])
+# scope_data[name][i] = { axis: ndarray }
+
+name_data = script.export(path=logfile, scope=scopes[0], name=names[0])
+# name_data[i] = { axis: ndarray }
+```
+

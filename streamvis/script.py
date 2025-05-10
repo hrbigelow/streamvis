@@ -64,11 +64,16 @@ def by_content(path, scopes='.*'):
     for (scope, name), count in total_by_content.items():
         print(f"{scope}\t{name}\t{count}")
 
-def export(path, scope_pat=".*"):
+def export(path, scope=None, name=None):
     """Return all data full-matching scope_pat.
 
     Returns:
-    content: (scope, name, index) => { x: np.ndarray, y: np.ndarray }
+    If scope is None and name is None:
+       (scope, name) => List[Dict[axis, data]]
+    If scope is not None:
+       name => List[Dict[axis => data]]
+    If scope and name are provided:
+       List[Dict[axis, data]]
     """
     groups = {} # group_id => pb.Group
     points = {} # group_id => pb.Point
@@ -76,10 +81,11 @@ def export(path, scope_pat=".*"):
     fh = util.get_log_handle(path, 'rb')
     packed = fh.read()
     fh.close()
-    scope_pat = re.compile(scope_pat)
     for item in util.unpack(packed):
         if isinstance(item, pb.Group):
-            if not scope_pat.fullmatch(item.scope):
+            if scope is not None and item.scope != scope:
+                continue
+            if name is not None and item.name != name:
                 continue
             groups[item.id] = item
         elif isinstance(item, pb.Points):
@@ -110,8 +116,23 @@ def export(path, scope_pat=".*"):
             data = content[key]
             for k, v in data.items():
                 data[k] = np.concat([data[k], cds_data[k]])
-    return content
 
+    # flatten content
+    if scope is None and name is None:
+        ret = {} # (scope, name) => List[Dict[str, ndarray]]
+        for (scope, name, index), data in content.items():
+            names = ret.setdefault(scope, {})
+            vals = names.setdefault(name, [])
+            vals.append(data)
+        return ret
+    elif name is None:
+        ret = {} # name => List[Dict[str, ndarray]] 
+        for (scope, name, index), data in content.items():
+            vals = ret.setdefault(name, [])
+            vals.append(data)
+        return ret
+    else:
+        return list(content.values())
 
 
 def scopes(path):
@@ -134,6 +155,22 @@ def scopes(path):
             
     for scope in seen_scopes_list:
         print(scope)
+
+def names(path: str, scope: str):
+    """Print list of names under scope."""
+    fh = util.get_log_handle(path, 'rb')
+    packed = fh.read()
+    fh.close()
+    seen_names = set()
+    for item in util.unpack(packed):
+        if isinstance(item, pb.Group) and item.scope == scope:
+            seen_names.add(item.name)
+        elif isinstance(item, pb.Control):
+            if item.action == pb.Action.DELETE and item.scope == scope:
+                seen_names.discard(item.name)
+            
+    return list(seen_names)
+
 
 def delete(path, scope: str, name: str):
     """Delete the (scope, name) pair."""

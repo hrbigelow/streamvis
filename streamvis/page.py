@@ -21,28 +21,27 @@ class Plot:
     name: str
     schema: Dict
     figure: 'figure'
+    group_name_pat: re.Pattern
 
-    def __init__(self, name: str, global_schema: Dict):
+    def __init__(self, name: str, plot_schema: Dict, group_name_pat: re.Pattern):
         self.name = name
-        self.schema = global_schema.get(name)
-        if self.schema is None:
-            raise RuntimeError(
-                f"No name '{name}' found in global_schema. "
-                f"Available names: {', '.join(name for name in global_schema.keys())}")
+        self.schema = plot_schema 
+        self.group_name_pat = group_name_pat
+
 
     def color(self, index: int, num_colors: int):
         color_opts = self.schema.get("color", {})
         palette_name = color_opts.get("palette", "Viridis8")
         pal = palettes.__dict__[palette_name]
-        pal = palettes.interp_palette(pal, num_colors)
-        return pal[index]
+        pal = palettes.interp_palette(pal, num_colors+2)
+        return pal[index+1]
 
     def label(self, group: pb.Group) -> str:
         """Compute a label for this group.  Will be used to index a palette."""
         color_opts = self.schema.get("color", {})
         sig = color_opts.get("key_fun", "sni")
-        d = {"s": group.scope, "n": group.name[len(self.name):], "i": group.index}
-        return '-'.join(str(d[ch]) for ch in sig)
+        d = {"s": group.scope, "n": group.name, "i": group.index}
+        return "-".join(str(d[ch]) for ch in sig)
 
 class Session:
     id: int
@@ -50,7 +49,6 @@ class Session:
     groups: Dict[int, pb.Group]
     points: Dict[int, List[pb.Points]]
     scope_pat: re.Pattern
-    name_pat: re.Pattern
     fh: Union[_io._IOBase, 'GFile']
 
     def __init__(self, id: int, log_file: str):
@@ -59,7 +57,6 @@ class Session:
         self.groups = {}
         self.points = {}
         self.scope_pat = None 
-        self.name_pat = None
         self.fh = util.get_log_handle(log_file, 'rb')
 
     def glyph_index_map(
@@ -145,9 +142,12 @@ class PageLayout(BasePage):
         """
         API:
         scopes: regex pattern of scopes to include 
-        names:  regex pattern of names to include
-        rows:   semi-colon separated list of csv names lists
-        cols:   semi-colon separated list of csv names lists
+        rows:   semi-colon separated list of csv plot names lists
+        cols:   semi-colon separated list of csv plot names lists
+        names:  regex pattern of names to include (use one query param per plot name,
+                in same order as the names in rows or cols is given)
+        xlog:   if present, set x axis to log-scale
+        ylog:   if present, set y axis to log-scale
         
         width:  csv numbers list
         height: csv numbers list
@@ -156,16 +156,20 @@ class PageLayout(BasePage):
         optional.
 
         scopes is optional.  if absent, defaults to '.+'
-        names is optiona.  if absent, defaults to '.+'
+        names is optional.  if absent, defaults to '.+'
 
         This function only accesses the server schema, not the data state
         """
+        # import pdb
+        # pdb.set_trace()
         args = request.arguments
         known_plots = self.server.schema.keys()
 
-        def maybe_get(args, param, default=None):
-            val = args.pop(param, None)
-            return default if val is None else val[0].decode()
+        def get_decode(args, param):
+            vals = args.get(param)
+            if vals is None:
+                return None
+            return tuple(v.decode() for v in vals)
 
         def parse_grid(param, grid, plots, box_elems):
             if grid == '':
@@ -199,29 +203,36 @@ class PageLayout(BasePage):
                     f'Context: {param}={arg}')
             return num_list 
 
-        rows = maybe_get(args, 'rows')
-        cols = maybe_get(args, 'cols')
-        if (rows is None) == (cols is None):
-            raise RuntimeError(
-                f'Exactly one of `rows` or `cols` query parameter must be given')
-        scope_pat = maybe_get(args, "scopes", ".+")
+        scope_pats = get_decode(args, "scopes") 
+        if scope_pats is None:
+            scope_pats = (".*",)
+        if len(scope_pats) != 1:
+            raise RuntimeError(f"scopes argument must be provided exactly once")
         try:
+            scope_pat = scope_pats[0]
             self.session.scope_pat = re.compile(scope_pat)
         except re.PatternError as ex:
             raise RuntimeError(f"scopes argument '{scope_pat}' is not a valid regex")
-        name_pat = maybe_get(args, "names", ".+")
-        try:
-            self.session.name_pat = re.compile(name_pat)
-        except re.PatternError as ex:
-            raise RuntimeError(f"names argument '{name_pat}' is not a valid regex")
+
+        rows = get_decode(args, "rows")
+        cols = get_decode(args, "cols")
+        if rows is not None and cols is None and len(rows) == 1:
+            rows = rows[0]
+        elif cols is not None and rows is None and len(cols) == 1:
+            cols = cols[0]
+        else:
+            raise RuntimeError(
+                f"Either `rows` or `cols` query parameter must be given exactly once")
+
+        name_pats = get_decode(args, "names")
 
         plots = [] 
         box_elems = [] # 
         box_part = []  # box stacking dimension proportion 
         plot_part = [] # plot packing dimension proportions
 
-        width_arg = maybe_get(args, 'width')
-        height_arg = maybe_get(args, 'height')
+        width_arg = get_decode(args, 'width')
+        height_arg = get_decode(args, 'height')
 
         if rows is not None:
             self.row_mode = True
@@ -234,8 +245,46 @@ class PageLayout(BasePage):
             plot_part = parse_csv('height', height_arg, len(plots))
             box_part = parse_csv('width', width_arg, len(box_elems))
             
-        for plot_name in plots:
-            self.session.plots.append(Plot(plot_name, self.server.schema))
+        if len(plots) != len(name_pats):
+            raise RuntimeError(
+                f"Must provide same number of names as plots in `cols` or `rows`.  "
+                f"Received {len(plots)} plots and {len(name_pats)} names query parameters")
+
+        axes_arg = get_decode(args, "axes")
+        if axes_arg is None:
+            axes = ("lin",) * len(plots) 
+        elif len(axes_arg) == 1:
+            axes = axes_arg[0].split(",")
+        else:
+            raise RuntimeError(f"`axes` query parameter must be provided at most once")
+        if (len(axes) != len(plots) 
+            or any(mode not in ("lin", "xlog", "ylog", "xylog") for mode in axes)):
+            raise RuntimeError(
+                f"`axes` must be comma-separated list of modes, one for each plot.  "
+                f"Each mode should be one of 'lin', 'xlog', 'ylog', 'xylog'.  "
+                f"Received {axes_arg=}")
+        axes_mode_to_kwargs = {
+            "lin": { "x_axis_type": "linear", "y_axis_type": "linear" },
+            "xlog": { "x_axis_type": "log", "y_axis_type": "linear" },
+            "ylog": { "x_axis_type": "linear", "y_axis_type": "log" },
+            "xylog": { "x_axis_type": "log", "y_axis_type": "log" },
+        }
+
+        for plot_name, name_pat, mode in zip(plots, name_pats, axes):
+            plot_schema = self.server.schema.get(plot_name)
+            if plot_schema is None:
+                raise RuntimeError(
+                    f"No name '{name}' found in global_schema. "
+                    f"Available names: {', '.join(name for name in self.server.schema)}")
+            try:
+                group_name_pat = re.compile(name_pat)
+            except re.PatternError as ex:
+                raise RuntimeError(f"names argument '{name_pat}' is not a valid regex")
+
+            args_update = axes_mode_to_kwargs.get(mode)
+            figure_kwargs = plot_schema.setdefault("figure_kwargs", {})
+            figure_kwargs.update(**args_update)
+            self.session.plots.append(Plot(plot_name, plot_schema, group_name_pat))
 
         self._set_layout(box_elems, box_part, plot_part)
 
@@ -315,9 +364,8 @@ class PageLayout(BasePage):
             try:
                 item = next(gen)
                 if isinstance(item, pb.Group):
-                    if (session.scope_pat.fullmatch(item.scope)
-                        and session.name_pat.fullmatch(item.name)
-                        and any (item.name.startswith(plot.name) for plot in session.plots)):
+                    if (session.scope_pat.search(item.scope)
+                        and any (p.group_name_pat.search(item.name) for p in session.plots)):
                         session.groups[item.id] = item
                         session.points[item.id] = []
                 elif isinstance(item, pb.Points):
@@ -351,7 +399,12 @@ class PageLayout(BasePage):
         return cds_map
 
     def send_patch_cb(self, cds_map, fut):
+        # total_elems = sum(ary.size for ent in cds_map.values() for ary in ent[1].values())
+        # print(f"send_patch_cb called with {len(cds_map)} groups, {total_elems} points")
         # remove unbacked renderers
+        # def get_plot_updates(plot, cds_map):
+            # return {k: v for k, v in cds_map.items() if v[0].name.startswith(plot.name)} 
+
         for plot in self.session.plots:
             for r in list(plot.figure.renderers):
                 if r.name in cds_map:
@@ -365,9 +418,11 @@ class PageLayout(BasePage):
             if not self.doc.session_context or self.doc.session_context.destroyed:
                 break
             for plot in self.session.plots:
-                if not group.name.startswith(plot.name):
+                if not plot.group_name_pat.search(group.name):
                     continue
                 self.maybe_add_glyph(plot, group)
+                if all(v.size == 0 for v in cds_data.values()):
+                    continue
                 for r in plot.figure.select({"name": str(group.id)}):
                     r.data_source.stream(cds_data)
 
