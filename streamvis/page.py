@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from typing import Dict, List, Union, Tuple
 from dataclasses import dataclass
 import threading
@@ -271,7 +272,7 @@ class PageLayout(BasePage):
         }
 
         for plot_name, name_pat, mode in zip(plots, name_pats, axes):
-            plot_schema = self.server.schema.get(plot_name)
+            plot_schema = copy.deepcopy(self.server.schema.get(plot_name))
             if plot_schema is None:
                 raise RuntimeError(
                     f"No name '{name}' found in global_schema. "

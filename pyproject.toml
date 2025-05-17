@@ -7,7 +7,7 @@ name = "streamvis"
 version = "0.1.0"
 description = "Interactive visualizations of streaming data using Bokeh"
 authors = [{name="Henry Bigelow", email="hrbigelow@gmail.com"}]
-requires-python = ">=3.13.0"
+requires-python = ">=3.12.0"
 dependencies = [
   "tornado",
   "numpy",

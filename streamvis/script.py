@@ -15,6 +15,7 @@ def _load(path):
 
     return util.separate_messages(util.unpack(packed))
 
+
 def _inventory(path, scopes='.*'):
     """Compute the set of totals for each group"""
     fh = util.get_log_handle(path, 'rb')

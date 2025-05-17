@@ -1,4 +1,5 @@
-from typing import List, Dict, Iterable
+from typing import List, Dict, Iterable, Tuple, Union, Optional
+from dataclasses import dataclass
 import struct
 import numpy as np
 import random
@@ -92,6 +93,48 @@ def unpack(packed: bytes):
         off += 5 + length
         yield item
     return len(packed) - off
+
+@dataclass
+class LogStats:
+    groups: Dict[int, pb.Group]
+    data: Dict[Tuple, Union[int, np.ndarray]]
+
+def _update_stats(
+    stats: LogStats,
+    item: Union[pb.Group, pb.Points, pb.Control],
+    with_data: bool,
+    scope: Optional[str]=None,
+    name: Optional[str]=None,
+) -> None:
+    """update `stats` with the next item."""
+    default_val = lambda: {} if with_data else 0
+    match item:
+        case pb.Group(id=id, scope=sc, name=n, index=i):
+            if scope is None or (scope == sc and (name is None or name == n)):
+                stats.groups[id] = item
+        case pb.Points(group_id=gid, values=data):
+            group = stats.groups.get(gid)
+            if group is None:
+                raise RuntimeError(f"point from unknown group_id {gid}")
+
+            key = group.scope, group.name, group.index
+            if with_data:
+                cds_data = points_to_cds_data(group, [item])
+                if key not in stats.data:
+                    stats.data[key] = cds_data
+                else:
+                    stats_data = stats.data[key]
+                    for k, v in stats_data.items():
+                        stats_data[k] = np.concat([stats_data[k], cds_data[k]])
+            else:
+                stats.data.setdefault(key, 0)
+                stats.data[key] += num_point_data(item) 
+        case pb.Control(scope=sc, name=n, action=pb.Action.DELETE):
+            pass
+
+
+
+
 
 
 def validate(points, group):
