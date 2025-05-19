@@ -1,3 +1,4 @@
+from typing import Literal
 import os
 import enum
 import numpy as np
@@ -26,7 +27,12 @@ class DataLogger:
         self.uint32_max = (1 << 32) - 1 
         random.seed(time.time())
 
-    def init(self, path, flush_every: float = 2.0):
+    def init(
+        self, 
+        path: str, 
+        flush_every: float = 2.0,
+        tensor_type: Literal["jax", "torch", "numpy"]="jax",
+    ):
         """
         Initialize logger to log data to the given path.
         path:  filesystem path or gs:// resource
@@ -35,6 +41,26 @@ class DataLogger:
         self.data_fh = util.get_log_handle(path, "ab")
         self.index_fh = util.get_log_handle(f"{path}.idx", "ab")
         self.flush_every = flush_every
+        match tensor_type:
+            case "jax":
+                import jax.numpy as jnp
+                self.to_array = jnp.array
+                self.concat = jnp.concatenate 
+                self.to_numpy = lambda ary: np.array(ary)
+                self.broadcast_arrays = jnp.broadcast_arrays
+            case "numpy":
+                self.to_array = np.array
+                self.concat = np.concat
+                self.to_numpy = lambda x: x
+                self.broadcast_arrays = np.broadcast_arrays
+            case "torch":
+                import torch
+                self.to_array = torch.tensor
+                self.concat = lambda arrays, axis: torch.cat(arrays, dim=axis)
+                self.to_numpy = lambda ary: ary.detach().numpy()
+                self.broadcast_arrays = torch.broadcast_tensors 
+            case other:
+                raise RuntimeError(f"unsupported tensor type: '{other}'")
 
     async def start(self):
         self._task_group = asyncio.TaskGroup()
@@ -61,7 +87,6 @@ class DataLogger:
         """Write to fh in concurrency-safe way.  Return current offset after write."""
         if not isinstance(content, bytes):
             raise RuntimeError(f"content must be bytes")
-        print(f"safe_write: {len(content)}")
 
         try:
             # Only lock during the actual write operation
@@ -74,9 +99,7 @@ class DataLogger:
         finally:
             fcntl.flock(fh, fcntl.LOCK_UN)
 
-
-    @staticmethod
-    def upscale_inputs(data) -> dict[str, np.ndarray]:
+    def upscale_inputs(self, data) -> dict[str, 'tensor']:
         """
         Reshape all data to have shape: (index,point) 
         Shape transformations will be:
@@ -98,9 +121,10 @@ class DataLogger:
                     f'allowed')
 
         keys, vals = list(zip(*data.items()))
-        vals = [up2(k, v) for k, v in data.items()]
+
         try:
-            vals = np.broadcast_arrays(*vals)
+            vals = [up2(k, v) for k, v in data.items()]
+            vals = self.broadcast_arrays(*vals)
         except BaseException:
             raise RuntimeError(
                 f'Data shapes aren\'t broadcastable: ' +
@@ -127,16 +151,10 @@ class DataLogger:
 
         x[point], y[index, point]
         """
-        # validate index and data
-        for k, v in data.items():
-            try:
-                v = util.get_numpy(v)
-                data[k] = v
-            except RuntimeError as ex:
-                raise RuntimeError(
-                    f'{name=}, could not convert data key `{k}` to '
-                    f'numpy arrays:\n{v=}\n{ex}')
-
+        try:
+            data = {k: self.to_array(v) for k, v in data.items()}
+        except BaseException as ex:
+            raise RuntimeError(f"Couldn't convert data to tensors")
         try:
             data = self.upscale_inputs(data)
         except BaseException as ex:
@@ -160,9 +178,9 @@ class DataLogger:
 
     def _write_content(
         self,
-        content: dict[str, dict[str, np.ndarray]], # name => cds
-        metadata: dict[int, str],                  # meta_id => name
-        deleted_names: set[str]):                  # set[name]
+        content: dict[str, dict[str, 'tensor']], # name => cds
+        metadata: dict[int, str],                # meta_id => name
+        deleted_names: set[str]):                # set[name]
 
         entry_args = []
         data_bytes = []
@@ -172,6 +190,7 @@ class DataLogger:
             if field_sig is None:
                 raise RuntimeError("Unknown error")
             entry_id = random.randint(0, self.uint32_max)
+            data = {k: self.to_numpy(v) for k, v in data.items()}
             packed = util.pack_data(entry_id, data, field_sig)
             data_bytes.append(packed)
             rel_offsets.append(rel_offsets[-1] + len(packed))
@@ -208,33 +227,39 @@ class DataLogger:
     async def flush_buffer(self):
         while True:
             deleted_names = set()
-            content = {} # meta_id => Dict[str, np.ndarray]
+            content_as_list = {} # meta_id => Dict[str, list['tensor']]
             metas = {} # meta_id => name
-            while not self.buffer.empty():
-                name, item = self.buffer.get_nowait()
+            num_items = self.buffer.qsize()
+            print(f"flush_buffer processing {num_items} items...", end="", flush=True)
+            for _ in range(num_items):
+                name, item = await self.buffer.get()
                 meta_id = self.metadata_id(name)
 
                 if isinstance(item, Action):
                     if item == Action.DELETE:
                         deleted_names.add(name)
-                        content.pop(meta_id, None)
+                        content_as_list.pop(meta_id, None)
                         metas.pop(meta_id, None)
                 elif isinstance(item, dict):
-                    if meta_id not in content:
-                        content[meta_id] = item 
+                    if meta_id not in content_as_list:
+                        content_as_list[meta_id] = {k: [] for k in item.keys()}
                         metas[meta_id] = name
-                    else:
-                        entry = content[meta_id]
-                        if entry.keys() != item.keys():
-                            raise RuntimeError(
-                                f"Inconsistent columns logged to scope {self.scope}, name {name}: "
-                                f"{item.keys()} vs {entry.keys()}")
-                        for k, v in entry.items():
-                            entry[k] = np.concat([v, item[k]], axis=1) 
+
+                    cdslist = content_as_list[meta_id]
+                    for k, v in item.items():
+                        cdslist[k].append(v)
                 else:
                     raise RuntimeError(f"flush_buffer: Unknown item type: {type(item)}")
-            print(f"flush_buffer iteration received {len(content)} new content")
+
+            print(f"collated...", end="", flush=True)
+            content = {}
+            for meta_id, cdslist in content_as_list.items():
+                cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
+                content[meta_id] = cds
+            print(f"concatted...", end="", flush=True)
+
             self._write_content(content, metas, deleted_names)
+            print("done.", flush=True)
             try:
                 await asyncio.sleep(self.flush_every)
             except asyncio.CancelledError:

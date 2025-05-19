@@ -1,4 +1,4 @@
-from typing import List, Dict, Iterable, Tuple, Union, Optional
+from typing import List, Dict, Iterable, Tuple, Union, Optional, Any
 from dataclasses import dataclass
 import os
 import struct
@@ -227,43 +227,6 @@ def fetch_cds_data(
     return data_to_cds(metadata, entries, datas)
 
 
-def points_to_cds(points_list, group): 
-    """
-    Convert an array of pb.Points objects to CDS data
-    CDS data is a map of field names to point values: { 'x': [...], 'y': [...], ... }
-    """
-    selected = [p for p in points_list if p.group_id == group.id]
-    selected = sorted(selected, key=lambda p: p.batch)
-    proto_to_numpy = { pb.FieldType.INT: np.int32, pb.FieldType.FLOAT: np.float32 }
-    cds = { f.name: np.array((), dtype=proto_to_numpy[f.type]) for f in group.fields }
-    print(f'starting convert for group {group.scope} {group.name} {group.index}')
-    for points in selected:
-        for value, field in zip(points.values, group.fields):
-            if field.type == pb.FieldType.FLOAT:
-                nums = value.floats.value
-            elif field.type == pb.FieldType.INT:
-                nums = value.ints.value
-            cds[field.name] = np.append(cds[field.name], nums)
-    print('ending convert')
-    return cds 
-
-def points_to_cds_data(meta: pb.Metadata, points_list: List[pb.Data]) -> Dict[str, np.array]:
-    """Convert a list of points from `meta` to cds-formatted data."""
-    sig = tuple((f.name, f.type) for f in meta.fields)
-    cds_data = { f.name: [] for f in meta.fields }  
-
-    for points in points_list:
-        for val, (name, ty) in zip(points.values, sig):
-            if ty == pb.FieldType.FLOAT:
-                cds_data[name].extend(val.floats.value)
-            elif ty == pb.FieldType.INT:
-                cds_data[name].extend(val.ints.value)
-
-    for name, ary in cds_data.items():
-        cds_data[name] = np.array(ary)
-    return cds_data
-
-
 def num_point_data(point):
     values = point.values[0]
     data_name = values.WhichOneof('data') 
@@ -272,6 +235,14 @@ def num_point_data(point):
     elif data_name == 'ints':
         return len(values.ints.value)
 
+def concat(arrays: list[Any], axis: int):
+    match arrays[0]:
+        case jax.numpy.Array:
+            return jax.numpy.concat(arrays, axis=axis)
+        case numpy.ndarray:
+            return numpy.concat(arrays, axis=axis)
+        case other:
+            raise RuntimeError(f"Unsupported array type: {type(other)}")
 
 def get_numpy(data):
     try:
