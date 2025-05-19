@@ -43,13 +43,6 @@ cs.store(name="scopes", node=ScopeOpts)
 cs.store(name="names", node=NameOpts)
 cs.store(name="server", node=ServerOpts)
 
-def _load(path):
-    fh = util.get_log_handle(path, 'rb')
-    packed = fh.read()
-    fh.close()
-
-    return util.separate_messages(util.unpack(packed))
-
 
 def _inventory(path, scopes='.*'):
     """Compute the set of totals for each group"""
@@ -100,6 +93,42 @@ def by_content(path, scopes='.*'):
     for (scope, name), count in total_by_content.items():
         print(f"{scope}\t{name}\t{count}")
 
+def load_index(
+    path: str, 
+    scope: str=None, 
+    name: str=None
+) -> tuple[dict[int, pb.Metadata], dict[int, pb.Entry]]:
+    """Load the index, optionally filtering by scope and/or name."""
+    index_path = util.index_file(path)
+    fh = util.get_log_handle(index_path, "rb")
+    pack = fh.read()
+    fh.close()
+
+    def filter(iscope, iname):
+        return (scope is None or scope == iscope) and (name is None or name == iname)
+
+    metas = {}   # meta_id => pb.Metadata
+    grouped_entries = {} # meta_id => list[pb.Entry]
+    entries = {} # entry_id => pb.Entry
+    for item in util.unpack(pack):
+        match item:
+            case pb.Metadata(meta_id=meta_id, scope=iscope, name=iname):
+                if filter(iscope, iname):
+                    metas[meta_id] = item
+            case pb.Entry(meta_id=meta_id):
+                if meta_id in metas:
+                    tmp = grouped_entries.setdefault(meta_id, [])
+                    tmp.append(item)
+            case pb.Control(scope=iscope, name=iname):
+                if filter(iscope, iname):
+                    meta_id = util.metadata_id(iscope, iname)
+                    metas.pop(meta_id, None)
+                    grouped_entries.pop(meta_id, None)
+    entries = {ent.entry_id: ent for l in grouped_entries.values() for ent in l}
+    return metas, entries
+
+
+
 def export(path, scope=None, name=None):
     """Return all data full-matching scope_pat.
 
@@ -111,64 +140,33 @@ def export(path, scope=None, name=None):
     If scope and name are provided:
        List[Dict[axis, data]]
     """
-    groups = {} # group_id => pb.Group
-    points = {} # group_id => pb.Point
-
+    metas, entries = load_index(path, scope, name)
     fh = util.get_log_handle(path, 'rb')
-    packed = fh.read()
-    fh.close()
-    for item in util.unpack(packed):
-        if isinstance(item, pb.Group):
-            if scope is not None and item.scope != scope:
-                continue
-            if name is not None and item.name != name:
-                continue
-            groups[item.id] = item
-        elif isinstance(item, pb.Points):
-            if item.group_id not in groups:
-                continue
-            l = points.setdefault(item.group_id, [])
-            l.append(item)
-        elif isinstance(item, pb.Control):
-            if item.action == pb.Action.DELETE:
-                for group in list(groups.values()):
-                    if group.scope == item.scope and group.name == item.name:
-                        del groups[group.id]
-                        points.pop(group.id, None)
-        else:
-            raise RuntimeError(f"Unknown item type: {type(item)}")
-
-    # Collate by (scope, name, index)
-    content = {}
-    for group_id, group in groups.items():
-        key = group.scope, group.name, group.index
-        points_list = points.get(group_id, None)
-        if points_list is None:
-            continue
-        cds_data = util.points_to_cds_data(group, points_list)
-        if key not in content:
-            content[key] = cds_data
-        else:
-            data = content[key]
-            for k, v in data.items():
-                data[k] = np.concat([data[k], cds_data[k]])
+    datas = util.load_data(fh, entries) 
+    data_map = util.data_to_cds(metas, entries, datas)
 
     # flatten content
-    if scope is None and name is None:
-        ret = {} # (scope, name) => List[Dict[str, ndarray]]
-        for (scope, name, index), data in content.items():
-            names = ret.setdefault(scope, {})
-            vals = names.setdefault(name, [])
-            vals.append(data)
-        return ret
-    elif name is None:
-        ret = {} # name => List[Dict[str, ndarray]] 
-        for (scope, name, index), data in content.items():
-            vals = ret.setdefault(name, [])
-            vals.append(data)
-        return ret
-    else:
-        return list(content.values())
+    match scope, name:
+        case None, None:
+            out = {} # (scope, name) => List[Dict[str, ndarray]]
+            for key, cds in data_map.items():
+                l = out.setdefault((key.scope, key.name), [])
+                l.append(cds)
+            return out
+        case _, None:
+            out = {} # name => List[dict[str, ndarray]]
+            for key, cds in data_map.items():
+                l = out.setdefault(key.name, [])
+                l.append(cds)
+            return out
+        case None, _:
+            out = {} # scope => List[dict[str, ndarray]]
+            for key, cds in data_map.items():
+                l = out.setdefault(key.scope, [])
+                l.append(cds)
+            return out
+        case _, _:
+            return list(data_map.values())
 
 
 @hydra.main(config_path=None, config_name="scopes", version_base="1.2")
@@ -243,7 +241,7 @@ async def _demo(scope, path):
     left_data = np.random.randn(N, 2)
 
     for step in range(0, 10000, 10):
-        time.sleep(1.0)
+        time.sleep(0.1)
         # top_data[group, point], where group is a logical grouping of points that
         # form a line, and point is one of those points
         top_data = np.array(
@@ -267,8 +265,10 @@ async def _demo(scope, path):
         # data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
         # logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
          #        grid_columns=5, grid_spacing=1.0)
+        await logger.write('loss', x=step, y=mid_data[0])
 
-        print(f'Logged {step=}')
+        if step % 10 == 0:
+            print(f'Logged {step=}')
         """
         # Colorize the L dimension
         logger.scatter(plot_name='bottom_left', data=data_rank3, spatial_dim=2,

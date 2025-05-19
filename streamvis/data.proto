@@ -51,7 +51,8 @@ message Entry {
 
 // Actual data
 message Data {
-  uint32 entry_id = 1; // foreign key to Entry message 
+  // primary key is (entry_id, index)
+  uint32 entry_id = 1; // foreign key to Entry message
   uint32 index = 2; // 
   repeated Values axes = 3; // actual data
 }

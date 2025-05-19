@@ -22,25 +22,9 @@ def get_log_handle(path, mode):
         fh = open(path, mode)
     return fh
 
-
 def index_file(log_file: str) -> str:
     return f"{log_file}.idx"
 
-def separate_messages(messages: Iterable):
-    """Separate the messages into an array of Point and PointGroup messages."""
-    groups = []
-    points = []
-    controls = []
-    for item in messages:
-        if isinstance(item, pb.Metadata):
-            groups.append(item)
-        elif isinstance(item, pb.Data):
-            points.append(item)
-        elif isinstance(item, pb.Control):
-            controls.append(item)
-        else:
-            raise RuntimeError(f'Received unknown message type {type(item)}')
-    return groups, points, controls
 
 KIND_CODES = { 
     pb.Metadata: b'\x00', 
@@ -76,17 +60,15 @@ def pack_message(message):
     length_code = struct.pack('>I', len(content))
     return kind_code + length_code + content 
 
-def pack_messages(messages):
-    """Create a delimited packed string from protobuf messages."""
-    groups, points, controls = separate_messages(messages)
-    group_packed = b''.join(pack_message(g) for g in groups)
-    points_packed = b''.join(pack_message(p) for p in points)
-    return group_packed + points_packed
-
 def pack_data(
     entry_id: int, 
     content: dict[str, np.ndarray],
-    field_sig: list[tuple[str, np.dtype]]) -> bytes:
+    field_sig: list[tuple[str, np.dtype]]
+) -> bytes:
+    """pack the data into a protobuf message.
+
+    content contains only 2-D data
+    """
     content_types = { k: v.dtype for k, v in content.items() }
     if (len(field_sig) != len(content_types)
         or any(content_types.get(name) != ty for name, ty in field_sig)):
@@ -96,7 +78,8 @@ def pack_data(
 
     shapes = set(a.shape for a in content.values())
     assert len(shapes) == 1
-    num_slices = shapes.pop()[0]
+    shape = shapes.pop()
+    num_slices = shape[0]
 
     packed = []
     for index in range(num_slices):
@@ -175,19 +158,34 @@ def unpack(packed: bytes):
     return len(packed) - off
 
 
-def load_data(fh, entries: Iterable[pb.Entry]) -> list[tuple[pb.Entry, pb.Data]]:
+def load_data(
+    fh, 
+    entries: list[pb.Entry],
+) -> dict[int, list[pb.Data]]:   # entry_id => list[pb.Data]
+    """Load pb.Data from data file corresponding to entries."""
     entries = sorted(entries, key=lambda ent: ent.beg_offset)
     data_pack = []
+    entry_map = {}
+
     for ent in entries:
         fh.seek(ent.beg_offset, os.SEEK_SET)
         pack = fh.read(ent.end_offset - ent.beg_offset)
         data_pack.append(pack)
     data_pack = b''.join(data_pack)
-    data_pack = list(unpack(data_pack))
-    return list(zip(entries, data_pack))
+    datas = list(unpack(data_pack))
+
+    for data in datas:
+        dl = entry_map.setdefault(data.entry_id, [])
+        dl.append(data)
+
+    # for meta_id, entry_list in entries.items():
+        # for ent in entry_list:
+            # assert ent.entry_id in entry_map
+
+    return entry_map
 
 
-@dataclass
+@dataclass(frozen=True)
 class DataKey:
     meta_id: int
     scope: str
@@ -196,26 +194,28 @@ class DataKey:
 
 
 def data_to_cds(
-    metadata: dict[int, pb.Metadata], 
-    items: list[tuple[pb.Entry, pb.Data]]
+    metadata: dict[int, pb.Metadata], # meta_id => pb.Metadata
+    entries: list[pb.Entry],
+    datas: dict[int, list[pb.Data]],  # entry_id => list[pb.Data]
 ) -> dict[DataKey, 'cds_data']: 
     collate = {} # (meta_id, index) => cds_data
-    for ent, data in items:
+    for ent in entries:
         meta = metadata.get(ent.meta_id, None)
         if meta is None:
             raise RuntimeError("Missing metadata during conversion")
-        key = DataKey(meta.meta_id, meta.scope, meta.name, data.index) 
-        if key not in collate:
-            cds = {
-                f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in meta.fields}
-            collate[key] = cds
-        cds = collate[key]
-        for value, field in zip(data.values, meta.fields):
-            if field.type == pb.FieldType.FLOAT:
-                nums = value.floats.value
-            elif field.type == pb.FieldType.INT:
-                nums = value.ints.value
-            cds[field.name] = np.append(cds[field.name], nums)
+        for data in datas[ent.entry_id]:
+            key = DataKey(meta.meta_id, meta.scope, meta.name, data.index) 
+            if key not in collate:
+                cds = {
+                    f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in meta.fields}
+                collate[key] = cds
+            cds = collate[key]
+            for axis, field in zip(data.axes, meta.fields):
+                if field.type == pb.FieldType.FLOAT:
+                    nums = axis.floats.value
+                elif field.type == pb.FieldType.INT:
+                    nums = axis.ints.value
+                cds[field.name] = np.append(cds[field.name], nums)
     return collate
 
 def fetch_cds_data(
@@ -223,8 +223,8 @@ def fetch_cds_data(
     metadata: dict[int, pb.Metadata],
     entries: list[pb.Entry],
 ) -> dict[tuple[int, int], 'cds_data']:
-    items = load_data(fh, entries)
-    return data_to_cds(metadata, items)
+    datas = load_data(fh, entries)
+    return data_to_cds(metadata, entries, datas)
 
 
 def points_to_cds(points_list, group): 

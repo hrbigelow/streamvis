@@ -23,6 +23,7 @@ class DataLogger:
         self.metadata_seen = {} # meta_id => list[tuple[str, dtype]]
         self.buffer = asyncio.Queue()
         self.elem_count = 0
+        self.uint32_max = (1 << 32) - 1 
         random.seed(time.time())
 
     def init(self, path, flush_every: float = 2.0):
@@ -60,6 +61,7 @@ class DataLogger:
         """Write to fh in concurrency-safe way.  Return current offset after write."""
         if not isinstance(content, bytes):
             raise RuntimeError(f"content must be bytes")
+        print(f"safe_write: {len(content)}")
 
         try:
             # Only lock during the actual write operation
@@ -158,9 +160,9 @@ class DataLogger:
 
     def _write_content(
         self,
-        content: dict[str, dict[str, np.ndarray]],
-        metadata: dict[str, str],
-        deleted_names: set[str]):
+        content: dict[str, dict[str, np.ndarray]], # name => cds
+        metadata: dict[int, str],                  # meta_id => name
+        deleted_names: set[str]):                  # set[name]
 
         entry_args = []
         data_bytes = []
@@ -200,7 +202,7 @@ class DataLogger:
             packed = util.pack_metadata(meta_id, self.scope, name, field_sig)
             meta_bytes.append(packed)
         all_meta_bytes = b''.join(meta_bytes)
-        all_index_bytes = all_deletes_bytes + all_meta_bytes
+        all_index_bytes = all_deletes_bytes + all_meta_bytes + all_entry_bytes
         _ = self.safe_write(self.index_fh, all_index_bytes)
 
     async def flush_buffer(self):
@@ -228,9 +230,10 @@ class DataLogger:
                                 f"Inconsistent columns logged to scope {self.scope}, name {name}: "
                                 f"{item.keys()} vs {entry.keys()}")
                         for k, v in entry.items():
-                            entry[k] = np.concat([v, item[k]])
+                            entry[k] = np.concat([v, item[k]], axis=1) 
                 else:
                     raise RuntimeError(f"flush_buffer: Unknown item type: {type(item)}")
+            print(f"flush_buffer iteration received {len(content)} new content")
             self._write_content(content, metas, deleted_names)
             try:
                 await asyncio.sleep(self.flush_every)

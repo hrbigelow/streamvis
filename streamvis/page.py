@@ -15,7 +15,7 @@ from bokeh.plotting import figure
 from bokeh import palettes
 from . import data_pb2 as pb
 from . import util
-from .base import BasePage
+from .base import BasePage, GlyphUpdate
 
 
 class Plot:
@@ -37,25 +37,18 @@ class Plot:
         pal = palettes.interp_palette(pal, num_colors+2)
         return pal[index+1]
 
-    def label(self, group: pb.Metadata) -> str:
+    def label(self, meta: pb.Metadata, index: int) -> str:
         """Compute a label for this group.  Will be used to index a palette."""
         color_opts = self.schema.get("color", {})
         sig = color_opts.get("key_fun", "sni")
-        d = {"s": group.scope, "n": group.name, "i": group.index}
+        d = {"s": meta.scope, "n": meta.name, "i": index}
         return "-".join(str(d[ch]) for ch in sig)
-
-class GlyphUpdate:
-    # used to delete any glyphs whose name contains meta_id
-    deleted_meta_ids: set[int] = set()
-    # one entry per plot.  inner dict key is glyph_id
-    cds_data: tuple[dict[str, 'cds_data'], ...] = None 
 
 
 class Session:
     id: int
+    metadata: Dict[int, pb.Metadata]
     plots: List[Plot] 
-    groups: Dict[int, pb.Metadata]
-    points: Dict[int, List[pb.Data]]
     scope_pat: re.Pattern
     index_fh: Union[_io._IOBase, 'GFile']
     data_fh: Union[_io._IOBase, 'GFile']
@@ -68,6 +61,9 @@ class Session:
         self.index_fh = util.get_log_handle(util.index_file(log_file), "rb")
         self.data_fh = util.get_log_handle(log_file, "rb")
 
+    @staticmethod
+    def split_glyph_id(glyph_id):
+        return tuple(int(f) for f in glyph_id.split(","))
 
     def glyph_index_map(
         self, plot: Plot
@@ -80,13 +76,15 @@ class Session:
         labels = set()
         label_to_rend_map = {}
         for r in list(plot.figure.renderers):
-            group = self.groups[int(r.name)]
-            label = plot.label(group)
+            meta_id, index = self.split_glyph_id(r.name)
+            meta = self.metadata[meta_id]
+            label = plot.label(meta, index)
             labels.add(label)
         label_ord = {k: i for i, k in enumerate(sorted(labels))}
         for r in list(plot.figure.renderers):
-            group = self.groups[int(r.name)]
-            label = plot.label(group)
+            meta_id, index = self.split_glyph_id(r.name)
+            meta = self.metadata[meta_id]
+            label = plot.label(meta, index)
             rs = label_to_rend_map.setdefault(label, [])
             rs.append(r)
         return label_ord, label_to_rend_map
@@ -346,11 +344,9 @@ class PageLayout(BasePage):
         # add a glyph for the group if it doesn't exist
         if len(plot.figure.select({"name": glyph_id})) > 0:
             return
-        all_groups = [self.session.groups[int(r.name)] for r in plot.figure.renderers]
 
         cols = plot.schema['columns']
         cds = ColumnDataSource({c: [] for c in cols})
-
         glyph_kind = plot.schema.get("glyph_kind")
         glyph_kwargs = plot.schema.get("glyph_kwargs", {})
 
@@ -365,7 +361,7 @@ class PageLayout(BasePage):
     async def refresh_data(self):
         index_pack = self.session.index_fh.read(self.server.fetch_bytes)
         index_gen = util.unpack(index_pack)
-        entries = {} # meta_id => list[Entry]
+        grouped_entries = {} # meta_id => list[Entry]
         glyph_update = GlyphUpdate()
         glyph_update.cds_data = tuple({} for _ in range(len(self.session.plots)))
 
@@ -382,23 +378,22 @@ class PageLayout(BasePage):
                             self.session.metadata[meta_id] = index_item
                     case pb.Entry(meta_id=meta_id):
                         if meta_id in self.session.metadata:
-                            meta_entries = entries.setdefault(meta_id, [])
-                            meta_entries.append(index_item)
+                            l = grouped_entries.setdefault(meta_id, [])
+                            l.append(index_item)
                     case pb.Control(scope=scope, name=name):
                         if filter(scope, name):
                             meta_id = util.metadata_id(scope, name)
                             glyph_update.deleted_meta_ids.add(meta_id)
                             self.session.metadata.pop(meta_id, None)
-                            entries.pop(meta_id, None)
+                            grouped_entries.pop(meta_id, None)
             except StopIteration as exc:
                 remain = exc.value
                 if remain:
                     self.session.index_fh.seek(-remain)
                 break
         
-        # load data
-        flat_entries = [ent for v in entries.values() for ent in v]
-        cds_data = pack.fetch_cds_data(self.session.data_fh, self.session.metadata, flat_entries)
+        entries = [ent for v in grouped_entries.values() for ent in v]
+        cds_data = util.fetch_cds_data(self.session.data_fh, self.session.metadata, entries)
         
         # collate cds data into individual plots
         for plot_update, plot in zip(glyph_update.cds_data, self.session.plots):
@@ -408,50 +403,6 @@ class PageLayout(BasePage):
                     plot_update[glyph_id] = data
 
         return glyph_update
-
-    """
-    async def refresh_data(self):
-        session = self.session
-        packed = session.fh.read(self.server.fetch_bytes)
-        gen = util.unpack(packed)
-        while True:
-            try:
-                item = next(gen)
-                if isinstance(item, pb.Metadata):
-                    if (session.scope_pat.search(item.scope)
-                        and any (p.group_name_pat.search(item.name) for p in session.plots)):
-                        session.groups[item.id] = item
-                        session.points[item.id] = []
-                elif isinstance(item, pb.Data):
-                    if item.entry_id not in session.groups:
-                        continue
-                    session.points[item.entry_id].append(item)
-                elif isinstance(item, pb.Control):
-                    if item.action == pb.Action.DELETE:
-                        for group in list(session.groups.values()):
-                            if group.scope == item.scope and group.name == item.name:
-                                del session.groups[group.id]
-                                del session.points[group.id]
-                    else:
-                        raise RuntimeError(f"Unknown action type: {pb.Action.Name(item.action)}")
-                else:
-                    raise RuntimeError(f"Got unknown protobuf item type: {type(item)}")
-
-            except StopIteration as exc:
-                remain = exc.value
-                if remain:
-                    session.fh.seek(-remain)
-                break
-
-        cds_map = {} # str(group_id) -> (group, cds_data)
-        for entry_id, points in session.points.items():
-            group = session.groups[meta_id]
-            cds_data = util.points_to_cds_data(group, points)
-            cds_map[str(entry_id)] = (group, cds_data)
-            session.points[group_id].clear()
-
-        return cds_map
-    """
 
     def send_patch_cb(self, glyph_update: GlyphUpdate, fut):
         # total_elems = sum(ary.size for ent in cds_map.values() for ary in ent[1].values())
@@ -468,8 +419,8 @@ class PageLayout(BasePage):
         for cds_updates, plot in zip(glyph_update.cds_data, self.session.plots):
             for glyph_id, data in cds_updates.items():
                 self.maybe_add_glyph(plot, glyph_id)
-            for r in plot.figure.select({"name": glyph_id}):
-                r.data_source.stream(data)
+                for r in plot.figure.select({"name": glyph_id}):
+                    r.data_source.stream(data)
 
         for plot in self.session.plots:
             label_ord, label_to_rend_map = self.session.glyph_index_map(plot)

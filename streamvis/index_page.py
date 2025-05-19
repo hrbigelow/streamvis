@@ -1,5 +1,5 @@
 import asyncio
-from .base import BasePage
+from .base import BasePage, GlyphUpdate
 from bokeh.models import Div
 from bokeh.layouts import column, row
 
@@ -20,6 +20,9 @@ class IndexPage(BasePage):
         self.doc.add_root(self.container)
         done.set_result(None)
 
-    def refresh_data(self):
-        pass
+    def send_patch_cb(self, glyph_update: GlyphUpdate, fut: asyncio.Future):
+        fut.set_result(None)
+
+    async def refresh_data(self):
+        return None
 

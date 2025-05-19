@@ -3,6 +3,12 @@ from functools import partial
 from abc import ABC, abstractmethod
 from tornado.ioloop import IOLoop
 
+class GlyphUpdate:
+    # used to delete any glyphs whose name contains meta_id
+    deleted_meta_ids: set[int] = set()
+    # one entry per plot.  inner dict key is glyph_id
+    cds_data: tuple[dict[str, 'cds_data'], ...] = None 
+
 class BasePage(ABC):
     def __init__(self, server, doc):
         self.server = server
@@ -31,7 +37,7 @@ class BasePage(ABC):
         # print(f"Result from build_page_cb: {result}")
         while self.doc.session_context and not self.doc.session_context.destroyed:
             try:
-                cds_map = await self.refresh_data()
+                glyph_updates = await self.refresh_data()
             except asyncio.CancelledError:
                 pass
             except Exception as ex:
@@ -39,7 +45,8 @@ class BasePage(ABC):
                 break
             try:
                 patch_done = asyncio.Future()
-                self.doc.add_next_tick_callback(lambda: self.send_patch_cb(cds_map, patch_done))
+                self.doc.add_next_tick_callback(
+                    lambda: self.send_patch_cb(glyph_updates, patch_done))
                 await patch_done
                 await asyncio.sleep(self.server.refresh_seconds)
             except asyncio.CancelledError:
