@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ndata.proto\"/\n\x05\x46ield\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x18\n\x04type\x18\x02 \x01(\x0e\x32\n.FieldType\"\x1e\n\tFloatList\x12\x11\n\x05value\x18\x01 \x03(\x02\x42\x02\x10\x01\"\x1c\n\x07IntList\x12\x11\n\x05value\x18\x01 \x03(\x05\x42\x02\x10\x01\"H\n\x06Values\x12\x1c\n\x06\x66loats\x18\x02 \x01(\x0b\x32\n.FloatListH\x00\x12\x18\n\x04ints\x18\x03 \x01(\x0b\x32\x08.IntListH\x00\x42\x06\n\x04\x64\x61ta\"W\n\x05Group\x12\n\n\x02id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\r\n\x05index\x18\x04 \x01(\r\x12\x16\n\x06\x66ields\x18\x05 \x03(\x0b\x32\x06.Field\"B\n\x06Points\x12\x10\n\x08group_id\x18\x01 \x01(\r\x12\r\n\x05\x62\x61tch\x18\x02 \x01(\r\x12\x17\n\x06values\x18\x03 \x03(\x0b\x32\x07.Values\"?\n\x07\x43ontrol\x12\r\n\x05scope\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x17\n\x06\x61\x63tion\x18\x03 \x01(\x0e\x32\x07.Action*\x1f\n\tFieldType\x12\t\n\x05\x46LOAT\x10\x00\x12\x07\n\x03INT\x10\x01*\x14\n\x06\x41\x63tion\x12\n\n\x06\x44\x45LETE\x10\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ndata.proto\"/\n\x05\x46ield\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x18\n\x04type\x18\x02 \x01(\x0e\x32\n.FieldType\"\x1e\n\tFloatList\x12\x11\n\x05value\x18\x01 \x03(\x02\x42\x02\x10\x01\"\x1c\n\x07IntList\x12\x11\n\x05value\x18\x01 \x03(\x05\x42\x02\x10\x01\"H\n\x06Values\x12\x1c\n\x06\x66loats\x18\x02 \x01(\x0b\x32\n.FloatListH\x00\x12\x18\n\x04ints\x18\x03 \x01(\x0b\x32\x08.IntListH\x00\x42\x06\n\x04\x64\x61ta\"P\n\x08Metadata\x12\x0f\n\x07meta_id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x16\n\x06\x66ields\x18\x04 \x03(\x0b\x32\x06.Field\"R\n\x05\x45ntry\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\x0f\n\x07meta_id\x18\x02 \x01(\r\x12\x12\n\nbeg_offset\x18\x03 \x01(\r\x12\x12\n\nend_offset\x18\x04 \x01(\r\">\n\x04\x44\x61ta\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\r\n\x05index\x18\x02 \x01(\r\x12\x15\n\x04\x61xes\x18\x03 \x03(\x0b\x32\x07.Values\"?\n\x07\x43ontrol\x12\r\n\x05scope\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x17\n\x06\x61\x63tion\x18\x03 \x01(\x0e\x32\x07.Action*\x1f\n\tFieldType\x12\t\n\x05\x46LOAT\x10\x00\x12\x07\n\x03INT\x10\x01*\x14\n\x06\x41\x63tion\x12\n\n\x06\x44\x45LETE\x10\x00\x62\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'data_pb2', globals())
@@ -24,10 +24,10 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _FLOATLIST.fields_by_name['value']._serialized_options = b'\020\001'
   _INTLIST.fields_by_name['value']._options = None
   _INTLIST.fields_by_name['value']._serialized_options = b'\020\001'
-  _FIELDTYPE._serialized_start=421
-  _FIELDTYPE._serialized_end=452
-  _ACTION._serialized_start=454
-  _ACTION._serialized_end=474
+  _FIELDTYPE._serialized_start=494
+  _FIELDTYPE._serialized_end=525
+  _ACTION._serialized_start=527
+  _ACTION._serialized_end=547
   _FIELD._serialized_start=14
   _FIELD._serialized_end=61
   _FLOATLIST._serialized_start=63
@@ -36,10 +36,12 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _INTLIST._serialized_end=123
   _VALUES._serialized_start=125
   _VALUES._serialized_end=197
-  _GROUP._serialized_start=199
-  _GROUP._serialized_end=286
-  _POINTS._serialized_start=288
-  _POINTS._serialized_end=354
-  _CONTROL._serialized_start=356
-  _CONTROL._serialized_end=419
+  _METADATA._serialized_start=199
+  _METADATA._serialized_end=279
+  _ENTRY._serialized_start=281
+  _ENTRY._serialized_end=363
+  _DATA._serialized_start=365
+  _DATA._serialized_end=427
+  _CONTROL._serialized_start=429
+  _CONTROL._serialized_end=492
 # @@protoc_insertion_point(module_scope)

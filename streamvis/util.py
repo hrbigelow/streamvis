@@ -1,5 +1,6 @@
 from typing import List, Dict, Iterable, Tuple, Union, Optional
 from dataclasses import dataclass
+import os
 import struct
 import numpy as np
 import random
@@ -21,15 +22,19 @@ def get_log_handle(path, mode):
         fh = open(path, mode)
     return fh
 
+
+def index_file(log_file: str) -> str:
+    return f"{log_file}.idx"
+
 def separate_messages(messages: Iterable):
     """Separate the messages into an array of Point and PointGroup messages."""
     groups = []
     points = []
     controls = []
     for item in messages:
-        if isinstance(item, pb.Group):
+        if isinstance(item, pb.Metadata):
             groups.append(item)
-        elif isinstance(item, pb.Points):
+        elif isinstance(item, pb.Data):
             points.append(item)
         elif isinstance(item, pb.Control):
             controls.append(item)
@@ -37,8 +42,32 @@ def separate_messages(messages: Iterable):
             raise RuntimeError(f'Received unknown message type {type(item)}')
     return groups, points, controls
 
-KIND_CODES = { pb.Group: b'\x00', pb.Points: b'\x01', pb.Control: b'\x02' }
-MESSAGE_TYPES = { 0: pb.Group, 1: pb.Points, 2: pb.Control }
+KIND_CODES = { 
+    pb.Metadata: b'\x00', 
+    pb.Control: b'\x01',
+    pb.Entry: b'\x02', 
+    pb.Data: b'\x03', 
+}
+
+MESSAGE_TYPES = {
+    0: pb.Metadata,
+    1: pb.Control,
+    2: pb.Entry,
+    3: pb.Data,
+}
+
+DTYPE_TO_PROTO = { 
+    np.dtype('int32'): pb.FieldType.INT, 
+    np.dtype('float32'): pb.FieldType.FLOAT 
+}
+
+PROTO_TO_DTYPE = {
+    pb.FieldType.INT: np.int32,
+    pb.FieldType.FLOAT: np.float32,
+}
+
+def metadata_id(scope: str, name: str) -> int:
+    return hash((scope, name)) % ((1 << 32) - 1)
 
 def pack_message(message):
     """Create a delimited protobuf message as bytes."""
@@ -53,6 +82,57 @@ def pack_messages(messages):
     group_packed = b''.join(pack_message(g) for g in groups)
     points_packed = b''.join(pack_message(p) for p in points)
     return group_packed + points_packed
+
+def pack_data(
+    entry_id: int, 
+    content: dict[str, np.ndarray],
+    field_sig: list[tuple[str, np.dtype]]) -> bytes:
+    content_types = { k: v.dtype for k, v in content.items() }
+    if (len(field_sig) != len(content_types)
+        or any(content_types.get(name) != ty for name, ty in field_sig)):
+        raise RuntimeError(
+            f"content has signature {content_types.items()} which mismatches "
+            f"expected signature {field_sig}")
+
+    shapes = set(a.shape for a in content.values())
+    assert len(shapes) == 1
+    num_slices = shapes.pop()[0]
+
+    packed = []
+    for index in range(num_slices):
+        data = pb.Data(entry_id=entry_id, index=index)
+        for name, ty in field_sig:
+            field_data = content.get(name)[index]
+            vals = data.axes.add()
+            if np.issubdtype(field_data.dtype, np.floating):
+                vals.floats.value.extend(field_data)
+            elif np.issubdtype(field_data.dtype, np.integer):
+                vals.ints.value.extend(field_data)
+            else:
+                raise RuntimeError(f"field data is an unsupported dtype: {dty}")
+        packed.append(pack_message(data))
+    return b''.join(packed)
+
+def pack_entry(entry_id: int, meta_id: int, beg_offset: int, end_offset: int) -> bytes:
+    entry = pb.Entry(
+        entry_id=entry_id, meta_id=meta_id, beg_offset=beg_offset, end_offset=end_offset)
+    return pack_message(entry)
+
+
+def pack_metadata(meta_id: int, scope: str, name: str,
+                  field_sig: list[tuple[str, np.dtype]]) -> bytes:
+    meta = pb.Metadata(meta_id=meta_id, scope=scope, name=name)
+    for field_name, dtype in field_sig:
+        field = meta.fields.add()
+        field.name = field_name
+        field.type = DTYPE_TO_PROTO[dtype] 
+    return pack_message(meta)
+
+
+def pack_control(scope: str, name: str) -> bytes:
+    control = pb.Control(scope=scope, name=name, action=pb.Action.DELETE)
+    return pack_message(control)
+
 
 def unpack(packed: bytes):
     """Unpack bytes representing zero or more packed messages.
@@ -94,62 +174,58 @@ def unpack(packed: bytes):
         yield item
     return len(packed) - off
 
+
+def load_data(fh, entries: Iterable[pb.Entry]) -> list[tuple[pb.Entry, pb.Data]]:
+    entries = sorted(entries, key=lambda ent: ent.beg_offset)
+    data_pack = []
+    for ent in entries:
+        fh.seek(ent.beg_offset, os.SEEK_SET)
+        pack = fh.read(ent.end_offset - ent.beg_offset)
+        data_pack.append(pack)
+    data_pack = b''.join(data_pack)
+    data_pack = list(unpack(data_pack))
+    return list(zip(entries, data_pack))
+
+
 @dataclass
-class LogStats:
-    groups: Dict[int, pb.Group]
-    data: Dict[Tuple, Union[int, np.ndarray]]
-
-def _update_stats(
-    stats: LogStats,
-    item: Union[pb.Group, pb.Points, pb.Control],
-    with_data: bool,
-    scope: Optional[str]=None,
-    name: Optional[str]=None,
-) -> None:
-    """update `stats` with the next item."""
-    default_val = lambda: {} if with_data else 0
-    match item:
-        case pb.Group(id=id, scope=sc, name=n, index=i):
-            if scope is None or (scope == sc and (name is None or name == n)):
-                stats.groups[id] = item
-        case pb.Points(group_id=gid, values=data):
-            group = stats.groups.get(gid)
-            if group is None:
-                raise RuntimeError(f"point from unknown group_id {gid}")
-
-            key = group.scope, group.name, group.index
-            if with_data:
-                cds_data = points_to_cds_data(group, [item])
-                if key not in stats.data:
-                    stats.data[key] = cds_data
-                else:
-                    stats_data = stats.data[key]
-                    for k, v in stats_data.items():
-                        stats_data[k] = np.concat([stats_data[k], cds_data[k]])
-            else:
-                stats.data.setdefault(key, 0)
-                stats.data[key] += num_point_data(item) 
-        case pb.Control(scope=sc, name=n, action=pb.Action.DELETE):
-            pass
+class DataKey:
+    meta_id: int
+    scope: str
+    name: str
+    index: int
 
 
+def data_to_cds(
+    metadata: dict[int, pb.Metadata], 
+    items: list[tuple[pb.Entry, pb.Data]]
+) -> dict[DataKey, 'cds_data']: 
+    collate = {} # (meta_id, index) => cds_data
+    for ent, data in items:
+        meta = metadata.get(ent.meta_id, None)
+        if meta is None:
+            raise RuntimeError("Missing metadata during conversion")
+        key = DataKey(meta.meta_id, meta.scope, meta.name, data.index) 
+        if key not in collate:
+            cds = {
+                f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in meta.fields}
+            collate[key] = cds
+        cds = collate[key]
+        for value, field in zip(data.values, meta.fields):
+            if field.type == pb.FieldType.FLOAT:
+                nums = value.floats.value
+            elif field.type == pb.FieldType.INT:
+                nums = value.ints.value
+            cds[field.name] = np.append(cds[field.name], nums)
+    return collate
 
+def fetch_cds_data(
+    fh,  
+    metadata: dict[int, pb.Metadata],
+    entries: list[pb.Entry],
+) -> dict[tuple[int, int], 'cds_data']:
+    items = load_data(fh, entries)
+    return data_to_cds(metadata, items)
 
-
-
-def validate(points, group):
-    if points.group_id != group.id:
-        raise RuntimeError(f'validate: group.id doesn\'t match points.group_id')
-    if len(points.values) != len(group.fields):
-        return False
-    fields = [ 'floats', 'ints' ]
-    sizes = set()
-    for v, f in zip(points.values, group.fields):
-        if f.type == pb.FieldType.FLOAT:
-            sizes.add(len(v.floats.value))
-        elif f.type == pb.FieldType.INT:
-            sizes.add(len(v.ints.value))
-    return len(sizes) == 1
 
 def points_to_cds(points_list, group): 
     """
@@ -171,10 +247,10 @@ def points_to_cds(points_list, group):
     print('ending convert')
     return cds 
 
-def points_to_cds_data(group: pb.Group, points_list: List[pb.Points]) -> Dict[str, np.array]:
-    """Convert a list of points from `group` to cds-formatted data."""
-    sig = tuple((f.name, f.type) for f in group.fields)
-    cds_data = { f.name: [] for f in group.fields }  
+def points_to_cds_data(meta: pb.Metadata, points_list: List[pb.Data]) -> Dict[str, np.array]:
+    """Convert a list of points from `meta` to cds-formatted data."""
+    sig = tuple((f.name, f.type) for f in meta.fields)
+    cds_data = { f.name: [] for f in meta.fields }  
 
     for points in points_list:
         for val, (name, ty) in zip(points.values, sig):
@@ -188,80 +264,6 @@ def points_to_cds_data(group: pb.Group, points_list: List[pb.Points]) -> Dict[st
     return cds_data
 
 
-def values_tuples(gid_beg, points, sig):
-    """
-    `points`: a Points message
-    `sig`: a signature derived from Group.fields 
-    Gets the points values as a list of tuples, suitable for insert
-    into a relational table.
-    """
-    vals = []
-    for value, (_, typ) in zip(points.values, sig):
-        if typ == pb.FieldType.FLOAT:
-            vals.append(value.floats.value)
-        elif typ == pb.FieldType.INT:
-            vals.append(value.ints.value)
-    return [(gid, points.group_id, *v) for gid, v in enumerate(zip(*vals), gid_beg)]
-
-def make_group(scope, name, index, /, **field_types):
-    """
-    Construct a pb.Group instance
-    """
-    group = pb.Group(id=random.randint(0, 2**32), scope=scope, name=name, index=index)
-    numpy_to_proto = { 
-            np.dtype('int32'): pb.FieldType.INT, 
-            np.dtype('float32'): pb.FieldType.FLOAT 
-            }
-    for field_name, dtype in field_types.items():
-        field = group.fields.add()
-        field.name = field_name
-        field.type = numpy_to_proto[dtype] 
-    return group
-
-def make_point(group, batch):
-    """
-    Construct a pb.Points instance
-    group: pb.Group
-    batch: integer
-    data: field name => list of values
-    """
-    points = pb.Points(group_id=group.id, batch=batch)
-    for _ in range(len(group.fields)):
-        points.values.add() 
-    return points
-
-
-def validate(group, /, data):
-    # validate keys and data types of `data` against group fields
-    numpy_to_proto = { 
-            np.dtype('int32'): pb.FieldType.INT, 
-            np.dtype('float32'): pb.FieldType.FLOAT 
-            }
-    if len(data) != len(group.fields):
-        raise RuntimeError(f'field name mismatch.\n{group=}\n{data.keys()=}')
-    for field in group.fields:
-        if field.name not in data:
-            raise RuntimeError(
-                f'field {field.name} listed in Group but not in data\n')
-        if numpy_to_proto[data[field.name].dtype] != field.type:
-            raise RuntimeError(
-                f'field {field.name} has type {pb.FieldType.Name(field.type)} but '
-                f'data dtype was {data[field.name].dtype}')
-
-def add_to_point(group, point, /, **data):
-    """
-    Adds data to the point, checking data.keys
-    """
-    validate(group, data)
-    for value, field in zip(point.values, group.fields):
-        nums = data[field.name]
-        if nums.ndim == 0:
-            nums = nums[None]
-        if field.type == pb.FieldType.INT:
-            value.ints.value.extend(nums)
-        elif field.type == pb.FieldType.FLOAT:
-            value.floats.value.extend(nums)
-
 def num_point_data(point):
     values = point.values[0]
     data_name = values.WhichOneof('data') 
@@ -271,12 +273,7 @@ def num_point_data(point):
         return len(values.ints.value)
 
 
-def get_sql_type(field_type):
-    return pb.FieldType.Name(field_type)
-
 def get_numpy(data):
-    """
-    """
     try:
         data = data.detach().numpy()
     except BaseException:

@@ -1,12 +1,47 @@
-import fire
+from dataclasses import dataclass
+import sys
+import hydra
+from hydra.core.config_store import ConfigStore
+from hydra.utils import instantiate
+from omegaconf import DictConfig
+import asyncio
 import math
 import time
 import numpy as np
 import re
-from collections import defaultdict
 from streamvis import server, util
 from streamvis.logger import DataLogger
 from . import data_pb2 as pb
+
+
+@dataclass
+class DemoOpts:
+    scope: str
+    path: str
+
+
+@dataclass
+class ScopeOpts:
+    path: str
+
+@dataclass
+class NameOpts:
+    path: str
+    scope: str
+
+@dataclass
+class ServerOpts:
+    port: int
+    schema_file: str
+    log_file: str
+    refresh_seconds: float = 2.0
+
+
+cs = ConfigStore.instance()
+cs.store(name="demo", node=DemoOpts)
+cs.store(name="scopes", node=ScopeOpts)
+cs.store(name="names", node=NameOpts)
+cs.store(name="server", node=ServerOpts)
 
 def _load(path):
     fh = util.get_log_handle(path, 'rb')
@@ -136,41 +171,51 @@ def export(path, scope=None, name=None):
         return list(content.values())
 
 
-def scopes(path):
-    """Print a list of all scopes, in order of first appearance"""
-    fh = util.get_log_handle(path, 'rb')
-    packed = fh.read()
-    fh.close()
-    seen_scopes_list = []
-    seen_scopes_set = set()
+@hydra.main(config_path=None, config_name="scopes", version_base="1.2")
+def scopes(cfg: DictConfig):
+    opts = instantiate(cfg)
+    index_path = f"{opts.path}.idx"
+    index_fh = util.get_log_handle(index_path, "rb")
+    packed = index_fh.read()
+    index_fh.close()
+    scope_num = 0
+    seen_scopes = {} # 
     for item in util.unpack(packed):
-        if isinstance(item, pb.Group):
-            if item.scope not in seen_scopes_set:
-                seen_scopes_set.add(item.scope)
-                seen_scopes_list.append(item.scope)
-        elif isinstance(item, pb.Control):
-            if item.action == pb.Action.DELETE:
-                seen_scopes_set.discard(item.scope)
-                if item.scope in seen_scopes_list:
-                    seen_scopes_list.remove(item.scope)
-            
-    for scope in seen_scopes_list:
+        match item:
+            case pb.Metadata(scope=scope):
+                if scope not in seen_scopes:
+                    seen_scopes[scope] = scope_num
+                    scope_num += 1
+            case pb.Entry():
+                pass
+            case pb.Control(scope=scope, action=action):
+                if action == pb.Action.DELETE:
+                    seen_scopes.pop(scope, None)
+                else:
+                    pass
+    for scope, _ in sorted(seen_scopes.items(), key=lambda kv: kv[1]):
         print(scope)
 
-def names(path: str, scope: str):
-    """Print list of names under scope."""
-    fh = util.get_log_handle(path, 'rb')
-    packed = fh.read()
-    fh.close()
-    seen_names = set()
+@hydra.main(config_path=None, config_name="names", version_base="1.2")
+def names(cfg: DictConfig):
+    opts = instantiate(cfg)
+    index_path = f"{opts.path}.idx"
+    index_fh = util.get_log_handle(index_path, "rb")
+    packed = index_fh.read()
+    index_fh.close()
+    names_num = 0
+    seen_names = {}
     for item in util.unpack(packed):
-        if isinstance(item, pb.Group) and item.scope == scope:
-            seen_names.add(item.name)
-        elif isinstance(item, pb.Control):
-            if item.action == pb.Action.DELETE and item.scope == scope:
-                seen_names.discard(item.name)
-            
-    return list(seen_names)
+        match item:
+            case pb.Metadata(scope=scope, name=name):
+                if scope == opts.scope:
+                    seen_names[name] = names_num
+                    names_num += 1
+            case pb.Control(scope=scope, name=name, action=action):
+                if scope == opts.scope and action == pb.Action.DELETE:
+                    seen_names.pop(name, None)
+    for name, _ in sorted(seen_names.items(), key=lambda kv: kv[1]):
+        print(name)
 
 
 def delete(path, scope: str, name: str):
@@ -180,13 +225,18 @@ def delete(path, scope: str, name: str):
     logger.delete_name(name)
     
 
-def demo_app(scope, path):
+@hydra.main(config_path=None, config_name="demo", version_base="1.2")
+def demo(cfg: DictConfig):
+    opts = instantiate(cfg)
+    asyncio.run(_demo(opts.scope, opts.path))
+
+async def _demo(scope, path):
     """
     A demo application to log data with `scope` to `path`
     """
     logger = DataLogger(scope)
-    buffer_max_elem = 100
-    logger.init(path, buffer_max_elem)
+    logger.init(path, flush_every=2.0)
+    await logger.start()
 
     N = 50
     L = 20
@@ -206,12 +256,12 @@ def demo_app(scope, path):
         left_data = left_data + np.random.randn(N, 2) * 0.1
         layer_mult = np.linspace(0, 10, L)
 
-        logger.write('top_left', x=[list(range(step, step+10))], y=top_data)
+        await logger.write('top_left', x=[list(range(step, step+10))], y=top_data)
 
         mid_data = top_data[:,0]
 
         # (I,), None form
-        logger.write('middle', x=step, y=mid_data)
+        await logger.write('middle', x=step, y=mid_data)
 
         # Distribute the L dimension along grid cells
         # data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
@@ -231,20 +281,41 @@ def demo_app(scope, path):
         logger.scatter(plot_name='bottom_right', data=data4, spatial_dim=1,
                 append=False, color=ColorSpec('Viridis256'))
         """
+    await logger.shutdown()
 
-def run():
-    cmds = { 
-            'serve': server.make_server,
-            'demo': demo_app,
+
+@hydra.main(config_path=None, config_name="server", version_base="1.2")
+def serve(cfg: DictConfig):
+    opts = instantiate(cfg)
+    return server.make_server(
+        opts.port, opts.schema_file, opts.log_file, opts.refresh_seconds)
+
+def help():
+    print("Usage:")
+    print("script.py <task> <args...>")
+    print("Available tasks: serve, demo, groups, list, scopes, names, export, delete")
+
+def main():
+    if len(sys.argv) < 2:
+        help()
+        return
+
+    tasks = { 
+            'serve': serve,
+            'demo': demo,
             'groups': by_group,
             'list': by_content,
             'scopes': scopes,
+            'names': names,
             'export': export,
             'delete': delete,
             }
-    fire.Fire(cmds)
+    task = sys.argv.pop(1)
+    task_fun = tasks.get(task)
+    if task_fun is None:
+        help()
+    task_fun()
+
 
 if __name__ == '__main__':
-    run()
-
-
+    main()

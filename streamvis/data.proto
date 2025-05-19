@@ -30,19 +30,30 @@ message Values {
   }
 }
 
-// describes a group of points
-message Group {
-  uint32 id = 1; // primary key
+// Describes one or more Entry objects
+// Logged to the index file
+// Index file may contain duplicate MetaData messages - duplicates are silently
+// ignored
+message Metadata {
+  uint32 meta_id = 1; // primary key, hash value of (scope, name, index)
   string scope = 2;
   string name = 3;
-  uint32 index = 4;
-  repeated Field fields = 5;
+  repeated Field fields = 4;
 }
 
-message Points {
-  uint32 group_id = 1;
-  uint32 batch = 2;
-  repeated Values values = 3;
+// Describes one Data entry in data file 
+message Entry {
+  uint32 entry_id = 1; // primary key
+  uint32 meta_id = 2; // foreign key to MetaData message
+  uint32 beg_offset = 3; // file offset of begin of Data message
+  uint32 end_offset = 4; // file offset of end of Data message
+}
+
+// Actual data
+message Data {
+  uint32 entry_id = 1; // foreign key to Entry message 
+  uint32 index = 2; // 
+  repeated Values axes = 3; // actual data
 }
 
 enum Action {

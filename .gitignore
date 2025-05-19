@@ -3,5 +3,7 @@ streamvis.egg-info
 .vscode/
 build/
 dist/
+outputs/
+streamvis/outputs/
 
 
