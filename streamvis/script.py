@@ -98,12 +98,7 @@ def export(path, scope=None, name=None):
     """Return all data full-matching scope_pat.
 
     Returns:
-    If scope is None and name is None:
        (scope, name, index) => Dict[axis, data]
-    If scope is not None:
-       (name, index) => Dict[axis => data]
-    If scope and name are provided:
-       index => Dict[axis, data]
     """
     metas, entries_map = util.load_index(path, scope, name)
     fh = util.get_log_handle(path, 'rb')
@@ -111,33 +106,11 @@ def export(path, scope=None, name=None):
     datas = util.load_data(fh, entries) 
     data_map = util.data_to_cds(metas, entries, datas)
 
-    # flatten content
-    match scope, name:
-        case None, None:
-            out = {} # (scope, name, index) => Dict[str, ndarray]
-            for key, cds in data_map.items():
-                ekey = key.scope, key.name, key.index
-                out[ekey] = cds
-            return out
-        case _, None:
-            out = {} # (name, index) => dict[str, ndarray]
-            for key, cds in data_map.items():
-                ekey = key.name, key.index
-                out[ekey] = cds
-            return out
-        case None, _:
-            out = {} # (scope, index) => dict[str, ndarray]
-            for key, cds in data_map.items():
-                ekey = key.scope, key.index
-                out[ekey] = cds
-            return out
-        case _, _:
-            out = {} # index => dict[str, ndarray]
-            for key, cds in data_map.items():
-                ekey = key.index
-                out[ekey] = cds
-            return out
-
+    out = {}
+    for key, cds in data_map.items():
+        ekey = key.scope, key.name, key.index
+        out[ekey] = cds
+    return out
 
 @hydra.main(config_path=None, config_name="scopes", version_base="1.2")
 def scopes(cfg: DictConfig):
