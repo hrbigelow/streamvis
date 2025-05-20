@@ -63,6 +63,7 @@ def pack_message(message):
 def pack_data(
     entry_id: int, 
     content: dict[str, np.ndarray],
+    start_index: int,
     field_sig: list[tuple[str, np.dtype]]
 ) -> bytes:
     """pack the data into a protobuf message.
@@ -83,7 +84,7 @@ def pack_data(
 
     packed = []
     for index in range(num_slices):
-        data = pb.Data(entry_id=entry_id, index=index)
+        data = pb.Data(entry_id=entry_id, index=index+start_index)
         for name, ty in field_sig:
             field_data = content.get(name)[index]
             vals = data.axes.add()
@@ -156,6 +157,46 @@ def unpack(packed: bytes):
         off += 5 + length
         yield item
     return len(packed) - off
+
+
+def load_index(
+    path: str, 
+    scope: str=None, 
+    name: str=None
+) -> tuple[dict[int, pb.Metadata], dict[int, pb.Entry]]:
+    """Load the index, optionally filtering by scope and/or name.
+
+    Returns:
+      metas: meta_id => pb.Metadata
+      entries: entry_id => pb.Entry
+    """
+    index_path = index_file(path)
+    fh = get_log_handle(index_path, "rb")
+    pack = fh.read()
+    fh.close()
+
+    def filter(iscope, iname):
+        return (scope is None or scope == iscope) and (name is None or name == iname)
+
+    metas = {}   # meta_id => pb.Metadata
+    grouped_entries = {} # meta_id => list[pb.Entry]
+    entries = {} # entry_id => pb.Entry
+    for item in unpack(pack):
+        match item:
+            case pb.Metadata(meta_id=meta_id, scope=iscope, name=iname):
+                if filter(iscope, iname):
+                    metas[meta_id] = item
+            case pb.Entry(meta_id=meta_id):
+                if meta_id in metas:
+                    tmp = grouped_entries.setdefault(meta_id, [])
+                    tmp.append(item)
+            case pb.Control(scope=iscope, name=iname):
+                if filter(iscope, iname):
+                    meta_id = metadata_id(iscope, iname)
+                    metas.pop(meta_id, None)
+                    grouped_entries.pop(meta_id, None)
+    entries = {ent.entry_id: ent for l in grouped_entries.values() for ent in l}
+    return metas, entries
 
 
 def load_data(

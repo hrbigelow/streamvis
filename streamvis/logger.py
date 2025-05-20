@@ -132,13 +132,15 @@ class DataLogger:
 
         return dict(zip(keys, vals))
 
-    def write_sync(self, name, /, **data):
+    def write_sync(self, name: str, /, start_index: int=0, **data):
         """Writes new data, possibly creating one or more Group items.
 
         Inputs:
         name:  
           the `name` field of the (scope, name, index) tuple that will be associated
           with these points.
+        start_index:
+          the starting index value to assign to the data
         data: 
           map of field_name => item, with the following logic.
 
@@ -163,9 +165,9 @@ class DataLogger:
         meta_id = self.metadata_id(name)
         if meta_id not in self.metadata_seen:
             self.metadata_seen[meta_id] = tuple((k, v.dtype) for k, v in data.items())
-        self.buffer.put_nowait((name, data))
+        self.buffer.put_nowait((name, data, start_index))
 
-    async def write(self, name, /, **data):
+    async def write(self, name: str, /, start_index: int=0, **data):
         self.write_sync(name, **data)
         await asyncio.sleep(0) # explicit yield
 
@@ -178,8 +180,8 @@ class DataLogger:
 
     def _write_content(
         self,
+        metas: dict[int, str],                   # meta_id => (name, start_index)
         content: dict[str, dict[str, 'tensor']], # name => cds
-        metadata: dict[int, str],                # meta_id => name
         deleted_names: set[str]):                # set[name]
 
         entry_args = []
@@ -190,8 +192,9 @@ class DataLogger:
             if field_sig is None:
                 raise RuntimeError("Unknown error")
             entry_id = random.randint(0, self.uint32_max)
+            _, start_index = metas[meta_id]
             data = {k: self.to_numpy(v) for k, v in data.items()}
-            packed = util.pack_data(entry_id, data, field_sig)
+            packed = util.pack_data(entry_id, data, start_index, field_sig)
             data_bytes.append(packed)
             rel_offsets.append(rel_offsets[-1] + len(packed))
             entry_args.append((entry_id, meta_id))
@@ -214,7 +217,7 @@ class DataLogger:
         all_deletes_bytes = b''.join(deletes_bytes)
 
         meta_bytes = []
-        for meta_id, name in metadata.items():
+        for meta_id, (name, _) in metas.items():
             field_sig = self.metadata_seen.get(meta_id)
             if field_sig is None:
                 raise RuntimeError("Unknown error")
@@ -228,10 +231,10 @@ class DataLogger:
         while True:
             deleted_names = set()
             content_as_list = {} # meta_id => Dict[str, list['tensor']]
-            metas = {} # meta_id => name
+            metas = {} # meta_id => (name, start_index)
             num_items = self.buffer.qsize()
             for _ in range(num_items):
-                name, item = await self.buffer.get()
+                name, item, start_index = await self.buffer.get()
                 meta_id = self.metadata_id(name)
 
                 if isinstance(item, Action):
@@ -242,7 +245,7 @@ class DataLogger:
                 elif isinstance(item, dict):
                     if meta_id not in content_as_list:
                         content_as_list[meta_id] = {k: [] for k in item.keys()}
-                        metas[meta_id] = name
+                        metas[meta_id] = name, start_index
 
                     cdslist = content_as_list[meta_id]
                     for k, v in item.items():
@@ -250,12 +253,12 @@ class DataLogger:
                 else:
                     raise RuntimeError(f"flush_buffer: Unknown item type: {type(item)}")
 
-            content = {}
+            content = {} # meta_id => cds
             for meta_id, cdslist in content_as_list.items():
                 cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
                 content[meta_id] = cds
 
-            self._write_content(content, metas, deleted_names)
+            self._write_content(metas, content, deleted_names)
             try:
                 await asyncio.sleep(self.flush_every)
             except asyncio.CancelledError:
@@ -268,6 +271,6 @@ class DataLogger:
         This will be processed by the server to delete all points and groups
         with scope and name.  To purge these from the log file, currently the server
         must be stopped and the implementation will be TODO"""
-        self.buffer.put_nowait((name, Action.DELETE))
+        self.buffer.put_nowait((name, Action.DELETE, None))
 
 

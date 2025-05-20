@@ -93,80 +93,50 @@ def by_content(path, scopes='.*'):
     for (scope, name), count in total_by_content.items():
         print(f"{scope}\t{name}\t{count}")
 
-def load_index(
-    path: str, 
-    scope: str=None, 
-    name: str=None
-) -> tuple[dict[int, pb.Metadata], dict[int, pb.Entry]]:
-    """Load the index, optionally filtering by scope and/or name."""
-    index_path = util.index_file(path)
-    fh = util.get_log_handle(index_path, "rb")
-    pack = fh.read()
-    fh.close()
-
-    def filter(iscope, iname):
-        return (scope is None or scope == iscope) and (name is None or name == iname)
-
-    metas = {}   # meta_id => pb.Metadata
-    grouped_entries = {} # meta_id => list[pb.Entry]
-    entries = {} # entry_id => pb.Entry
-    for item in util.unpack(pack):
-        match item:
-            case pb.Metadata(meta_id=meta_id, scope=iscope, name=iname):
-                if filter(iscope, iname):
-                    metas[meta_id] = item
-            case pb.Entry(meta_id=meta_id):
-                if meta_id in metas:
-                    tmp = grouped_entries.setdefault(meta_id, [])
-                    tmp.append(item)
-            case pb.Control(scope=iscope, name=iname):
-                if filter(iscope, iname):
-                    meta_id = util.metadata_id(iscope, iname)
-                    metas.pop(meta_id, None)
-                    grouped_entries.pop(meta_id, None)
-    entries = {ent.entry_id: ent for l in grouped_entries.values() for ent in l}
-    return metas, entries
-
-
 
 def export(path, scope=None, name=None):
     """Return all data full-matching scope_pat.
 
     Returns:
     If scope is None and name is None:
-       (scope, name) => List[Dict[axis, data]]
+       (scope, name, index) => Dict[axis, data]
     If scope is not None:
-       name => List[Dict[axis => data]]
+       (name, index) => Dict[axis => data]
     If scope and name are provided:
-       List[Dict[axis, data]]
+       index => Dict[axis, data]
     """
-    metas, entries = load_index(path, scope, name)
+    metas, entries_map = util.load_index(path, scope, name)
     fh = util.get_log_handle(path, 'rb')
+    entries = list(entries_map.values())
     datas = util.load_data(fh, entries) 
     data_map = util.data_to_cds(metas, entries, datas)
 
     # flatten content
     match scope, name:
         case None, None:
-            out = {} # (scope, name) => List[Dict[str, ndarray]]
+            out = {} # (scope, name, index) => Dict[str, ndarray]
             for key, cds in data_map.items():
-                l = out.setdefault((key.scope, key.name), [])
-                l.append(cds)
+                ekey = key.scope, key.name, key.index
+                out[ekey] = cds
             return out
         case _, None:
-            out = {} # name => List[dict[str, ndarray]]
+            out = {} # (name, index) => dict[str, ndarray]
             for key, cds in data_map.items():
-                l = out.setdefault(key.name, [])
-                l.append(cds)
+                ekey = key.name, key.index
+                out[ekey] = cds
             return out
         case None, _:
-            out = {} # scope => List[dict[str, ndarray]]
+            out = {} # (scope, index) => dict[str, ndarray]
             for key, cds in data_map.items():
-                l = out.setdefault(key.scope, [])
-                l.append(cds)
+                ekey = key.scope, key.index
+                out[ekey] = cds
             return out
         case _, _:
-            return list(data_map.values())
+            out = {} # index => dict[str, ndarray]
+            for key, cds in data_map.items():
+                ekey = key.index
+                out[ekey] = cds
+            return out
 
 
 @hydra.main(config_path=None, config_name="scopes", version_base="1.2")
