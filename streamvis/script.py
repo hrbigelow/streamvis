@@ -112,10 +112,8 @@ def export(path, scope=None, name=None):
         out[ekey] = cds
     return out
 
-@hydra.main(config_path=None, config_name="scopes", version_base="1.2")
-def scopes(cfg: DictConfig):
-    opts = instantiate(cfg)
-    index_path = f"{opts.path}.idx"
+def scopes(path: str):
+    index_path = f"{path}.idx"
     index_fh = util.get_log_handle(index_path, "rb")
     packed = index_fh.read()
     index_fh.close()
@@ -137,10 +135,8 @@ def scopes(cfg: DictConfig):
     for scope, _ in sorted(seen_scopes.items(), key=lambda kv: kv[1]):
         print(scope)
 
-@hydra.main(config_path=None, config_name="names", version_base="1.2")
-def names(cfg: DictConfig):
-    opts = instantiate(cfg)
-    index_path = f"{opts.path}.idx"
+def names(path: str, scope: str=None):
+    index_path = f"{path}.idx"
     index_fh = util.get_log_handle(index_path, "rb")
     packed = index_fh.read()
     index_fh.close()
@@ -148,12 +144,12 @@ def names(cfg: DictConfig):
     seen_names = {}
     for item in util.unpack(packed):
         match item:
-            case pb.Metadata(scope=scope, name=name):
-                if scope == opts.scope:
+            case pb.Metadata(scope=iscope, name=name):
+                if iscope == scope:
                     seen_names[name] = names_num
                     names_num += 1
-            case pb.Control(scope=scope, name=name, action=action):
-                if scope == opts.scope and action == pb.Action.DELETE:
+            case pb.Control(scope=iscope, name=name, action=action):
+                if iscope == scope and action == pb.Action.DELETE:
                     seen_names.pop(name, None)
     for name, _ in sorted(seen_names.items(), key=lambda kv: kv[1]):
         print(name)
@@ -257,7 +253,7 @@ def main():
     task_fun = tasks.get(task)
     if task_fun is None:
         help()
-    task_fun()
+    task_fun(*sys.argv[1:])
 
 
 if __name__ == '__main__':
