@@ -62,10 +62,16 @@ class DataLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
-    async def start(self):
+    async def __aenter__(self):
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
-        self.flush_task = self._task_group.create_task(self.flush_buffer())
+        self._task_group.create_task(self.flush_buffer())
+        return self
+
+    async def __aexit__(self, *args):
+        self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
+        await self._task_group.__aexit__(*args)
+        self._task_group = None
 
     async def shutdown(self):
         """
@@ -228,13 +234,17 @@ class DataLogger:
         _ = self.safe_write(self.index_fh, all_index_bytes)
 
     async def flush_buffer(self):
+        more_work = True 
         while True:
             deleted_names = set()
             content_as_list = {} # meta_id => Dict[str, list['tensor']]
             metas = {} # meta_id => (name, start_index)
-            num_items = self.buffer.qsize()
-            for _ in range(num_items):
-                name, item, start_index = await self.buffer.get()
+            while not self.buffer.empty():
+                qitem = await self.buffer.get()
+                if qitem is None:
+                    more_work = False
+                    break
+                name, item, start_index = qitem 
                 meta_id = self.metadata_id(name)
 
                 if isinstance(item, Action):
@@ -259,9 +269,12 @@ class DataLogger:
                 content[meta_id] = cds
 
             self._write_content(metas, content, deleted_names)
+            if not more_work:
+                break
             try:
                 await asyncio.sleep(self.flush_every)
             except asyncio.CancelledError:
+                print(f"flush_buffer cancelled")
                 break
 
     def delete_name(self, name: str):
