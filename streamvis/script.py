@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import partial
 import sys
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -112,7 +113,7 @@ def export(path, scope=None, name=None):
         out[ekey] = cds
     return out
 
-def scopes(path: str):
+def scopes(path: str) -> list[str]:
     index_path = f"{path}.idx"
     index_fh = util.get_log_handle(index_path, "rb")
     packed = index_fh.read()
@@ -132,10 +133,9 @@ def scopes(path: str):
                     seen_scopes.pop(scope, None)
                 else:
                     pass
-    for scope, _ in sorted(seen_scopes.items(), key=lambda kv: kv[1]):
-        print(scope)
+    return [s for s, _ in sorted(seen_scopes.items(), key=lambda kv: kv[1])]
 
-def names(path: str, scope: str=None):
+def names(path: str, scope: str=None) -> list[str]:
     index_path = f"{path}.idx"
     index_fh = util.get_log_handle(index_path, "rb")
     packed = index_fh.read()
@@ -151,8 +151,7 @@ def names(path: str, scope: str=None):
             case pb.Control(scope=iscope, name=name, action=action):
                 if iscope == scope and action == pb.Action.DELETE:
                     seen_names.pop(name, None)
-    for name, _ in sorted(seen_names.items(), key=lambda kv: kv[1]):
-        print(name)
+    return [n for n, _ in sorted(seen_names.items(), key=lambda kv: kv[1])]
 
 
 def delete(path, scope: str, name: str):
@@ -239,15 +238,18 @@ def main():
         help()
         return
 
+    def print_list(fn, *args):
+        out = fn(*args)
+        for item in out:
+            print(item)
+
     tasks = { 
             'serve': serve,
             'demo': demo,
             'groups': by_group,
             'list': by_content,
-            'scopes': scopes,
-            'names': names,
-            'export': export,
-            'delete': delete,
+            'scopes': partial(print_list, scopes),
+            'names': partial(print_list, names),
             }
     task = sys.argv.pop(1)
     task_fun = tasks.get(task)

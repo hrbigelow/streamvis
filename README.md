@@ -239,12 +239,12 @@ scopes = script.scopes(path=logfile)
 names = script.names(path=logfile, scope=scopes[0])
 
 all_data = script.export(path=logfile)
-# all_data[scope][name][i] = { axis: ndarray }
+# all_data[(scope, name, index)] = { axis: ndarray }
 
 scope_data = script.export(path=logfile, scope=scopes[0])
-# scope_data[name][i] = { axis: ndarray }
+# scope_data[(scope, name, index)] = { axis: ndarray }
 
 name_data = script.export(path=logfile, scope=scopes[0], name=names[0])
-# name_data[i] = { axis: ndarray }
+# name_data[(scope, name, index)] = { axis: ndarray }
 ```
 
