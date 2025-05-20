@@ -230,7 +230,6 @@ class DataLogger:
             content_as_list = {} # meta_id => Dict[str, list['tensor']]
             metas = {} # meta_id => name
             num_items = self.buffer.qsize()
-            print(f"flush_buffer processing {num_items} items...", end="", flush=True)
             for _ in range(num_items):
                 name, item = await self.buffer.get()
                 meta_id = self.metadata_id(name)
@@ -251,15 +250,12 @@ class DataLogger:
                 else:
                     raise RuntimeError(f"flush_buffer: Unknown item type: {type(item)}")
 
-            print(f"collated...", end="", flush=True)
             content = {}
             for meta_id, cdslist in content_as_list.items():
                 cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
                 content[meta_id] = cds
-            print(f"concatted...", end="", flush=True)
 
             self._write_content(content, metas, deleted_names)
-            print("done.", flush=True)
             try:
                 await asyncio.sleep(self.flush_every)
             except asyncio.CancelledError:
