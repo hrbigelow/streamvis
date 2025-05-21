@@ -295,6 +295,8 @@ def main():
             'list': by_content,
             'scopes': partial(print_list, scopes),
             'names': partial(print_list, names),
+            'gscopes': partial(print_list, gscopes),
+            'gnames': partial(print_list, gnames),
             }
     task = sys.argv.pop(1)
     task_fun = tasks.get(task)
