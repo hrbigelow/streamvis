@@ -55,6 +55,7 @@ message Data {
   uint32 entry_id = 1; // foreign key to Entry message
   uint32 index = 2; // 
   repeated Values axes = 3; // actual data
+  uint32 meta_id = 4; // not stored on disk - used in join logic for RPC
 }
 
 enum Action {
@@ -66,4 +67,29 @@ message Control {
   string name = 2;
   Action action = 3;
 }
+
+
+message QueryRequest {
+  optional string scope = 1;
+  optional string name = 2;
+}
+
+enum RecordType {
+  METADATA = 0;
+  DATA = 1;
+}
+
+message StreamedRecord {
+  RecordType type = 1;
+  oneof record {
+    Metadata metadata = 2;
+    Data data = 3;
+  }
+}
+
+
+service RecordService {
+  rpc QueryRecords (QueryRequest) returns (stream StreamedRecord);
+}
+
 

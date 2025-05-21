@@ -1,3 +1,6 @@
+import asyncio
+import grpc
+from grpc import aio
 from dataclasses import dataclass
 from functools import partial
 import sys
@@ -5,7 +8,6 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-import asyncio
 import math
 import time
 import numpy as np
@@ -13,6 +15,7 @@ import re
 from streamvis import server, util
 from streamvis.logger import DataLogger
 from . import data_pb2 as pb
+from . import data_pb2_grpc as pb_grpc
 
 
 @dataclass
@@ -101,14 +104,13 @@ def export(path, scope=None, name=None):
     Returns:
        (scope, name, index) => Dict[axis, data]
     """
-    metas, entries_map = util.load_index(path, scope, name)
+    metas_map, entries_map = util.load_index(path, scope, name)
     fh = util.get_log_handle(path, 'rb')
     entries = list(entries_map.values())
-    datas = util.load_data(fh, entries) 
-    data_map = util.data_to_cds(metas, entries, datas)
+    cds_map = util.fetch_cds_data(fh, metas_map, entries)
 
     out = {}
-    for key, cds in data_map.items():
+    for key, cds in cds_map.items():
         ekey = key.scope, key.name, key.index
         out[ekey] = cds
     return out
@@ -220,6 +222,30 @@ async def _demo(scope, path):
                 append=False, color=ColorSpec('Viridis256'))
         """
     await logger.shutdown()
+
+async def gfetch(uri: str, scope: str=None, name: str=None):
+    async with aio.insecure_channel(uri) as chan:
+        stub = pb_grpc.RecordServiceStub(chan)
+        query = pb.QueryRequest(scope=scope, name=name) 
+        async for record in stub.QueryRecords(query):
+            pass
+
+def gfetch_sync(uri: str, scope: str=None, name: str=None):
+    channel = grpc.insecure_channel(uri)
+    stub = pb_grpc.RecordServiceStub(channel)
+    request = pb.QueryRequest(scope=scope, name=name)
+    metas_map = {}
+    datas = []
+    for record in stub.QueryRecords(request):
+        match record.type:
+            case pb.METADATA:
+                meta = record.metadata
+                metas_map[meta.meta_id] = meta
+            case pb.DATA:
+                datas.append(record.data)
+    return util.data_to_cds(metas_map, datas)
+
+
 
 
 @hydra.main(config_path=None, config_name="server", version_base="1.2")

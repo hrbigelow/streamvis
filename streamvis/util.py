@@ -178,25 +178,25 @@ def load_index(
     def filter(iscope, iname):
         return (scope is None or scope == iscope) and (name is None or name == iname)
 
-    metas = {}   # meta_id => pb.Metadata
+    metas_map = {}   # meta_id => pb.Metadata
     grouped_entries = {} # meta_id => list[pb.Entry]
-    entries = {} # entry_id => pb.Entry
+    entries_map = {} # entry_id => pb.Entry
     for item in unpack(pack):
         match item:
             case pb.Metadata(meta_id=meta_id, scope=iscope, name=iname):
                 if filter(iscope, iname):
-                    metas[meta_id] = item
+                    metas_map[meta_id] = item
             case pb.Entry(meta_id=meta_id):
-                if meta_id in metas:
+                if meta_id in metas_map:
                     tmp = grouped_entries.setdefault(meta_id, [])
                     tmp.append(item)
             case pb.Control(scope=iscope, name=iname):
                 if filter(iscope, iname):
                     meta_id = metadata_id(iscope, iname)
-                    metas.pop(meta_id, None)
+                    metas_map.pop(meta_id, None)
                     grouped_entries.pop(meta_id, None)
-    entries = {ent.entry_id: ent for l in grouped_entries.values() for ent in l}
-    return metas, entries
+    entries_map = {ent.entry_id: ent for l in grouped_entries.values() for ent in l}
+    return metas_map, entries_map
 
 
 def load_data(
@@ -206,7 +206,7 @@ def load_data(
     """Load pb.Data from data file corresponding to entries."""
     entries = sorted(entries, key=lambda ent: ent.beg_offset)
     data_pack = []
-    entry_map = {}
+    datas_map = {}
 
     for ent in entries:
         fh.seek(ent.beg_offset, os.SEEK_SET)
@@ -216,14 +216,14 @@ def load_data(
     datas = list(unpack(data_pack))
 
     for data in datas:
-        dl = entry_map.setdefault(data.entry_id, [])
+        dl = datas_map.setdefault(data.entry_id, [])
         dl.append(data)
 
     # for meta_id, entry_list in entries.items():
         # for ent in entry_list:
-            # assert ent.entry_id in entry_map
+            # assert ent.entry_id in datas_map
 
-    return entry_map
+    return datas_map
 
 
 @dataclass(frozen=True)
@@ -233,39 +233,41 @@ class DataKey:
     name: str
     index: int
 
-
 def data_to_cds(
-    metadata: dict[int, pb.Metadata], # meta_id => pb.Metadata
-    entries: list[pb.Entry],
-    datas: dict[int, list[pb.Data]],  # entry_id => list[pb.Data]
-) -> dict[DataKey, 'cds_data']: 
-    collate = {} # (meta_id, index) => cds_data
-    for ent in entries:
-        meta = metadata.get(ent.meta_id, None)
-        if meta is None:
-            raise RuntimeError("Missing metadata during conversion")
-        for data in datas[ent.entry_id]:
-            key = DataKey(meta.meta_id, meta.scope, meta.name, data.index) 
-            if key not in collate:
-                cds = {
-                    f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in meta.fields}
-                collate[key] = cds
-            cds = collate[key]
-            for axis, field in zip(data.axes, meta.fields):
-                if field.type == pb.FieldType.FLOAT:
-                    nums = axis.floats.value
-                elif field.type == pb.FieldType.INT:
-                    nums = axis.ints.value
-                cds[field.name] = np.append(cds[field.name], nums)
+    metas_map: dict[int, pb.Metadata], # meta_id => pb.Metadata
+    datas: list[pb.Data],
+) -> dict[DataKey, 'cds_data']:
+    collate = {} # DataKey => cds_data
+    for data in datas:
+        meta = metas_map[data.meta_id]
+        key = DataKey(meta.meta_id, meta.scope, meta.name, data.index)
+        if key not in collate:
+            cds = {f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in meta.fields}
+            collate[key] = cds
+        cds = collate[key]
+        for axis, field in zip(data.axes, meta.fields):
+            if field.type == pb.FieldType.FLOAT:
+                nums = axis.floats.value
+            elif field.type == pb.FieldType.INT:
+                nums = axis.ints.value
+            cds[field.name] = np.append(cds[field.name], nums)
     return collate
+
 
 def fetch_cds_data(
     fh,  
-    metadata: dict[int, pb.Metadata],
+    metas_map: dict[int, pb.Metadata],
     entries: list[pb.Entry],
-) -> dict[tuple[int, int], 'cds_data']:
-    datas = load_data(fh, entries)
-    return data_to_cds(metadata, entries, datas)
+) -> dict[DataKey, 'cds_data']:
+    datas_map = load_data(fh, entries)
+    entries_map = {ent.entry_id: ent for ent in entries}
+    datas = []
+    for entry_id, datas_list in datas_map.items():
+        ent = entries_map[entry_id]
+        for data in datas_list:
+            data.meta_id = ent.meta_id
+            datas.append(data)
+    return data_to_cds(metas_map, datas)
 
 
 def num_point_data(point):
