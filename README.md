@@ -230,7 +230,7 @@ width=2,1     # Left column is 1/3 of page width, right column is 2/3
 height=1,2,1  # Plots A and B take up 1/3 and 2/3 of page height.  Plot C is full page height
 ```
 
-## Python API
+## Python Local File API
 
 ```python
 from streamvis import script
@@ -247,4 +247,42 @@ scope_data = script.export(path=logfile, scope=scopes[0])
 name_data = script.export(path=logfile, scope=scopes[0], name=names[0])
 # name_data[(scope, name, index)] = { axis: ndarray }
 ```
+
+## Python Remote Fetch API
+
+This API does not require you to download the log file.  It is more convenient when the
+log file is updated more frequently so that you don't have to repeatedly download a log
+file just to receive updates.
+
+
+# on the machine hosting the log file and index file
+```bash
+$ find the public IP address
+$ hostname -I
+10.15.36.97 172.17.0.1 100.68.200.91 fd7a:115c:a1e0::5601:c85b
+# launch the server
+$ python -m streamvis.grpc_server /data/streamvis.log 8081
+```
+
+```python
+from streamvis import script
+
+# uri of the remote fetch server (see gfile_server.py)
+# uri is public_ip_addr:port
+uri="100.68.200.91:8081"
+
+scopes = script.gscopes(uri=uri)
+names = script.gnames(uri=uri, scope=scopes[0])
+
+all_data = script.gfetch_sync(uri=uri)
+# all_data[(scope, name, index)] = { axis: ndarray }
+
+scope_data = script.gfetch_sync(uri, scopes[0])
+# scope_data[(scope, name, index)] = { axis: ndarray }
+
+name_data = script.gfetch_sync(uri, scopes[0], names[0])
+# name_data[(scope, name, index)] = { axis: ndarray }
+
+```
+
 
