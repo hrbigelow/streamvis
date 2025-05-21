@@ -232,6 +232,22 @@ height=1,2,1  # Plots A and B take up 1/3 and 2/3 of page height.  Plot C is ful
 
 ## Python Local File API
 
+Command-line
+
+```bash
+streamvis scopes /data/streamvis.log
+fig4-bos-17-coin-sm-c100
+fig4-bos-23-coin-sm-c100
+fig4-bos-1-coin-sm-c100
+...
+
+streamvis names /data/streamvis.log "fig4-bos-1-coin-sm-c100"
+xent-process-ent-ratio
+sem-cross-entropy
+sem-kl-divergence
+eval-kl-divergence
+...
+
 ```python
 from streamvis import script
 logfile = "..."
@@ -263,8 +279,27 @@ g347 $ hostname -I
 # launch the server
 $ python -m streamvis.grpc_server /data/streamvis.log 8081
 ```
-
 Then, on the machine you want to consume the data:
+
+Command-line:
+
+```bash
+$ streamvis gscopes 100.68.200.91:8081
+fig4-bos-17-coin-sm-c100
+fig4-bos-23-coin-sm-c100
+fig4-bos-1-coin-sm-c100
+...
+
+$ streamvis gnames 100.68.200.91:8081 fig4-bos-17-coin-sm-c100
+xent-process-ent-ratio
+sem-cross-entropy
+sem-kl-divergence
+eval-kl-divergence
+...
+```
+
+Python:
+
 
 ```python
 from streamvis import script
