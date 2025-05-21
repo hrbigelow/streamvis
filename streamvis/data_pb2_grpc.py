@@ -3,6 +3,7 @@
 import grpc
 import warnings
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from streamvis import data_pb2 as streamvis_dot_data__pb2
 
 GRPC_GENERATED_VERSION = '1.71.0'
@@ -39,6 +40,16 @@ class RecordServiceStub(object):
                 request_serializer=streamvis_dot_data__pb2.QueryRequest.SerializeToString,
                 response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
+        self.Scopes = channel.unary_stream(
+                '/RecordService/Scopes',
+                request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
+                _registered_method=True)
+        self.Names = channel.unary_stream(
+                '/RecordService/Names',
+                request_serializer=streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
+                _registered_method=True)
 
 
 class RecordServiceServicer(object):
@@ -50,12 +61,34 @@ class RecordServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Scopes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Names(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_RecordServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'QueryRecords': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRecords,
                     request_deserializer=streamvis_dot_data__pb2.QueryRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
+            ),
+            'Scopes': grpc.unary_stream_rpc_method_handler(
+                    servicer.Scopes,
+                    request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
+            ),
+            'Names': grpc.unary_stream_rpc_method_handler(
+                    servicer.Names,
+                    request_deserializer=streamvis_dot_data__pb2.ScopeRequest.FromString,
                     response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
             ),
     }
@@ -85,6 +118,60 @@ class RecordService(object):
             target,
             '/RecordService/QueryRecords',
             streamvis_dot_data__pb2.QueryRequest.SerializeToString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Scopes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/RecordService/Scopes',
+            google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Names(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/RecordService/Names',
+            streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
             streamvis_dot_data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,

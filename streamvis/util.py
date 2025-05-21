@@ -270,6 +270,14 @@ def fetch_cds_data(
     return data_to_cds(metas_map, datas)
 
 
+def flatten_keys(cds_map: dict[DataKey, 'cds_data']) -> dict[Tuple, 'cds_data']:
+    out = {}
+    for key, cds in cds_map.items():
+        ekey = key.scope, key.name, key.index
+        out[ekey] = cds
+    return out
+
+
 def num_point_data(point):
     values = point.values[0]
     data_name = values.WhichOneof('data') 

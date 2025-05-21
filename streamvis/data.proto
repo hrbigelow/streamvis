@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
+
 enum FieldType {
   FLOAT = 0;
   INT = 1;
@@ -74,9 +76,14 @@ message QueryRequest {
   optional string name = 2;
 }
 
+message ScopeRequest {
+  string scope = 1;
+}
+
 enum RecordType {
   METADATA = 0;
   DATA = 1;
+  STRING = 2;
 }
 
 message StreamedRecord {
@@ -84,12 +91,15 @@ message StreamedRecord {
   oneof record {
     Metadata metadata = 2;
     Data data = 3;
+    string value = 4;
   }
 }
 
 
 service RecordService {
   rpc QueryRecords (QueryRequest) returns (stream StreamedRecord);
+  rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
+  rpc Names (ScopeRequest) returns (stream StreamedRecord);
 }
 
 

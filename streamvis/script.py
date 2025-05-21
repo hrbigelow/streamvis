@@ -16,6 +16,7 @@ from streamvis import server, util
 from streamvis.logger import DataLogger
 from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
+from google.protobuf.empty_pb2 import Empty
 
 
 @dataclass
@@ -108,12 +109,7 @@ def export(path, scope=None, name=None):
     fh = util.get_log_handle(path, 'rb')
     entries = list(entries_map.values())
     cds_map = util.fetch_cds_data(fh, metas_map, entries)
-
-    out = {}
-    for key, cds in cds_map.items():
-        ekey = key.scope, key.name, key.index
-        out[ekey] = cds
-    return out
+    return util.flatten_keys(cds_map)
 
 def scopes(path: str) -> list[str]:
     index_path = f"{path}.idx"
@@ -243,8 +239,31 @@ def gfetch_sync(uri: str, scope: str=None, name: str=None):
                 metas_map[meta.meta_id] = meta
             case pb.DATA:
                 datas.append(record.data)
-    return util.data_to_cds(metas_map, datas)
+    cds_map = util.data_to_cds(metas_map, datas)
+    return util.flatten_keys(cds_map)
 
+
+def gscopes(uri: str) -> list[str]:
+    channel = grpc.insecure_channel(uri)
+    stub = pb_grpc.RecordServiceStub(channel)
+    scopes = []
+    for record in stub.Scopes(Empty()):
+        match record.type:
+            case pb.STRING:
+                scopes.append(record.value)
+    return scopes
+
+
+def gnames(uri: str, scope: str) -> list[str]:
+    channel = grpc.insecure_channel(uri)
+    stub = pb_grpc.RecordServiceStub(channel)
+    request = pb.ScopeRequest(scope=scope)
+    names = []
+    for record in stub.Names(request):
+        match record.type:
+            case pb.STRING:
+                names.append(record.value)
+    return names 
 
 
 

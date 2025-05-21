@@ -33,6 +33,20 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
                 rec = pb.StreamedRecord(type=pb.DATA, data=data)
                 await context.write(rec)
 
+    async def Scopes(self, request, context):
+        metas_map, _ = util.load_index(self.path)
+        scopes = set(m.scope for m in metas_map.values())
+        for scope in scopes:
+            rec = pb.StreamedRecord(type=pb.STRING, value=scope)
+            await context.write(rec)
+
+    async def Names(self, request, context):
+        metas_map, _ = util.load_index(self.path, request.scope)
+        names = set(m.name for m in metas_map.values())
+        for name in names:
+            rec = pb.StreamedRecord(type=pb.STRING, value=name)
+            await context.write(rec)
+
 
 async def serve(path: str, port: int):
     server = aio.server()
