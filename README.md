@@ -255,14 +255,16 @@ log file is updated more frequently so that you don't have to repeatedly downloa
 file just to receive updates.
 
 
-# on the machine hosting the log file and index file
 ```bash
-$ find the public IP address
-$ hostname -I
+# on the machine hosting the log file and index file
+# find the public IP address
+g347 $ hostname -I
 10.15.36.97 172.17.0.1 100.68.200.91 fd7a:115c:a1e0::5601:c85b
 # launch the server
 $ python -m streamvis.grpc_server /data/streamvis.log 8081
 ```
+
+Then, on the machine you want to consume the data:
 
 ```python
 from streamvis import script
