@@ -1,6 +1,8 @@
 syntax = "proto3";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+
 
 enum FieldType {
   FLOAT = 0;
@@ -68,6 +70,11 @@ message Control {
   string scope = 1;
   string name = 2;
   Action action = 3;
+}
+
+message ScopeConfig {
+  string scope = 1;
+  google.protobuf.Struct attributes = 2;
 }
 
 

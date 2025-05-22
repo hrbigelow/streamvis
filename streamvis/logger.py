@@ -1,4 +1,5 @@
 from typing import Literal
+import copy
 import os
 import enum
 import numpy as np
@@ -26,6 +27,7 @@ class DataLogger:
         self.elem_count = 0
         self.uint32_max = (1 << 32) - 1 
         random.seed(time.time())
+        self.scope_attrs = None
 
     def init(
         self, 
@@ -138,6 +140,20 @@ class DataLogger:
 
         return dict(zip(keys, vals))
 
+    def write_scope_attrs(self, **attrs):
+        """Write a set of attributes to associate with this scope.
+
+        This is useful for recording hyperparameters, settings, configuration etc.
+        for the program.  Can only be called once for the life of the logger.
+        """
+        if self.scope_attrs is not None:
+            raise RuntimeError(f"write_scope_attrs may only be called once.")
+        self.scope_attrs = copy.deepcopy(attrs)
+        config = pb.ScopeConfig(self.scope, self.scope_attrs)
+        pack = util.pack_message(config)
+        self.safe_write(self.index_fh, pack)
+
+
     def write_sync(self, name: str, /, start_index: int=0, **data):
         """Writes new data, possibly creating one or more Group items.
 
@@ -245,14 +261,15 @@ class DataLogger:
                     more_work = False
                     break
                 name, item, start_index = qitem 
-                meta_id = self.metadata_id(name)
 
                 if isinstance(item, Action):
                     if item == Action.DELETE:
                         deleted_names.add(name)
+                        meta_id = self.metadata_id(name)
                         content_as_list.pop(meta_id, None)
                         metas.pop(meta_id, None)
                 elif isinstance(item, dict):
+                    meta_id = self.metadata_id(name)
                     if meta_id not in content_as_list:
                         content_as_list[meta_id] = {k: [] for k in item.keys()}
                         metas[meta_id] = name, start_index

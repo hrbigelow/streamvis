@@ -31,6 +31,7 @@ KIND_CODES = {
     pb.Control: b'\x01',
     pb.Entry: b'\x02', 
     pb.Data: b'\x03', 
+    pb.ScopeConfig: b'\x04',
 }
 
 MESSAGE_TYPES = {
@@ -38,6 +39,7 @@ MESSAGE_TYPES = {
     1: pb.Control,
     2: pb.Entry,
     3: pb.Data,
+    4: pb.ScopeConfig,
 }
 
 DTYPE_TO_PROTO = { 

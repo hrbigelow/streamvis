@@ -267,11 +267,9 @@ def gnames(uri: str, scope: str) -> list[str]:
 
 
 
-@hydra.main(config_path=None, config_name="server", version_base="1.2")
-def serve(cfg: DictConfig):
-    opts = instantiate(cfg)
-    return server.make_server(
-        opts.port, opts.schema_file, opts.log_file, opts.refresh_seconds)
+def serve(port: int, schema_file: str, log_file: str, refresh_seconds: float=2.0):
+    port = int(port)
+    return server.make_server(port, schema_file, log_file, refresh_seconds)
 
 def help():
     print("Usage:")
