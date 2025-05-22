@@ -120,6 +120,11 @@ def pack_control(scope: str, name: str) -> bytes:
     return pack_message(control)
 
 
+def pack_scoped_attrs(scope: str, attrs: dict) -> bytes:
+    config = pb.ScopeConfig(scope=scope, attributes=attrs)
+    return pack_message(config)
+
+
 def unpack(packed: bytes):
     """Unpack bytes representing zero or more packed messages.
     

@@ -140,17 +140,14 @@ class DataLogger:
 
         return dict(zip(keys, vals))
 
-    def write_scope_attrs(self, **attrs):
+    def write_scope_attrs(self, attrs: dict):
         """Write a set of attributes to associate with this scope.
 
         This is useful for recording hyperparameters, settings, configuration etc.
         for the program.  Can only be called once for the life of the logger.
         """
-        if self.scope_attrs is not None:
-            raise RuntimeError(f"write_scope_attrs may only be called once.")
         self.scope_attrs = copy.deepcopy(attrs)
-        config = pb.ScopeConfig(self.scope, self.scope_attrs)
-        pack = util.pack_message(config)
+        pack = util.pack_scoped_attrs(self.scope, self.scope_attrs)
         self.safe_write(self.index_fh, pack)
 
 
@@ -202,19 +199,18 @@ class DataLogger:
 
     def _write_content(
         self,
-        metas: dict[int, str],                   # meta_id => (name, start_index)
-        content: dict[str, dict[str, 'tensor']], # name => cds
+        metas: dict[int, str],                   # meta_id => name
+        content: dict[tuple[str, int], dict[str, 'tensor']], # (name, start_index) => cds_data
         deleted_names: set[str]):                # set[name]
 
         entry_args = []
         data_bytes = []
         rel_offsets = [0]
-        for meta_id, data in content.items():
+        for (meta_id, start_index), data in content.items():
             field_sig = self.metadata_seen.get(meta_id)
             if field_sig is None:
                 raise RuntimeError("Unknown error")
             entry_id = random.randint(0, self.uint32_max)
-            _, start_index = metas[meta_id]
             data = {k: self.to_numpy(v) for k, v in data.items()}
             packed = util.pack_data(entry_id, data, start_index, field_sig)
             data_bytes.append(packed)
@@ -239,7 +235,7 @@ class DataLogger:
         all_deletes_bytes = b''.join(deletes_bytes)
 
         meta_bytes = []
-        for meta_id, (name, _) in metas.items():
+        for meta_id, name in metas.items():
             field_sig = self.metadata_seen.get(meta_id)
             if field_sig is None:
                 raise RuntimeError("Unknown error")
@@ -253,8 +249,8 @@ class DataLogger:
         more_work = True 
         while True:
             deleted_names = set()
-            content_as_list = {} # meta_id => Dict[str, list['tensor']]
-            metas = {} # meta_id => (name, start_index)
+            content_as_list = {} # (meta_id, start_index) => Dict[str, list['tensor']]
+            metas = {} # meta_id => name
             while not self.buffer.empty():
                 qitem = await self.buffer.get()
                 if qitem is None:
@@ -266,24 +262,26 @@ class DataLogger:
                     if item == Action.DELETE:
                         deleted_names.add(name)
                         meta_id = self.metadata_id(name)
-                        content_as_list.pop(meta_id, None)
+                        entry = meta_id, start_index
+                        content_as_list.pop(entry, None)
                         metas.pop(meta_id, None)
                 elif isinstance(item, dict):
                     meta_id = self.metadata_id(name)
-                    if meta_id not in content_as_list:
-                        content_as_list[meta_id] = {k: [] for k in item.keys()}
-                        metas[meta_id] = name, start_index
+                    entry = meta_id, start_index
+                    if entry not in content_as_list:
+                        content_as_list[entry] = {k: [] for k in item.keys()}
+                        metas[meta_id] = name
 
-                    cdslist = content_as_list[meta_id]
+                    cdslist = content_as_list[entry]
                     for k, v in item.items():
                         cdslist[k].append(v)
                 else:
                     raise RuntimeError(f"flush_buffer: Unknown item type: {type(item)}")
 
             content = {} # meta_id => cds
-            for meta_id, cdslist in content_as_list.items():
+            for entry, cdslist in content_as_list.items():
                 cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
-                content[meta_id] = cds
+                content[entry] = cds
 
             self._write_content(metas, content, deleted_names)
             if not more_work:
