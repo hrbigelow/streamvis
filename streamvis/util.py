@@ -1,10 +1,13 @@
 from typing import List, Dict, Iterable, Tuple, Union, Optional, Any
+import re
+import datetime
 from dataclasses import dataclass
 import os
 import struct
 import numpy as np
 import random
 from . import data_pb2 as pb
+from google.protobuf.timestamp_pb2 import Timestamp
 import pdb
 
 def get_log_handle(path, mode):
@@ -22,25 +25,24 @@ def get_log_handle(path, mode):
         fh = open(path, mode)
     return fh
 
-def index_file(log_file: str) -> str:
-    return f"{log_file}.idx"
+def index_file(path: str) -> str:
+    return f"{path}.idx"
+
+def data_file(path: str) -> str:
+    return f"{path}.log"
 
 
 KIND_CODES = { 
-    pb.Metadata: b'\x00', 
-    pb.Control: b'\x01',
-    pb.Entry: b'\x02', 
-    pb.Data: b'\x03', 
-    pb.ScopeConfig: b'\x04',
+    pb.Scope: pb.StoredType.SCOPE,
+    pb.Config: pb.StoredType.CONFIG,
+    pb.Name: pb.StoredType.NAME,
+    pb.Entry: pb.StoredType.ENTRY,
+    pb.Data: pb.StoredType.DATA,
+    pb.Control: pb.StoredType.CONTROL,
 }
 
-MESSAGE_TYPES = {
-    0: pb.Metadata,
-    1: pb.Control,
-    2: pb.Entry,
-    3: pb.Data,
-    4: pb.ScopeConfig,
-}
+MESSAGE_TYPES = { v: k for k, v in KIND_CODES.items() } 
+
 
 DTYPE_TO_PROTO = { 
     np.dtype('int32'): pb.FieldType.INT, 
@@ -52,15 +54,28 @@ PROTO_TO_DTYPE = {
     pb.FieldType.FLOAT: np.float32,
 }
 
-def metadata_id(scope: str, name: str) -> int:
-    return hash((scope, name)) % ((1 << 32) - 1)
+def get_scope_id(scope: str, timestamp) -> int:
+    return hash((scope, timestamp.seconds, timestamp.nanos)) % ((1 << 32) - 1)
+
+def get_name_id(scope_id: int, name: str) -> int:
+    return hash((scope_id, name)) % ((1 << 32) - 1)
+
 
 def pack_message(message):
     """Create a delimited protobuf message as bytes."""
-    kind_code = KIND_CODES.get(type(message))
+    kind_code = KIND_CODES.get(type(message)).to_bytes(1, "big")
     content = message.SerializeToString()
     length_code = struct.pack('>I', len(content))
     return kind_code + length_code + content 
+
+
+def pack_scope(scope: str) -> tuple[bytes, int]:
+    timestamp = Timestamp()
+    timestamp.FromDatetime(datetime.datetime.now(datetime.UTC))
+    scope_id = get_scope_id(scope, timestamp)
+    scope = pb.Scope(scope_id=scope_id, scope=scope, time=timestamp)
+    return pack_message(scope), scope_id
+
 
 def pack_data(
     entry_id: int, 
@@ -99,29 +114,29 @@ def pack_data(
         packed.append(pack_message(data))
     return b''.join(packed)
 
-def pack_entry(entry_id: int, meta_id: int, beg_offset: int, end_offset: int) -> bytes:
+def pack_entry(entry_id: int, name_id: int, beg_offset: int, end_offset: int) -> bytes:
     entry = pb.Entry(
-        entry_id=entry_id, meta_id=meta_id, beg_offset=beg_offset, end_offset=end_offset)
+        entry_id=entry_id, name_id=name_id, beg_offset=beg_offset, end_offset=end_offset)
     return pack_message(entry)
 
 
-def pack_metadata(meta_id: int, scope: str, name: str,
-                  field_sig: list[tuple[str, np.dtype]]) -> bytes:
-    meta = pb.Metadata(meta_id=meta_id, scope=scope, name=name)
+def pack_name(
+        name_id: int, scope_id: int, name: str, field_sig: list[tuple[str, np.dtype]]) -> bytes:
+    name = pb.Name(name_id=name_id, scope_id=scope_id, name=name)
     for field_name, dtype in field_sig:
-        field = meta.fields.add()
+        field = name.fields.add()
         field.name = field_name
         field.type = DTYPE_TO_PROTO[dtype] 
-    return pack_message(meta)
+    return pack_message(name)
 
 
-def pack_control(scope: str, name: str) -> bytes:
-    control = pb.Control(scope=scope, name=name, action=pb.Action.DELETE)
+def pack_delete_scope(scope: str) -> bytes:
+    control = pb.Control(scope=scope, name="", action=pb.DELETE_SCOPE)
     return pack_message(control)
 
 
-def pack_scoped_attrs(scope: str, attrs: dict) -> bytes:
-    config = pb.ScopeConfig(scope=scope, attributes=attrs)
+def pack_config(scope_id: int, attrs: dict) -> bytes:
+    config = pb.Config(scope_id=scope_id, attributes=attrs)
     return pack_message(config)
 
 
@@ -133,7 +148,7 @@ def unpack(packed: bytes):
 
     Use this as:
 
-    gen = unpacked(bytes)
+    gen = unpack(bytes)
     while True:
         try:
             item = next(gen)
@@ -166,44 +181,152 @@ def unpack(packed: bytes):
     return len(packed) - off
 
 
-def load_index(
-    path: str, 
-    scope: str=None, 
-    name: str=None
-) -> tuple[dict[int, pb.Metadata], dict[int, pb.Entry]]:
-    """Load the index, optionally filtering by scope and/or name.
+def get_optional(msg, field_name):
+    return getattr(msg, field_name) if msg.HasField(field_name) else None
 
-    Returns:
-      metas: meta_id => pb.Metadata
-      entries: entry_id => pb.Entry
-    """
-    index_path = index_file(path)
-    fh = get_log_handle(index_path, "rb")
-    pack = fh.read()
-    fh.close()
+@dataclass(frozen=True)
+class DataKey:
+    scope_id: int
+    scope: str
+    name: str
+    index: int
 
-    def filter(iscope, iname):
-        return (scope is None or scope == iscope) and (name is None or name == iname)
+class Index:
+    scope_filter: str
+    name_filters: list[str]
+    scopes: dict[int, pb.Scope]    # scope_id => Scope
+    names: dict[int, pb.Name]      # name_id => Name
+    entries: dict[int, pb.Entry]  # entry_id => Entry
+    file_offset: int
 
-    metas_map = {}   # meta_id => pb.Metadata
-    grouped_entries = {} # meta_id => list[pb.Entry]
-    entries_map = {} # entry_id => pb.Entry
-    for item in unpack(pack):
+    def __init__(self, scope_filter, name_filters, scopes, names, entries, file_offset):
+        if scope_filter is None:
+            scope_filter = ".*"
+        if name_filters is None:
+            name_filters = (".*",)
+        self.scope_filter = re.compile(scope_filter)
+        self.name_filters = tuple(re.compile(f) for f in name_filters)
+        self.scopes = scopes
+        self.names = names
+        self.entries = entries
+        self.file_offset = file_offset
+
+    @classmethod
+    def from_message(cls, request: pb.Index):
+        return cls(
+            scope_filter=request.scope_filter,
+            name_filters=request.name_filters,
+            scopes=dict(request.scopes),
+            names=dict(request.names),
+            entries={},
+            file_offset=request.file_offset
+        )
+
+    @classmethod
+    def from_filters(cls, scope_filter: str=None, name_filters: list[str]=None):
+        return cls(
+            scope_filter=scope_filter, 
+            name_filters=name_filters, 
+            scopes={}, 
+            names={}, 
+            entries={}, 
+            file_offset=0
+        )
+
+    @classmethod
+    def from_scope_name(cls, scope: str=None, name: str=None):
+        scope_filter = None if scope is None else f"^{scope}$"
+        name_filters = None if name is None else (f"^{name}$",)
+        return cls.from_filters(scope_filter, name_filters) 
+
+
+    def __repr__(self):
+        return (f"Index(scope_filter={self.scope_filter!r}, "
+                f"name_filters={self.name_filters!r}, "
+                f"scopes: {len(self.scopes)}, "
+                f"names: {len(self.names)}, entries: {len(self.entries)})")
+    
+    @property
+    def entry_list(self):
+        return tuple(self.entries.values())
+
+    @property
+    def scope_list(self):
+        return tuple(self.scopes.values())
+
+    @property
+    def name_list(self):
+        return tuple(self.names.values())
+
+    def get_key(self, data: pb.Data) -> DataKey:
+        name = self.names[data.name_id]
+        scope = self.scopes[name.scope_id]
+        return DataKey(scope.scope_id, scope.scope, name.name, data.index)
+
+    def get_name(self, data: pb.Data) -> pb.Name:
+        return self.names[data.name_id]
+
+    def _filter(self, /, scope: str=None, name: str=None):
+        if scope is not None and self.scope_filter.match(scope) is None:
+            return False
+        if name is not None:
+            return any(nf.match(name) for nf in self.name_filters) 
+        return True
+
+    def _update_with_item(self, item):
+        """Updates the index with the item."""
         match item:
-            case pb.Metadata(meta_id=meta_id, scope=iscope, name=iname):
-                if filter(iscope, iname):
-                    metas_map[meta_id] = item
-            case pb.Entry(meta_id=meta_id):
-                if meta_id in metas_map:
-                    tmp = grouped_entries.setdefault(meta_id, [])
-                    tmp.append(item)
-            case pb.Control(scope=iscope, name=iname):
-                if filter(iscope, iname):
-                    meta_id = metadata_id(iscope, iname)
-                    metas_map.pop(meta_id, None)
-                    grouped_entries.pop(meta_id, None)
-    entries_map = {ent.entry_id: ent for l in grouped_entries.values() for ent in l}
-    return metas_map, entries_map
+            case pb.Scope(scope_id=scope_id, scope=scope):
+                assert scope_id not in self.scopes, "Duplicate scope_id in index"
+                if self._filter(scope=scope):
+                    self.scopes[scope_id] = item 
+
+            case pb.Name(name_id=name_id, scope_id=scope_id, name=name):
+                if self._filter(name=name) and scope_id in self.scopes:
+                    assert name_id not in self.names, "Duplicate name_id in index"
+                    self.names[name_id] = item
+
+            case pb.Entry(entry_id=entry_id, name_id=name_id):
+                if name_id in self.names:
+                    self.entries[entry_id] = item
+
+            case pb.Control(scope=scope, action=pb.Action.DELETE_SCOPE):
+                if not self._filter(scope=scope):
+                    pass
+                scopes_to_del = {}
+                names_to_del = {} 
+                for scope_id, pb_scope in self.scopes.items():
+                    if pb_scope.scope == scope:
+                        scopes_to_del[scope_id] = pb_scope
+                for name_id, pb_name in self.names.items():
+                    if pb_name.scope_id in scopes_to_del:
+                        names_to_del[name_id] = pb_name
+                for entry_id, pb_entry in self.entries.items():
+                    if pb_entry.name_id in names_to_del:
+                        del self.entries[entry_id]
+                for name_id in names_to_del:
+                    del self.names[name_id]
+                for scope_id in scopes_to_del:
+                    del self.scopes[scope_id]
+
+    def update(self, fh):
+        """Updates using any new data that may have been written to fh."""
+        fh.seek(self.file_offset)
+        pack = fh.read()
+        try:
+            for item in unpack(pack):
+                self._update_with_item(item)
+        except StopIteration as exc:
+            self.file_offset += len(pack) - exc.value
+
+    def export(self) -> pb.Index:
+        msg = pb.Index(
+            scope_filter=self.scope_filter.pattern,
+            name_filters=tuple(n.pattern for n in self.name_filters),
+            scopes=self.scopes, 
+            names=self.names,
+            file_offset=self.file_offset)
+        return msg
 
 
 def load_data(
@@ -226,33 +349,19 @@ def load_data(
         dl = datas_map.setdefault(data.entry_id, [])
         dl.append(data)
 
-    # for meta_id, entry_list in entries.items():
-        # for ent in entry_list:
-            # assert ent.entry_id in datas_map
-
     return datas_map
 
 
-@dataclass(frozen=True)
-class DataKey:
-    meta_id: int
-    scope: str
-    name: str
-    index: int
-
-def data_to_cds(
-    metas_map: dict[int, pb.Metadata], # meta_id => pb.Metadata
-    datas: list[pb.Data],
-) -> dict[DataKey, 'cds_data']:
+def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']:
     collate = {} # DataKey => cds_data
     for data in datas:
-        meta = metas_map[data.meta_id]
-        key = DataKey(meta.meta_id, meta.scope, meta.name, data.index)
+        key = index.get_key(data)
+        name = index.get_name(data)
         if key not in collate:
-            cds = {f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in meta.fields}
+            cds = {f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in name.fields}
             collate[key] = cds
         cds = collate[key]
-        for axis, field in zip(data.axes, meta.fields):
+        for axis, field in zip(data.axes, name.fields):
             if field.type == pb.FieldType.FLOAT:
                 nums = axis.floats.value
             elif field.type == pb.FieldType.INT:
@@ -261,20 +370,16 @@ def data_to_cds(
     return collate
 
 
-def fetch_cds_data(
-    fh,  
-    metas_map: dict[int, pb.Metadata],
-    entries: list[pb.Entry],
-) -> dict[DataKey, 'cds_data']:
-    datas_map = load_data(fh, entries)
-    entries_map = {ent.entry_id: ent for ent in entries}
+def fetch_cds_data(data_fh, index: Index) -> dict[DataKey, 'cds_data']:
+    datas_map = load_data(data_fh, index.entries_list)
     datas = []
-    for entry_id, datas_list in datas_map.items():
-        ent = entries_map[entry_id]
-        for data in datas_list:
-            data.meta_id = ent.meta_id
-            datas.append(data)
-    return data_to_cds(metas_map, datas)
+    for name_id, entry_map in index.entries.items():
+        for entry_id, entry in entry_map.items():
+            datas_list = datas_map[entry_id]
+            for data in datas_list:
+                data.name_id = entry.name_id
+                datas.append(data)
+    return data_to_cds(index, datas)
 
 
 def flatten_keys(cds_map: dict[DataKey, 'cds_data']) -> dict[Tuple, 'cds_data']:

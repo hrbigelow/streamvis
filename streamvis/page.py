@@ -13,6 +13,7 @@ from bokeh.models import ColumnDataSource, Legend, LegendItem
 from bokeh.models.renderers.glyph_renderer import GlyphRenderer
 from bokeh.plotting import figure
 from bokeh import palettes
+from grpc import aio
 from . import data_pb2 as pb
 from . import util
 from .base import BasePage, GlyphUpdate
@@ -47,19 +48,18 @@ class Plot:
 
 class Session:
     id: int
-    metadata: Dict[int, pb.Metadata]
+    index: util.Index
+    chan: grpc.aio._channel.Channel
+    uri: str
     plots: List[Plot] 
     scope_pat: re.Pattern
-    index_fh: Union[_io._IOBase, 'GFile']
-    data_fh: Union[_io._IOBase, 'GFile']
 
-    def __init__(self, id: int, log_file: str):
+    def __init__(self, id: int, uri: str):
         self.id = id
-        self.metadata = {}
+        self.index = util.Index.from_filter() # TODO
+        self.chan = aio.insecure_channel(uri)
         self.plots = []
         self.scope_pat = None 
-        self.index_fh = util.get_log_handle(util.index_file(log_file), "rb")
-        self.data_fh = util.get_log_handle(log_file, "rb")
 
     @staticmethod
     def split_glyph_id(glyph_id):
@@ -94,7 +94,7 @@ class PageLayout(BasePage):
     """Represents a browser page."""
     def __init__(self, server, doc):
         super().__init__(server, doc)
-        self.session = Session(doc.session_context.id, server.log_file)
+        self.session = Session(doc.session_context.id, server.log_path)
         self.update_lock = threading.Lock()
         self.coords = None
         self.nbox = None
@@ -359,6 +359,8 @@ class PageLayout(BasePage):
             raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
     async def refresh_data(self):
+        pb_index = self.index.export()
+
         index_pack = self.session.index_fh.read(self.server.fetch_bytes)
         index_gen = util.unpack(index_pack)
         grouped_entries = {} # meta_id => list[Entry]

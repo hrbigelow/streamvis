@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 
 enum FieldType {
@@ -34,36 +35,47 @@ message Values {
   }
 }
 
-// Describes one or more Entry objects
-// Logged to the index file
-// Index file may contain duplicate MetaData messages - duplicates are silently
-// ignored
-message Metadata {
-  uint32 meta_id = 1; // primary key, hash value of (scope, name, index)
+// This message will be logged once per program run
+message Scope {
+  uint32 scope_id = 1; // globally unique key equal to hash(scope, time) % UINT32_MAX
   string scope = 2;
+  google.protobuf.Timestamp time = 3;
+}
+
+message Config {
+  uint32 scope_id = 1;
+  google.protobuf.Struct attributes = 2;
+}
+
+// Corresponds to the 'name' field of a logger.write command
+// globally unique key is (scope_id, name)
+message Name {
+  uint32 name_id = 1;  // equal to hash(scope_id, name) % UINT32_MAX
+  uint32 scope_id = 2;
   string name = 3;
   repeated Field fields = 4;
 }
 
 // Describes one Data entry in data file 
 message Entry {
-  uint32 entry_id = 1; // primary key
-  uint32 meta_id = 2; // foreign key to MetaData message
+  uint32 entry_id = 1; // globally unqiue, equal to hash(name_id, beg_offset) % UNIT32_MAX
+  uint32 name_id = 2; // foreign key to Name message
   uint32 beg_offset = 3; // file offset of begin of Data message
   uint32 end_offset = 4; // file offset of end of Data message
 }
 
 // Actual data
 message Data {
-  // primary key is (entry_id, index)
+  // globally unique key is (entry_id, index)
   uint32 entry_id = 1; // foreign key to Entry message
   uint32 index = 2; // 
   repeated Values axes = 3; // actual data
-  uint32 meta_id = 4; // not stored on disk - used in join logic for RPC
+  uint32 name_id = 4; // not stored on disk - used in join logic for RPC
 }
 
 enum Action {
-  DELETE = 0;
+  DELETE_SCOPE = 0;
+  DELETE_NAME = 1;
 }
 
 message Control {
@@ -72,39 +84,45 @@ message Control {
   Action action = 3;
 }
 
-message ScopeConfig {
-  string scope = 1;
-  google.protobuf.Struct attributes = 2;
+
+message Index {
+  string scope_filter = 1;
+  repeated string name_filters = 2;
+  map<uint32, Scope> scopes = 3;
+  map<uint32, Name> names = 4;
+  uint32 file_offset = 5;
 }
 
-
-message QueryRequest {
-  optional string scope = 1;
-  optional string name = 2;
-}
 
 message ScopeRequest {
   string scope = 1;
 }
 
-enum RecordType {
-  METADATA = 0;
-  DATA = 1;
-  STRING = 2;
+enum StoredType {
+  SCOPE = 0; 
+  CONFIG = 1;
+  NAME = 2;
+  ENTRY = 3;
+  DATA = 4;
+  CONTROL = 5;
+  INDEX = 6;
+  STRING = 7;
 }
 
+
 message StreamedRecord {
-  RecordType type = 1;
+  StoredType type = 1;
   oneof record {
-    Metadata metadata = 2;
+    Index index = 2;
     Data data = 3;
-    string value = 4;
+    Config config = 4;
+    string value = 5;
   }
 }
 
 
 service RecordService {
-  rpc QueryRecords (QueryRequest) returns (stream StreamedRecord);
+  rpc QueryRecords (Index) returns (stream StreamedRecord);
   rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
   rpc Names (ScopeRequest) returns (stream StreamedRecord);
 }

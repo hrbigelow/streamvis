@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Literal
 import copy
 import os
@@ -10,24 +11,38 @@ import time
 import signal
 from . import util
 
-
 class Action(enum.Enum):
-    DELETE = 0
+    DELETE_SCOPE = 0
+    DELETE_NAME = 1
+
+@dataclass
+class DataItem:
+    name_id: int
+    data: dict[str, 'tensor']
+    start_index: int
+
+@dataclass
+class NameItem:
+    name_id: int
+    name: str
+    field_sig: tuple[tuple[str, np.dtype], ...]
+
 
 class DataLogger:
     """
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self, scope: str):
+    def __init__(self, scope: str, delete_existing: bool=True):
         """scope: a string which defines the scope in the logical point grouping."""
         self.scope = scope
-        self.metadata_seen = {} # meta_id => list[tuple[str, dtype]]
+        self.names_seen = {} # name_id => list[tuple[str, dtype]]
         self.buffer = asyncio.Queue()
         self.elem_count = 0
         self.uint32_max = (1 << 32) - 1 
         random.seed(time.time())
-        self.scope_attrs = None
+        self.config_written = False
+        self.delete_existing = delete_existing
 
     def init(
         self, 
@@ -40,8 +55,8 @@ class DataLogger:
         path:  filesystem path or gs:// resource
         flush_every:  (seconds) period for flushing to disk
         """
-        self.data_fh = util.get_log_handle(path, "ab")
-        self.index_fh = util.get_log_handle(f"{path}.idx", "ab")
+        self.data_path = path
+        self.index_path = util.index_file(path)
         self.flush_every = flush_every
         match tensor_type:
             case "jax":
@@ -64,31 +79,33 @@ class DataLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
+    def _write_scope(self):
+        pack, scope_id = util.pack_scope(self.scope)
+        self.safe_write(self.index_fh, pack)
+        return scope_id
+
+    def _delete_scope(self):
+        """Logs a Control with a DELETE action."""
+        pack = util.pack_delete_scope(self.scope)
+        self.safe_write(self.index_fh, pack)
+
     async def __aenter__(self):
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
         self._task_group.create_task(self.flush_buffer())
+        self.data_fh = util.get_log_handle(self.data_path, "ab")
+        self.index_fh = util.get_log_handle(self.index_path, "ab")
+        if self.delete_existing:
+            self._delete_scope()
+        self.scope_id = self._write_scope()
         return self
 
     async def __aexit__(self, *args):
         self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
         await self._task_group.__aexit__(*args)
         self._task_group = None
-
-    async def shutdown(self):
-        """
-        Call shutdown in a SIGINT or SIGTERM signal handler in your main application
-        for a clean exit.  Unfortunately, this is not always possible, for example
-        when running in Google Colab.
-        """
-        await self._task_group.__aexit__(None, RuntimeError("bla"), None)
-        self._task_group = None
-        self.flush_task = None
         self.data_fh.close()
         self.index_fh.close()
-
-    def metadata_id(self, name: str):
-        return util.metadata_id(self.scope, name)
 
     @staticmethod
     def safe_write(fh, content: bytes) -> int:
@@ -140,15 +157,17 @@ class DataLogger:
 
         return dict(zip(keys, vals))
 
-    def write_scope_attrs(self, attrs: dict):
+    def write_config(self, attrs: dict):
         """Write a set of attributes to associate with this scope.
 
         This is useful for recording hyperparameters, settings, configuration etc.
         for the program.  Can only be called once for the life of the logger.
         """
-        self.scope_attrs = copy.deepcopy(attrs)
-        pack = util.pack_scoped_attrs(self.scope, self.scope_attrs)
-        self.safe_write(self.index_fh, pack)
+        if self.config_written:
+            raise RuntimeError(f"Can only call write_config once during run")
+        pack = util.pack_config(self.scope_id, copy.deepcopy(attrs))
+        self.safe_write(self.data_fh, pack)
+        self.config_written = True
 
 
     def write_sync(self, name: str, /, start_index: int=0, **data):
@@ -181,10 +200,12 @@ class DataLogger:
         except BaseException as ex:
             raise RuntimeError(f'{name=}, got exception {ex}')
 
-        meta_id = self.metadata_id(name)
-        if meta_id not in self.metadata_seen:
-            self.metadata_seen[meta_id] = tuple((k, v.dtype) for k, v in data.items())
-        self.buffer.put_nowait((name, data, start_index))
+        name_id = util.get_name_id(self.scope_id, name) 
+        if name_id not in self.names_seen:
+            field_sig = tuple((k, v.dtype) for k, v in data.items())
+            self.names_seen[name_id] = field_sig 
+            self.buffer.put_nowait(NameItem(name_id, name, field_sig))
+        self.buffer.put_nowait(DataItem(name_id, data, start_index))
 
     async def write(self, name: str, /, start_index: int=0, **data):
         self.write_sync(name, **data)
@@ -199,23 +220,23 @@ class DataLogger:
 
     def _write_content(
         self,
-        metas: dict[int, str],                   # meta_id => name
-        content: dict[tuple[str, int], dict[str, 'tensor']], # (name, start_index) => cds_data
-        deleted_names: set[str]):                # set[name]
+        datas: list[DataItem],
+        names: list[NameItem],
+        do_delete_scope: bool):
 
         entry_args = []
         data_bytes = []
         rel_offsets = [0]
-        for (meta_id, start_index), data in content.items():
-            field_sig = self.metadata_seen.get(meta_id)
+        for data_item in datas:
+            field_sig = self.names_seen.get(data_item.name_id)
             if field_sig is None:
                 raise RuntimeError("Unknown error")
             entry_id = random.randint(0, self.uint32_max)
-            data = {k: self.to_numpy(v) for k, v in data.items()}
-            packed = util.pack_data(entry_id, data, start_index, field_sig)
+            data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
+            packed = util.pack_data(entry_id, data, data_item.start_index, field_sig)
             data_bytes.append(packed)
             rel_offsets.append(rel_offsets[-1] + len(packed))
-            entry_args.append((entry_id, meta_id))
+            entry_args.append((entry_id, data_item.name_id))
         all_data_bytes = b''.join(data_bytes)
         global_end = self.safe_write(self.data_fh, all_data_bytes)
         global_off = global_end - len(all_data_bytes)
@@ -228,62 +249,53 @@ class DataLogger:
             entry_bytes.append(packed)
         all_entry_bytes = b''.join(entry_bytes)
 
-        deletes_bytes = []
-        for name in deleted_names: 
-            packed = util.pack_control(self.scope, name)
-            deletes_bytes.append(packed)
-        all_deletes_bytes = b''.join(deletes_bytes)
+        all_deletes_bytes = b''
+        if do_delete_scope:
+            all_deletes_bytes = util.pack_delete_scope(self.scope)
 
-        meta_bytes = []
-        for meta_id, name in metas.items():
-            field_sig = self.metadata_seen.get(meta_id)
-            if field_sig is None:
-                raise RuntimeError("Unknown error")
-            packed = util.pack_metadata(meta_id, self.scope, name, field_sig)
-            meta_bytes.append(packed)
-        all_meta_bytes = b''.join(meta_bytes)
-        all_index_bytes = all_deletes_bytes + all_meta_bytes + all_entry_bytes
+        names_bytes = []
+        for name in names:
+            packed = util.pack_name(name.name_id, self.scope_id, name.name, name.field_sig)
+            names_bytes.append(packed)
+        all_names_bytes = b''.join(names_bytes)
+        all_index_bytes = all_deletes_bytes + all_names_bytes + all_entry_bytes
         _ = self.safe_write(self.index_fh, all_index_bytes)
 
     async def flush_buffer(self):
         more_work = True 
         while True:
-            deleted_names = set()
-            content_as_list = {} # (meta_id, start_index) => Dict[str, list['tensor']]
-            metas = {} # meta_id => name
+            content_as_list = {} # data_id => Dict[str, list['tensor']]
+            names = []
+            do_delete_scope = False
             while not self.buffer.empty():
-                qitem = await self.buffer.get()
-                if qitem is None:
-                    more_work = False
-                    break
-                name, item, start_index = qitem 
+                work = await self.buffer.get()
+                match work:
+                    case None:
+                        more_work = False
+                        break
+                    case DataItem(name_id=name_id, data=data, start_index=start_index):
+                        data_id = (name_id, start_index)
+                        if data_id not in content_as_list:
+                            content_as_list[data_id] = {k: [] for k in data.keys()}
+                        cdslist = content_as_list[data_id]
+                        for k, v in data.items():
+                            cdslist[k].append(v)
+                    case NameItem():
+                        names.append(work)
+                    case Action.DELETE_SCOPE:
+                        content_as_list.clear()
+                        do_delete_scope = True
+                    case _:
+                        raise RuntimeError(f"flush_buffer: Unknown work: {type(work)}")
 
-                if isinstance(item, Action):
-                    if item == Action.DELETE:
-                        deleted_names.add(name)
-                        meta_id = self.metadata_id(name)
-                        entry = meta_id, start_index
-                        content_as_list.pop(entry, None)
-                        metas.pop(meta_id, None)
-                elif isinstance(item, dict):
-                    meta_id = self.metadata_id(name)
-                    entry = meta_id, start_index
-                    if entry not in content_as_list:
-                        content_as_list[entry] = {k: [] for k in item.keys()}
-                        metas[meta_id] = name
-
-                    cdslist = content_as_list[entry]
-                    for k, v in item.items():
-                        cdslist[k].append(v)
-                else:
-                    raise RuntimeError(f"flush_buffer: Unknown item type: {type(item)}")
-
-            content = {} # meta_id => cds
-            for entry, cdslist in content_as_list.items():
+            # Collate datas on-device
+            datas = []
+            for (name_id, start_index), cdslist in content_as_list.items():
                 cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
-                content[entry] = cds
+                data_item = DataItem(name_id, cds, start_index)
+                datas.append(data_item)
 
-            self._write_content(metas, content, deleted_names)
+            self._write_content(datas, names, do_delete_scope)
             if not more_work:
                 break
             try:
@@ -291,14 +303,5 @@ class DataLogger:
             except asyncio.CancelledError:
                 print(f"flush_buffer cancelled")
                 break
-
-    def delete_name(self, name: str):
-        """Logs a Control with a DELETE action to the log file with this logger's scope.
-        and the provided `name`.
-
-        This will be processed by the server to delete all points and groups
-        with scope and name.  To purge these from the log file, currently the server
-        must be stopped and the implementation will be TODO"""
-        self.buffer.put_nowait((name, Action.DELETE, None))
 
 

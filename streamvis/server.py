@@ -38,7 +38,7 @@ class CleanupHandler(Handler):
     
 
 class Server:
-    def __init__(self, log_file: str, fetch_bytes=100000, refresh_seconds=2.0):
+    def __init__(self, log_path: str, fetch_bytes=100000, refresh_seconds=2.0):
         """
         """
         silence(EMPTY_LAYOUT, True)
@@ -47,7 +47,7 @@ class Server:
         self.schema = {} # plot_name => schema
         self.pages = {} # session_id => PageLayout
 
-        self.log_file = log_file
+        self.log_path = log_path
         self.fetch_bytes = fetch_bytes
         self.refresh_seconds = refresh_seconds
         self.session_lock = asyncio.Lock()
@@ -103,12 +103,12 @@ class Server:
         page.start()
 
 
-def make_server(port, schema_file, log_file, refresh_seconds=10):  
+def make_server(port, schema_file, log_path, refresh_seconds=10):  
     """
     Launch a server on `port` using `schema_file` to configure plots of data in `path`
     """
     fetch_bytes = 10**10 # hack
-    sv_server = Server(log_file, fetch_bytes, refresh_seconds)
+    sv_server = Server(log_path, fetch_bytes, refresh_seconds)
     sv_server.load_schema(schema_file)
     handler = FunctionHandler(sv_server.add_page)
     cleanup = CleanupHandler(sv_server)

@@ -5,46 +5,42 @@ from grpc import aio
 from . import util
 from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
-
-def get_optional(msg, field_name):
-    return getattr(msg, field_name) if msg.HasField(field_name) else None
+from google.protobuf.empty_pb2 import Empty
 
 class AsyncRecordService(pb_grpc.RecordServiceServicer):
     def __init__(self, path: str):
-        self.path = path
-        self.data_fh = util.get_log_handle(path, "rb")
+        self.data_path = util.data_file(path)
+        self.index_path = util.index_file(path)
+        self.index_fh = util.get_log_handle(self.index_path, "rb")
+        self.data_fh = util.get_log_handle(self.data_path, "rb")
 
-    async def QueryRecords(self, request, context):
-        scope = get_optional(request, "scope")
-        name = get_optional(request, "name")
-        metas_map, entries_map = util.load_index(self.path, scope, name)
-        entries = list(entries_map.values())
-        datas_map = util.load_data(self.data_fh, entries)
-        # import pdb
-        # pdb.set_trace()
-        for meta in metas_map.values():
-            rec = pb.StreamedRecord(type=pb.METADATA, metadata=meta)
-            await context.write(rec)
+    async def QueryRecords(self, request: pb.Index, context):
+        index = util.Index.from_message(request)
+        index.update(self.index_fh)
+        datas_map = util.load_data(self.data_fh, index.entry_list)
+        pb_index = index.export()
+        rec = pb.StreamedRecord(type=pb.INDEX, index=pb_index)
+        await context.write(rec)
 
-        for entry_id, datas in datas_map.items():
-            ent = entries_map[entry_id]
+        for entry in index.entry_list:
+            datas = datas_map[entry.entry_id]
             for data in datas:
-                data.meta_id = ent.meta_id
+                data.name_id = entry.name_id
                 rec = pb.StreamedRecord(type=pb.DATA, data=data)
                 await context.write(rec)
 
-    async def Scopes(self, request, context):
-        metas_map, _ = util.load_index(self.path)
-        scopes = set(m.scope for m in metas_map.values())
-        for scope in scopes:
-            rec = pb.StreamedRecord(type=pb.STRING, value=scope)
+    async def Scopes(self, request: Empty, context):
+        index = util.Index.from_filters()
+        index.update(self.index_fh)
+        for scope in index.scope_list:
+            rec = pb.StreamedRecord(type=pb.STRING, value=scope.scope)
             await context.write(rec)
 
-    async def Names(self, request, context):
-        metas_map, _ = util.load_index(self.path, request.scope)
-        names = set(m.name for m in metas_map.values())
-        for name in names:
-            rec = pb.StreamedRecord(type=pb.STRING, value=name)
+    async def Names(self, request: pb.ScopeRequest, context):
+        index = util.Index.from_filters(scope_filter=request.scope)
+        index.update(self.index_fh)
+        for name in index.name_list:
+            rec = pb.StreamedRecord(type=pb.STRING, value=name.name)
             await context.write(rec)
 
 
