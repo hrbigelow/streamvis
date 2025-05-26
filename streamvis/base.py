@@ -37,7 +37,7 @@ class BasePage(ABC):
         # print(f"Result from build_page_cb: {result}")
         while self.doc.session_context and not self.doc.session_context.destroyed:
             try:
-                glyph_updates = await self.refresh_data()
+                cds_map = await self.refresh_data()
             except asyncio.CancelledError:
                 pass
             except Exception as ex:
@@ -46,7 +46,7 @@ class BasePage(ABC):
             try:
                 patch_done = asyncio.Future()
                 self.doc.add_next_tick_callback(
-                    lambda: self.send_patch_cb(glyph_updates, patch_done))
+                    lambda: self.send_patch_cb(cds_map, patch_done))
                 await patch_done
                 await asyncio.sleep(self.server.refresh_seconds)
             except asyncio.CancelledError:

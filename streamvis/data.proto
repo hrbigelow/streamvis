@@ -58,7 +58,7 @@ message Name {
 
 // Describes one Data entry in data file 
 message Entry {
-  uint32 entry_id = 1; // globally unqiue, equal to hash(name_id, beg_offset) % UNIT32_MAX
+  uint32 entry_id = 1; // globally unqiue 
   uint32 name_id = 2; // foreign key to Name message
   uint32 beg_offset = 3; // file offset of begin of Data message
   uint32 end_offset = 4; // file offset of end of Data message

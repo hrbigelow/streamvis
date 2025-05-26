@@ -188,6 +188,7 @@ def get_optional(msg, field_name):
 class DataKey:
     scope_id: int
     scope: str
+    name_id: int
     name: str
     index: int
 
@@ -261,7 +262,7 @@ class Index:
     def get_key(self, data: pb.Data) -> DataKey:
         name = self.names[data.name_id]
         scope = self.scopes[name.scope_id]
-        return DataKey(scope.scope_id, scope.scope, name.name, data.index)
+        return DataKey(scope.scope_id, scope.scope, name.name_id, name.name, data.index)
 
     def get_name(self, data: pb.Data) -> pb.Name:
         return self.names[data.name_id]

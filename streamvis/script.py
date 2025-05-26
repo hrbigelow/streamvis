@@ -147,9 +147,9 @@ def gnames(uri: str, scope: str) -> list[str]:
 
 
 
-def serve(port: str, schema_file: str, log_path: str, refresh_seconds: float=2.0):
+def serve(port: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
     from streamvis import server
-    return server.make_server(int(port), schema_file, log_path, refresh_seconds)
+    return server.make_server(int(port), grpc_uri, schema_file, refresh_seconds)
 
 def help():
     print("Usage:")

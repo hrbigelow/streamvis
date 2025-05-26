@@ -38,11 +38,11 @@ class Plot:
         pal = palettes.interp_palette(pal, num_colors+2)
         return pal[index+1]
 
-    def label(self, meta: pb.Metadata, index: int) -> str:
+    def label(self, scope: pb.Scope, name: pb.Name, index: int) -> str:
         """Compute a label for this group.  Will be used to index a palette."""
         color_opts = self.schema.get("color", {})
         sig = color_opts.get("key_fun", "sni")
-        d = {"s": meta.scope, "n": meta.name, "i": index}
+        d = {"s": scope.scope, "n": name.name, "i": index}
         return "-".join(str(d[ch]) for ch in sig)
 
 
@@ -54,10 +54,10 @@ class Session:
     plots: List[Plot] 
     scope_pat: re.Pattern
 
-    def __init__(self, id: int, uri: str):
+    def __init__(self, id: grpc_uri: str):
         self.id = id
         self.index = util.Index.from_filter() # TODO
-        self.chan = aio.insecure_channel(uri)
+        self.chan = aio.insecure_channel(grpc_uri)
         self.plots = []
         self.scope_pat = None 
 
@@ -76,15 +76,17 @@ class Session:
         labels = set()
         label_to_rend_map = {}
         for r in list(plot.figure.renderers):
-            meta_id, index = self.split_glyph_id(r.name)
-            meta = self.metadata[meta_id]
-            label = plot.label(meta, index)
+            name_id, index = self.split_glyph_id(r.name)
+            name = self.index.names[name_id]
+            scope = self.index.scopes[name.scope_id]
+            label = plot.label(scope, name, index)
             labels.add(label)
         label_ord = {k: i for i, k in enumerate(sorted(labels))}
         for r in list(plot.figure.renderers):
-            meta_id, index = self.split_glyph_id(r.name)
-            meta = self.metadata[meta_id]
-            label = plot.label(meta, index)
+            name_id, index = self.split_glyph_id(r.name)
+            name = self.index.names[name_id]
+            scope = self.index.scopes[name.scope_id]
+            label = plot.label(scope, name, index)
             rs = label_to_rend_map.setdefault(label, [])
             rs.append(r)
         return label_ord, label_to_rend_map
@@ -94,7 +96,7 @@ class PageLayout(BasePage):
     """Represents a browser page."""
     def __init__(self, server, doc):
         super().__init__(server, doc)
-        self.session = Session(doc.session_context.id, server.log_path)
+        self.session = Session(doc.session_context.id, server.grpc_uri)
         self.update_lock = threading.Lock()
         self.coords = None
         self.nbox = None
@@ -360,69 +362,34 @@ class PageLayout(BasePage):
 
     async def refresh_data(self):
         pb_index = self.index.export()
+        stub = pb_grpc.RecordServiceStub(self.chan)
+        datas = []
+        for record in stub.QueryRecords(pb_index):
+            match record.type:
+                case pb.INDEX:
+                    self.index = util.Index.from_message(record.index)
+                case pb.DATA:
+                    datas.append(record.data)
+        cds_map = util.data_to_cds(self.index, datas)
+        return cds_map
 
-        index_pack = self.session.index_fh.read(self.server.fetch_bytes)
-        index_gen = util.unpack(index_pack)
-        grouped_entries = {} # meta_id => list[Entry]
-        glyph_update = GlyphUpdate()
-        glyph_update.cds_data = tuple({} for _ in range(len(self.session.plots)))
-
-        def filter(scope, name):
-            return (self.session.scope_pat.search(scope)
-                    and any (p.group_name_pat.search(name) for p in self.session.plots))
-
-        while True:
-            try:
-                index_item = next(index_gen)
-                match index_item:
-                    case pb.Metadata(meta_id=meta_id, scope=scope, name=name):
-                        if filter(scope, name):
-                            self.session.metadata[meta_id] = index_item
-                    case pb.Entry(meta_id=meta_id):
-                        if meta_id in self.session.metadata:
-                            l = grouped_entries.setdefault(meta_id, [])
-                            l.append(index_item)
-                    case pb.Control(scope=scope, name=name):
-                        if filter(scope, name):
-                            meta_id = util.metadata_id(scope, name)
-                            glyph_update.deleted_meta_ids.add(meta_id)
-                            self.session.metadata.pop(meta_id, None)
-                            grouped_entries.pop(meta_id, None)
-            except StopIteration as exc:
-                remain = exc.value
-                if remain:
-                    self.session.index_fh.seek(-remain)
-                break
-        
-        entries = [ent for v in grouped_entries.values() for ent in v]
-        cds_data = util.fetch_cds_data(self.session.data_fh, self.session.metadata, entries)
-        
-        # collate cds data into individual plots
-        for plot_update, plot in zip(glyph_update.cds_data, self.session.plots):
-            for key, data in cds_data.items():
-                if plot.group_name_pat.search(key.name):
-                    glyph_id = f"{key.meta_id},{key.index}"
-                    plot_update[glyph_id] = data
-
-        return glyph_update
-
-    def send_patch_cb(self, glyph_update: GlyphUpdate, fut):
+    def send_patch_cb(self, cds_map: dict[DictKey, 'cds'], fut):
         # total_elems = sum(ary.size for ent in cds_map.values() for ary in ent[1].values())
         # print(f"send_patch_cb called with {len(cds_map)} groups, {total_elems} points")
         # remove unbacked renderers
-
         for plot in self.session.plots:
-            for r in list(plot.figure.renderers):
-                meta_id = int(r.name.split(',')[0])
-                if meta_id in glyph_update.deleted_meta_ids:
-                    plot.figure.renderers.remove(r)
+            for rend in list(plot.figure.renderers):
+                name_id = int(r.name.split(',')[0])
+                if name_id not in self.index.names: 
+                    plot.figure.renderers.remove(rend)
 
-        # refresh plots by group
-        for cds_updates, plot in zip(glyph_update.cds_data, self.session.plots):
-            for glyph_id, data in cds_updates.items():
-                self.maybe_add_glyph(plot, glyph_id)
-                for r in plot.figure.select({"name": glyph_id}):
-                    r.data_source.stream(data)
+        for key, cds in cds_map.items():
+            for plot in self.session.plots:
+                if plot.group_name_pat.search(key.name):
+                    glyph_id = f"{key.name_id},{key.index}" 
+                    self.maybe_add_glyph(plot, glyph_id)
+                    for rend in plot.figure.select({"name": glyph_id}):
+                        rend.data_source.stream(cds)
 
         for plot in self.session.plots:
             label_ord, label_to_rend_map = self.session.glyph_index_map(plot)
