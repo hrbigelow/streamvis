@@ -1,73 +1,41 @@
 import asyncio
+from bokeh.application.handlers import Handler
+from bokeh.application.application import SessionContext
 from functools import partial
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from tornado.ioloop import IOLoop
 
-class GlyphUpdate:
-    # used to delete any glyphs whose name contains meta_id
-    deleted_meta_ids: set[int] = set()
-    # one entry per plot.  inner dict key is glyph_id
-    cds_data: tuple[dict[str, 'cds_data'], ...] = None 
-
-class BasePage(ABC):
-    def __init__(self, server, doc):
+class BasePage(Handler):
+    def __init__(self, server):
+        super().__init__()
         self.server = server
-        self.doc = doc
-        self.doc.on_session_destroyed(self.destroy)
 
-    def destroy(self, session_context):
-        # print(f"Destroy page: {session_context.id}")
-        del self.server.pages[session_context.id]
-        IOLoop.current().add_callback(self._cleanup)
+    async def on_session_created(self, session_context: SessionContext) -> None:
+        self._task_group = asyncio.TaskGroup()
+        await self._task_group.__aenter__()
+        self._task_group.create_task(self._start(session_context))
 
-    async def _cleanup(self):
-        # with self.server.session_lock:
-        self.refresh_task.cancel() # will this even work?
-        try:
-            await self.refresh_task
-        except asyncio.CancelledError:
-            print(f"Page done.  Server now has {len(self.server.pages)} pages.")
-            pass
+    async def on_session_destroyed(self, session_context: SessionContext) -> None:
+        await self._task_group.__aexit__(None, None, None)
 
-    async def _start(self):
-        # A short-lived coro since this delegates to Bokeh
-        built = asyncio.Future()
-        self.doc.add_next_tick_callback(partial(self.build_page_cb, built))
-        result = await built
-        # print(f"Result from build_page_cb: {result}")
-        while self.doc.session_context and not self.doc.session_context.destroyed:
+    async def _start(self, ctx):
+        # def patch(cds_map, doc):
+            # done = asyncio.Future()
+            # doc.add_next_tick_callback(lambda: self.send_patch_cb(cds_map, done))
+            # print("in patch: returning done future...")
+            # return done
+
+        while True:
+            doc = ctx._document
             try:
                 cds_map = await self.refresh_data()
-            except asyncio.CancelledError:
-                pass
-            except Exception as ex:
-                print(f"got exception from refresh_data: {ex}.  finishing coro.")
-                break
-            try:
-                patch_done = asyncio.Future()
-                self.doc.add_next_tick_callback(
-                    lambda: self.send_patch_cb(cds_map, patch_done))
-                await patch_done
+                # patch_fn = partial(patch, cds_map)
+                # print(f"before ctx.with_locked...{len(cds_map)=}")
+                done = asyncio.Future()
+                doc.add_next_tick_callback(lambda: self.send_patch_cb(cds_map, done))
+                await done
+                # await ctx.with_locked_document(patch_fn)
+                # print("after ctx.with_locked...")
                 await asyncio.sleep(self.server.refresh_seconds)
             except asyncio.CancelledError:
-                pass
-                # print("refresh data cancelled")
-            except Exception as ex:
-                print(f"got exception from send_patch_cb: {ex}.  finishing coro.")
                 break
-
-    def start(self):
-        self.refresh_task = asyncio.create_task(self._start())
-
-    @abstractmethod
-    def build_page_cb(self, done: asyncio.Future):
-        """A callback for building the page.
-
-        Must be called as: 
-        done: asyncio.Future
-        doc.add_next_tick_callback(functools.partial(build_page_cb, done))
-        You may await the future to coordinate with other coroutines
-        """
-        ...
-
-

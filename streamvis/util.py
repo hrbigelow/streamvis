@@ -193,20 +193,16 @@ class DataKey:
     index: int
 
 class Index:
-    scope_filter: str
-    name_filters: list[str]
+    scope_filter: re.Pattern 
+    name_filters: tuple[re.Pattern] 
     scopes: dict[int, pb.Scope]    # scope_id => Scope
     names: dict[int, pb.Name]      # name_id => Name
     entries: dict[int, pb.Entry]  # entry_id => Entry
     file_offset: int
 
     def __init__(self, scope_filter, name_filters, scopes, names, entries, file_offset):
-        if scope_filter is None:
-            scope_filter = ".*"
-        if name_filters is None:
-            name_filters = (".*",)
-        self.scope_filter = re.compile(scope_filter)
-        self.name_filters = tuple(re.compile(f) for f in name_filters)
+        self.scope_filter = scope_filter 
+        self.name_filters = name_filters
         self.scopes = scopes
         self.names = names
         self.entries = entries
@@ -215,8 +211,8 @@ class Index:
     @classmethod
     def from_message(cls, request: pb.Index):
         return cls(
-            scope_filter=request.scope_filter,
-            name_filters=request.name_filters,
+            scope_filter=re.compile(request.scope_filter),
+            name_filters=tuple(re.compile(nf) for nf in request.name_filters),
             scopes=dict(request.scopes),
             names=dict(request.names),
             entries={},
@@ -224,7 +220,7 @@ class Index:
         )
 
     @classmethod
-    def from_filters(cls, scope_filter: str=None, name_filters: list[str]=None):
+    def from_filters(cls, scope_filter: re.Pattern, name_filters: tuple[re.Pattern]):
         return cls(
             scope_filter=scope_filter, 
             name_filters=name_filters, 
@@ -236,8 +232,10 @@ class Index:
 
     @classmethod
     def from_scope_name(cls, scope: str=None, name: str=None):
-        scope_filter = None if scope is None else f"^{scope}$"
-        name_filters = None if name is None else (f"^{name}$",)
+        scope_filter = ".*" if scope is None else f"^{scope}$"
+        name_filters = ".*" if name is None else (f"^{name}$",)
+        scope_filter = re.compile(scope_filter)
+        name_filters = tuple(re.compile(nf) for nf in name_filters)
         return cls.from_filters(scope_filter, name_filters) 
 
 
@@ -245,7 +243,8 @@ class Index:
         return (f"Index(scope_filter={self.scope_filter!r}, "
                 f"name_filters={self.name_filters!r}, "
                 f"scopes: {len(self.scopes)}, "
-                f"names: {len(self.names)}, entries: {len(self.entries)})")
+                f"names: {len(self.names)}, entries: {len(self.entries)}, "
+                f"file_offset: {self.file_offset})")
     
     @property
     def entry_list(self):
@@ -314,11 +313,14 @@ class Index:
         """Updates using any new data that may have been written to fh."""
         fh.seek(self.file_offset)
         pack = fh.read()
-        try:
-            for item in unpack(pack):
+        gen = unpack(pack)
+        while True:
+            try:
+                item = next(gen)
                 self._update_with_item(item)
-        except StopIteration as exc:
-            self.file_offset += len(pack) - exc.value
+            except StopIteration as exc:
+                self.file_offset += len(pack) - exc.value
+                break
 
     def export(self) -> pb.Index:
         msg = pb.Index(

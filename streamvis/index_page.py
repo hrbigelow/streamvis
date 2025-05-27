@@ -1,15 +1,15 @@
 import asyncio
-from .base import BasePage, GlyphUpdate
+from .base import BasePage
+from . import util
 from bokeh.models import Div
 from bokeh.layouts import column, row
 
 class IndexPage(BasePage):
     """An index page, providing links to each available plot."""
-    def __init__(self, server, doc):
-        super().__init__(server, doc)
-        self.session_id = doc.session_context.id
+    def __init__(self, server):
+        super().__init__(server)
 
-    def build_page_cb(self, done: asyncio.Future):
+    def modify_document(self, doc):
         """Must be scheduled as next tick callback."""
         self.container = row()
         text = '<h2>Streamvis Server Index Page</h2>'
@@ -17,10 +17,9 @@ class IndexPage(BasePage):
         inner = '<br>'.join(plot for plot in self.server.schema.keys())
         html = f'<p>{inner}</p>'
         self.container.children[0].children[0] = Div(text=html)
-        self.doc.add_root(self.container)
-        done.set_result(None)
+        doc.add_root(self.container)
 
-    def send_patch_cb(self, glyph_update: GlyphUpdate, fut: asyncio.Future):
+    def send_patch_cb(self, cds_map: dict[util.DataKey, 'cds'], fut: asyncio.Future):
         fut.set_result(None)
 
     async def refresh_data(self):

@@ -76,43 +76,20 @@ class Server:
         """Cleanup actions.  What is needed for GCS?."""
         pass
 
-    def add_page(self, doc):
-        """Runs concurrently with refresh_server.
-
-        Add a page object to the state machine
-        REST API arguments:
-        plots: comma-separate names of plots
-        mode: 'row' or 'column'; what a box represents in the layout
-        box_elems: comma-separated list of the number of plots each box contains
-        box_part: comma-separated list of column width (or row height) proportions
-        plot_part: comma-separate list of plot width (row mode) or height (column mode)
-        """
-        req = doc.session_context.request
-        session_id = doc.session_context.id
-        # print(f'got {session_id=}')
-
-        if len(req.arguments) == 0:
-            page = IndexPage(self, doc)
-        else:
-            page = PageLayout(self, doc)
-            page.set_pagesize(1800, 900)
-            page.process_request(req)
-
-        self.pages[session_id] = page
-        page.start()
-
-
 def make_server(port, grpc_uri, schema_file, refresh_seconds=10):  
     """
     Launch a server on `port` using `schema_file` to configure plots of data in `path`
     """
-    sv_server = Server(grpc_uri, fetch_bytes, refresh_seconds)
+    sv_server = Server(grpc_uri, refresh_seconds)
     sv_server.load_schema(schema_file)
-    handler = FunctionHandler(sv_server.add_page)
-    cleanup = CleanupHandler(sv_server)
-    bokeh_app = Application(handler, cleanup)
-    bokeh_server = BokehServer({'/': bokeh_app}, port=port)
-    # bokeh_server.io_loop.asyncio_loop.create_task(sv_server.refresh_server())
+    page_handler = PageLayout(sv_server)
+    index_handler = IndexPage(sv_server) 
+    # handler = FunctionHandler(sv_server.add_page)
+    # bokeh_app = Application(handler)
+    page_app = Application(page_handler)
+    index_app = Application(index_handler)
+    apps = {"/": page_app, "/index": index_app}
+    bokeh_server = BokehServer(apps, port=port)
 
     def shutdown_handler(signum, frame):
         print(f'Server received {signal.Signals(signum).name}')

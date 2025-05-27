@@ -1,22 +1,26 @@
 import asyncio
 import copy
-from typing import Dict, List, Union, Tuple
+from typing import Dict, List, Union, Tuple, Any
 from dataclasses import dataclass
 import threading
 import numpy as np
 import re
 import _io
+from tornado.httputil import HTTPServerRequest
 from bokeh.layouts import column, row
 from bokeh.document import without_document_lock
 from bokeh.models.dom import HTML
 from bokeh.models import ColumnDataSource, Legend, LegendItem
 from bokeh.models.renderers.glyph_renderer import GlyphRenderer
 from bokeh.plotting import figure
+from bokeh.document.document import Document
 from bokeh import palettes
+import grpc
 from grpc import aio
 from . import data_pb2 as pb
+from . import data_pb2_grpc as pb_grpc
 from . import util
-from .base import BasePage, GlyphUpdate
+from .base import BasePage
 
 
 class Plot:
@@ -52,14 +56,21 @@ class Session:
     chan: grpc.aio._channel.Channel
     uri: str
     plots: List[Plot] 
-    scope_pat: re.Pattern
+    scope_filter: re.Pattern        # global pattern for all plots on the page
+    name_filters: tuple[re.Pattern] # one pattern per plot
 
-    def __init__(self, id: grpc_uri: str):
+    def __init__(
+        self, id: int, 
+        grpc_uri: str, 
+        scope_filter: re.Pattern, 
+        name_filters: tuple[re.Pattern]
+    ):
         self.id = id
-        self.index = util.Index.from_filter() # TODO
-        self.chan = aio.insecure_channel(grpc_uri)
+        self.index = util.Index.from_filters(scope_filter, name_filters)
+        self.chan = grpc.insecure_channel(grpc_uri)
         self.plots = []
-        self.scope_pat = None 
+        self.scope_filter = scope_filter
+        self.name_filters = name_filters
 
     @staticmethod
     def split_glyph_id(glyph_id):
@@ -94,9 +105,9 @@ class Session:
 
 class PageLayout(BasePage):
     """Represents a browser page."""
-    def __init__(self, server, doc):
-        super().__init__(server, doc)
-        self.session = Session(doc.session_context.id, server.grpc_uri)
+    def __init__(self, server):
+        super().__init__(server)
+        self.session = None
         self.update_lock = threading.Lock()
         self.coords = None
         self.nbox = None
@@ -148,7 +159,7 @@ class PageLayout(BasePage):
             self.widths = box_norm
             self.heights = plot_norm
 
-    def process_request(self, request):
+    def modify_document(self, doc: Document):
         """
         API:
         scopes: regex pattern of scopes to include 
@@ -172,6 +183,8 @@ class PageLayout(BasePage):
         """
         # import pdb
         # pdb.set_trace()
+        ctx = doc.session_context
+        request = ctx.request
         args = request.arguments
         known_plots = self.server.schema.keys()
 
@@ -219,8 +232,7 @@ class PageLayout(BasePage):
         if len(scope_pats) != 1:
             raise RuntimeError(f"scopes argument must be provided exactly once")
         try:
-            scope_pat = scope_pats[0]
-            self.session.scope_pat = re.compile(scope_pat)
+            scope_pat = re.compile(scope_pats[0])
         except re.PatternError as ex:
             raise RuntimeError(f"scopes argument '{scope_pat}' is not a valid regex")
 
@@ -279,6 +291,17 @@ class PageLayout(BasePage):
             "ylog": { "x_axis_type": "linear", "y_axis_type": "log" },
             "xylog": { "x_axis_type": "log", "y_axis_type": "log" },
         }
+        try:
+            name_pats = tuple(re.compile(np) for np in name_pats)
+        except re.PatternError as ex:
+            raise RuntimeError(
+                    f"Error compiling one or more of names arguments: "
+                    f"{name_pats}: {ex}")
+
+        self.session = Session(
+                doc.session_context.id, 
+                self.server.grpc_uri, 
+                scope_pat, name_pats)
 
         for plot_name, name_pat, mode in zip(plots, name_pats, axes):
             plot_schema = copy.deepcopy(self.server.schema.get(plot_name))
@@ -286,17 +309,15 @@ class PageLayout(BasePage):
                 raise RuntimeError(
                     f"No name '{name}' found in global_schema. "
                     f"Available names: {', '.join(name for name in self.server.schema)}")
-            try:
-                group_name_pat = re.compile(name_pat)
-            except re.PatternError as ex:
-                raise RuntimeError(f"names argument '{name_pat}' is not a valid regex")
 
             args_update = axes_mode_to_kwargs.get(mode)
             figure_kwargs = plot_schema.setdefault("figure_kwargs", {})
             figure_kwargs.update(**args_update)
-            self.session.plots.append(Plot(plot_name, plot_schema, group_name_pat))
+            self.session.plots.append(Plot(plot_name, plot_schema, name_pat))
 
+        self.set_pagesize(1800, 900)
         self._set_layout(box_elems, box_part, plot_part)
+        self.build_page(doc)
 
     def get_figsize(self, index):
         width = int(self.widths[index] * self.page_width)
@@ -307,7 +328,7 @@ class PageLayout(BasePage):
         self.page_width = width
         self.page_height = height
 
-    def build_page_cb(self, done: asyncio.Future):
+    def build_page(self, doc: Document):
         """Build the page for the first time.  
 
         Must be scheduled as next-tick callback
@@ -339,8 +360,7 @@ class PageLayout(BasePage):
             box.children.append(fig)
             plot.figure = fig
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
-        self.doc.add_root(self.container)
-        done.set_result(f"built {self.session.id}")
+        doc.add_root(self.container)
 
     def maybe_add_glyph(self, plot: Plot, glyph_id: str):
         # add a glyph for the group if it doesn't exist
@@ -361,26 +381,25 @@ class PageLayout(BasePage):
             raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
     async def refresh_data(self):
-        pb_index = self.index.export()
-        stub = pb_grpc.RecordServiceStub(self.chan)
+        index = self.session.index
+        pb_index = index.export()
+        stub = pb_grpc.RecordServiceStub(self.session.chan)
         datas = []
         for record in stub.QueryRecords(pb_index):
             match record.type:
                 case pb.INDEX:
-                    self.index = util.Index.from_message(record.index)
+                    index = util.Index.from_message(record.index)
                 case pb.DATA:
                     datas.append(record.data)
-        cds_map = util.data_to_cds(self.index, datas)
+        cds_map = util.data_to_cds(index, datas)
+        self.session.index = index
         return cds_map
 
-    def send_patch_cb(self, cds_map: dict[DictKey, 'cds'], fut):
-        # total_elems = sum(ary.size for ent in cds_map.values() for ary in ent[1].values())
-        # print(f"send_patch_cb called with {len(cds_map)} groups, {total_elems} points")
-        # remove unbacked renderers
+    def send_patch_cb(self, cds_map: dict[util.DataKey, 'cds'], fut):
         for plot in self.session.plots:
             for rend in list(plot.figure.renderers):
-                name_id = int(r.name.split(',')[0])
-                if name_id not in self.index.names: 
+                name_id = int(rend.name.split(',')[0])
+                if name_id not in self.session.index.names: 
                     plot.figure.renderers.remove(rend)
 
         for key, cds in cds_map.items():
