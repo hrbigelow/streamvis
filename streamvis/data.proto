@@ -35,16 +35,12 @@ message Values {
   }
 }
 
+// Scope, Name, Control, DataEntry, ConfigEntry stored in .idx file
 // This message will be logged once per program run
 message Scope {
   uint32 scope_id = 1; // globally unique key equal to hash(scope, time) % UINT32_MAX
   string scope = 2;
   google.protobuf.Timestamp time = 3;
-}
-
-message Config {
-  uint32 scope_id = 1;
-  google.protobuf.Struct attributes = 2;
 }
 
 // Corresponds to the 'name' field of a logger.write command
@@ -54,23 +50,6 @@ message Name {
   uint32 scope_id = 2;
   string name = 3;
   repeated Field fields = 4;
-}
-
-// Describes one Data entry in data file 
-message Entry {
-  uint32 entry_id = 1; // globally unqiue 
-  uint32 name_id = 2; // foreign key to Name message
-  uint32 beg_offset = 3; // file offset of begin of Data message
-  uint32 end_offset = 4; // file offset of end of Data message
-}
-
-// Actual data
-message Data {
-  // globally unique key is (entry_id, index)
-  uint32 entry_id = 1; // foreign key to Entry message
-  uint32 index = 2; // 
-  repeated Values axes = 3; // actual data
-  uint32 name_id = 4; // not stored on disk - used in join logic for RPC
 }
 
 enum Action {
@@ -84,6 +63,38 @@ message Control {
   Action action = 3;
 }
 
+
+// Describes one Data entry in data file 
+message DataEntry {
+  uint32 entry_id = 1; // globally unqiue 
+  uint32 name_id = 2; // foreign key to Name message
+  uint32 beg_offset = 3; // file offset of begin of Data message
+  uint32 end_offset = 4; // file offset of end of Data message
+}
+
+// Describes on Config entry in data file
+message ConfigEntry {
+  uint32 entry_id = 1; // globally unique
+  uint32 scope_id = 2;
+  uint32 beg_offset = 3;
+  uint32 end_offset = 4;
+}
+
+// Data, Config are stored in .log file 
+
+message Data {
+  // globally unique key is (entry_id, index)
+  uint32 entry_id = 1; // foreign key to Entry message
+  uint32 index = 2; // 
+  repeated Values axes = 3; // actual data
+  uint32 name_id = 4; // not stored on disk - used in join logic for RPC
+}
+
+message Config {
+  uint32 entry_id = 1;
+  google.protobuf.Struct attributes = 2;
+  uint32 scope_id = 3; // not stored on disk
+}
 
 message Index {
   string scope_filter = 1;
@@ -100,13 +111,14 @@ message ScopeRequest {
 
 enum StoredType {
   SCOPE = 0; 
-  CONFIG = 1;
-  NAME = 2;
-  ENTRY = 3;
+  NAME = 1;
+  DATA_ENTRY = 2;
+  CONFIG_ENTRY = 3;
   DATA = 4;
-  CONTROL = 5;
-  INDEX = 6;
-  STRING = 7;
+  CONFIG = 5;
+  CONTROL = 6;
+  INDEX = 7;
+  STRING = 8;
 }
 
 
@@ -125,6 +137,7 @@ service RecordService {
   rpc QueryRecords (Index) returns (stream StreamedRecord);
   rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
   rpc Names (ScopeRequest) returns (stream StreamedRecord);
+  rpc Configs (ScopeRequest) returns (stream StreamedRecord);
 }
 
 

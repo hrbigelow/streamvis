@@ -55,7 +55,7 @@ class DataLogger:
         path:  filesystem path or gs:// resource
         flush_every:  (seconds) period for flushing to disk
         """
-        self.data_path = path
+        self.data_path = util.data_file(path) 
         self.index_path = util.index_file(path)
         self.flush_every = flush_every
         match tensor_type:
@@ -165,8 +165,12 @@ class DataLogger:
         """
         if self.config_written:
             raise RuntimeError(f"Can only call write_config once during run")
-        pack = util.pack_config(self.scope_id, copy.deepcopy(attrs))
-        self.safe_write(self.data_fh, pack)
+        entry_id = random.randint(0, self.uint32_max)
+        config = util.pack_config(entry_id, copy.deepcopy(attrs))
+        end_offset = self.safe_write(self.data_fh, config)
+        beg_offset = end_offset - len(config)
+        config_entry = util.pack_config_entry(entry_id, self.scope_id, beg_offset, end_offset)
+        self.safe_write(self.index_fh, config_entry)
         self.config_written = True
 
 

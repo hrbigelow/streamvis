@@ -1,3 +1,4 @@
+from typing import Any
 import asyncio
 import grpc
 from grpc import aio
@@ -146,6 +147,19 @@ def gnames(uri: str, scope: str) -> list[str]:
     return names 
 
 
+def config(uri: str, scope: str) -> dict[str, Any]:
+    channel = grpc.insecure_channel(uri)
+    stub = pb_grpc.RecordServiceStub(channel)
+    request = pb.ScopeRequest(scope=scope)
+    configs = []
+    for record in stub.Configs(request):
+        match record.type:
+            case pb.INDEX:
+                index = util.Index.from_message(record.index)
+            case pb.CONFIG:
+                configs.append(record.config)
+    return util.export_configs(index, configs)
+
 
 def serve(port: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
     from streamvis import server
@@ -173,6 +187,7 @@ def main():
             'names': partial(print_list, names),
             'gscopes': partial(print_list, gscopes),
             'gnames': partial(print_list, gnames),
+            'config': partial(print_list, config),
             }
     task = sys.argv.pop(1)
     task_fun = tasks.get(task)

@@ -2,6 +2,7 @@ import sys
 import asyncio
 import grpc
 from grpc import aio
+import re
 from . import util
 from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
@@ -37,11 +38,30 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
             await context.write(rec)
 
     async def Names(self, request: pb.ScopeRequest, context):
-        index = util.Index.from_filters(scope_filter=request.scope)
+        scope_pat = re.compile(f"^{request.scope}$")
+        index = util.Index.from_filters(scope_filter=scope_pat)
         index.update(self.index_fh)
         for name in index.name_list:
             rec = pb.StreamedRecord(type=pb.STRING, value=name.name)
             await context.write(rec)
+
+    async def Configs(self, request: pb.ScopeRequest, context):
+        scope_pat = re.compile(f"^{request.scope}$")
+        index = util.Index.from_filters(scope_filter=scope_pat)
+        index.update(self.index_fh)
+
+        pb_index = index.export()
+        rec = pb.StreamedRecord(type=pb.INDEX, index=pb_index)
+        await context.write(rec)
+
+        cfgs_map = util.load_data(self.data_fh, index.config_entry_list)
+        for cfg_entry in index.config_entry_list:
+            cfgs = cfgs_map[cfg_entry.entry_id]
+            for cfg in cfgs:
+                cfg.scope_id = cfg_entry.scope_id
+                rec = pb.StreamedRecord(type=pb.CONFIG, config=cfg)
+                await context.write(rec)
+
 
 
 async def serve(path: str, port: int):

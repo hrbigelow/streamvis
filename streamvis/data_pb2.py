@@ -27,7 +27,7 @@ from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14streamvis/data.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"/\n\x05\x46ield\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x18\n\x04type\x18\x02 \x01(\x0e\x32\n.FieldType\"\x1e\n\tFloatList\x12\x11\n\x05value\x18\x01 \x03(\x02\x42\x02\x10\x01\"\x1c\n\x07IntList\x12\x11\n\x05value\x18\x01 \x03(\x05\x42\x02\x10\x01\"H\n\x06Values\x12\x1c\n\x06\x66loats\x18\x02 \x01(\x0b\x32\n.FloatListH\x00\x12\x18\n\x04ints\x18\x03 \x01(\x0b\x32\x08.IntListH\x00\x42\x06\n\x04\x64\x61ta\"R\n\x05Scope\x12\x10\n\x08scope_id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12(\n\x04time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"G\n\x06\x43onfig\x12\x10\n\x08scope_id\x18\x01 \x01(\r\x12+\n\nattributes\x18\x02 \x01(\x0b\x32\x17.google.protobuf.Struct\"O\n\x04Name\x12\x0f\n\x07name_id\x18\x01 \x01(\r\x12\x10\n\x08scope_id\x18\x02 \x01(\r\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x16\n\x06\x66ields\x18\x04 \x03(\x0b\x32\x06.Field\"R\n\x05\x45ntry\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\x0f\n\x07name_id\x18\x02 \x01(\r\x12\x12\n\nbeg_offset\x18\x03 \x01(\r\x12\x12\n\nend_offset\x18\x04 \x01(\r\"O\n\x04\x44\x61ta\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\r\n\x05index\x18\x02 \x01(\r\x12\x15\n\x04\x61xes\x18\x03 \x03(\x0b\x32\x07.Values\x12\x0f\n\x07name_id\x18\x04 \x01(\r\"?\n\x07\x43ontrol\x12\r\n\x05scope\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x17\n\x06\x61\x63tion\x18\x03 \x01(\x0e\x32\x07.Action\"\xfa\x01\n\x05Index\x12\x14\n\x0cscope_filter\x18\x01 \x01(\t\x12\x14\n\x0cname_filters\x18\x02 \x03(\t\x12\"\n\x06scopes\x18\x03 \x03(\x0b\x32\x12.Index.ScopesEntry\x12 \n\x05names\x18\x04 \x03(\x0b\x32\x11.Index.NamesEntry\x12\x13\n\x0b\x66ile_offset\x18\x05 \x01(\r\x1a\x35\n\x0bScopesEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Scope:\x02\x38\x01\x1a\x33\n\nNamesEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x14\n\x05value\x18\x02 \x01(\x0b\x32\x05.Name:\x02\x38\x01\"\x1d\n\x0cScopeRequest\x12\r\n\x05scope\x18\x01 \x01(\t\"\x91\x01\n\x0eStreamedRecord\x12\x19\n\x04type\x18\x01 \x01(\x0e\x32\x0b.StoredType\x12\x17\n\x05index\x18\x02 \x01(\x0b\x32\x06.IndexH\x00\x12\x15\n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\x05.DataH\x00\x12\x19\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x07.ConfigH\x00\x12\x0f\n\x05value\x18\x05 \x01(\tH\x00\x42\x08\n\x06record*\x1f\n\tFieldType\x12\t\n\x05\x46LOAT\x10\x00\x12\x07\n\x03INT\x10\x01*+\n\x06\x41\x63tion\x12\x10\n\x0c\x44\x45LETE_SCOPE\x10\x00\x12\x0f\n\x0b\x44\x45LETE_NAME\x10\x01*f\n\nStoredType\x12\t\n\x05SCOPE\x10\x00\x12\n\n\x06\x43ONFIG\x10\x01\x12\x08\n\x04NAME\x10\x02\x12\t\n\x05\x45NTRY\x10\x03\x12\x08\n\x04\x44\x41TA\x10\x04\x12\x0b\n\x07\x43ONTROL\x10\x05\x12\t\n\x05INDEX\x10\x06\x12\n\n\x06STRING\x10\x07\x32\x9a\x01\n\rRecordService\x12)\n\x0cQueryRecords\x12\x06.Index\x1a\x0f.StreamedRecord0\x01\x12\x33\n\x06Scopes\x12\x16.google.protobuf.Empty\x1a\x0f.StreamedRecord0\x01\x12)\n\x05Names\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14streamvis/data.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"/\n\x05\x46ield\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x18\n\x04type\x18\x02 \x01(\x0e\x32\n.FieldType\"\x1e\n\tFloatList\x12\x11\n\x05value\x18\x01 \x03(\x02\x42\x02\x10\x01\"\x1c\n\x07IntList\x12\x11\n\x05value\x18\x01 \x03(\x05\x42\x02\x10\x01\"H\n\x06Values\x12\x1c\n\x06\x66loats\x18\x02 \x01(\x0b\x32\n.FloatListH\x00\x12\x18\n\x04ints\x18\x03 \x01(\x0b\x32\x08.IntListH\x00\x42\x06\n\x04\x64\x61ta\"R\n\x05Scope\x12\x10\n\x08scope_id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12(\n\x04time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"O\n\x04Name\x12\x0f\n\x07name_id\x18\x01 \x01(\r\x12\x10\n\x08scope_id\x18\x02 \x01(\r\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x16\n\x06\x66ields\x18\x04 \x03(\x0b\x32\x06.Field\"?\n\x07\x43ontrol\x12\r\n\x05scope\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x17\n\x06\x61\x63tion\x18\x03 \x01(\x0e\x32\x07.Action\"V\n\tDataEntry\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\x0f\n\x07name_id\x18\x02 \x01(\r\x12\x12\n\nbeg_offset\x18\x03 \x01(\r\x12\x12\n\nend_offset\x18\x04 \x01(\r\"Y\n\x0b\x43onfigEntry\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\x10\n\x08scope_id\x18\x02 \x01(\r\x12\x12\n\nbeg_offset\x18\x03 \x01(\r\x12\x12\n\nend_offset\x18\x04 \x01(\r\"O\n\x04\x44\x61ta\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\r\n\x05index\x18\x02 \x01(\r\x12\x15\n\x04\x61xes\x18\x03 \x03(\x0b\x32\x07.Values\x12\x0f\n\x07name_id\x18\x04 \x01(\r\"Y\n\x06\x43onfig\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12+\n\nattributes\x18\x02 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x10\n\x08scope_id\x18\x03 \x01(\r\"\xfa\x01\n\x05Index\x12\x14\n\x0cscope_filter\x18\x01 \x01(\t\x12\x14\n\x0cname_filters\x18\x02 \x03(\t\x12\"\n\x06scopes\x18\x03 \x03(\x0b\x32\x12.Index.ScopesEntry\x12 \n\x05names\x18\x04 \x03(\x0b\x32\x11.Index.NamesEntry\x12\x13\n\x0b\x66ile_offset\x18\x05 \x01(\r\x1a\x35\n\x0bScopesEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Scope:\x02\x38\x01\x1a\x33\n\nNamesEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x14\n\x05value\x18\x02 \x01(\x0b\x32\x05.Name:\x02\x38\x01\"\x1d\n\x0cScopeRequest\x12\r\n\x05scope\x18\x01 \x01(\t\"\x91\x01\n\x0eStreamedRecord\x12\x19\n\x04type\x18\x01 \x01(\x0e\x32\x0b.StoredType\x12\x17\n\x05index\x18\x02 \x01(\x0b\x32\x06.IndexH\x00\x12\x15\n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\x05.DataH\x00\x12\x19\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x07.ConfigH\x00\x12\x0f\n\x05value\x18\x05 \x01(\tH\x00\x42\x08\n\x06record*\x1f\n\tFieldType\x12\t\n\x05\x46LOAT\x10\x00\x12\x07\n\x03INT\x10\x01*+\n\x06\x41\x63tion\x12\x10\n\x0c\x44\x45LETE_SCOPE\x10\x00\x12\x0f\n\x0b\x44\x45LETE_NAME\x10\x01*}\n\nStoredType\x12\t\n\x05SCOPE\x10\x00\x12\x08\n\x04NAME\x10\x01\x12\x0e\n\nDATA_ENTRY\x10\x02\x12\x10\n\x0c\x43ONFIG_ENTRY\x10\x03\x12\x08\n\x04\x44\x41TA\x10\x04\x12\n\n\x06\x43ONFIG\x10\x05\x12\x0b\n\x07\x43ONTROL\x10\x06\x12\t\n\x05INDEX\x10\x07\x12\n\n\x06STRING\x10\x08\x32\xc7\x01\n\rRecordService\x12)\n\x0cQueryRecords\x12\x06.Index\x1a\x0f.StreamedRecord0\x01\x12\x33\n\x06Scopes\x12\x16.google.protobuf.Empty\x1a\x0f.StreamedRecord0\x01\x12)\n\x05Names\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x12+\n\x07\x43onfigs\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -42,12 +42,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_INDEX_SCOPESENTRY']._serialized_options = b'8\001'
   _globals['_INDEX_NAMESENTRY']._loaded_options = None
   _globals['_INDEX_NAMESENTRY']._serialized_options = b'8\001'
-  _globals['_FIELDTYPE']._serialized_start=1201
-  _globals['_FIELDTYPE']._serialized_end=1232
-  _globals['_ACTION']._serialized_start=1234
-  _globals['_ACTION']._serialized_end=1277
-  _globals['_STOREDTYPE']._serialized_start=1279
-  _globals['_STOREDTYPE']._serialized_end=1381
+  _globals['_FIELDTYPE']._serialized_start=1314
+  _globals['_FIELDTYPE']._serialized_end=1345
+  _globals['_ACTION']._serialized_start=1347
+  _globals['_ACTION']._serialized_end=1390
+  _globals['_STOREDTYPE']._serialized_start=1392
+  _globals['_STOREDTYPE']._serialized_end=1517
   _globals['_FIELD']._serialized_start=116
   _globals['_FIELD']._serialized_end=163
   _globals['_FLOATLIST']._serialized_start=165
@@ -58,26 +58,28 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_VALUES']._serialized_end=299
   _globals['_SCOPE']._serialized_start=301
   _globals['_SCOPE']._serialized_end=383
-  _globals['_CONFIG']._serialized_start=385
-  _globals['_CONFIG']._serialized_end=456
-  _globals['_NAME']._serialized_start=458
-  _globals['_NAME']._serialized_end=537
-  _globals['_ENTRY']._serialized_start=539
-  _globals['_ENTRY']._serialized_end=621
-  _globals['_DATA']._serialized_start=623
-  _globals['_DATA']._serialized_end=702
-  _globals['_CONTROL']._serialized_start=704
-  _globals['_CONTROL']._serialized_end=767
-  _globals['_INDEX']._serialized_start=770
-  _globals['_INDEX']._serialized_end=1020
-  _globals['_INDEX_SCOPESENTRY']._serialized_start=914
-  _globals['_INDEX_SCOPESENTRY']._serialized_end=967
-  _globals['_INDEX_NAMESENTRY']._serialized_start=969
-  _globals['_INDEX_NAMESENTRY']._serialized_end=1020
-  _globals['_SCOPEREQUEST']._serialized_start=1022
-  _globals['_SCOPEREQUEST']._serialized_end=1051
-  _globals['_STREAMEDRECORD']._serialized_start=1054
-  _globals['_STREAMEDRECORD']._serialized_end=1199
-  _globals['_RECORDSERVICE']._serialized_start=1384
-  _globals['_RECORDSERVICE']._serialized_end=1538
+  _globals['_NAME']._serialized_start=385
+  _globals['_NAME']._serialized_end=464
+  _globals['_CONTROL']._serialized_start=466
+  _globals['_CONTROL']._serialized_end=529
+  _globals['_DATAENTRY']._serialized_start=531
+  _globals['_DATAENTRY']._serialized_end=617
+  _globals['_CONFIGENTRY']._serialized_start=619
+  _globals['_CONFIGENTRY']._serialized_end=708
+  _globals['_DATA']._serialized_start=710
+  _globals['_DATA']._serialized_end=789
+  _globals['_CONFIG']._serialized_start=791
+  _globals['_CONFIG']._serialized_end=880
+  _globals['_INDEX']._serialized_start=883
+  _globals['_INDEX']._serialized_end=1133
+  _globals['_INDEX_SCOPESENTRY']._serialized_start=1027
+  _globals['_INDEX_SCOPESENTRY']._serialized_end=1080
+  _globals['_INDEX_NAMESENTRY']._serialized_start=1082
+  _globals['_INDEX_NAMESENTRY']._serialized_end=1133
+  _globals['_SCOPEREQUEST']._serialized_start=1135
+  _globals['_SCOPEREQUEST']._serialized_end=1164
+  _globals['_STREAMEDRECORD']._serialized_start=1167
+  _globals['_STREAMEDRECORD']._serialized_end=1312
+  _globals['_RECORDSERVICE']._serialized_start=1520
+  _globals['_RECORDSERVICE']._serialized_end=1719
 # @@protoc_insertion_point(module_scope)
