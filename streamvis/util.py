@@ -122,24 +122,20 @@ def pack_entry(entry_id: int, name_id: int, beg_offset: int, end_offset: int) ->
     return pack_message(entry)
 
 
-def pack_name(
-        name_id: int, scope_id: int, name: str, field_sig: list[tuple[str, np.dtype]]) -> bytes:
+def make_name_message(
+    name_id: int, scope_id: int, name: str, field_sig: list[tuple[str, np.dtype]]
+) -> pb.Name:
     name = pb.Name(name_id=name_id, scope_id=scope_id, name=name)
     for field_name, dtype in field_sig:
         field = name.fields.add()
         field.name = field_name
         field.type = DTYPE_TO_PROTO[dtype] 
-    return pack_message(name)
+    return name 
 
 
 def pack_delete_scope(scope: str) -> bytes:
     control = pb.Control(scope=scope, name="", action=pb.DELETE_SCOPE)
     return pack_message(control)
-
-
-def pack_config(entry_id: int, attrs: dict) -> bytes:
-    config = pb.Config(entry_id=entry_id, attributes=attrs)
-    return pack_message(config)
 
 
 def pack_config_entry(entry_id: int, scope_id: int, beg_offset: int, end_offset: int) -> bytes:
@@ -192,9 +188,6 @@ def unpack(packed: bytes):
         yield item
     return len(packed) - off
 
-
-def get_optional(msg, field_name):
-    return getattr(msg, field_name) if msg.HasField(field_name) else None
 
 @dataclass(frozen=True)
 class DataKey:
@@ -471,47 +464,4 @@ def safe_write(fh, content: bytes) -> int:
         return current_offset
     finally:
         fcntl.flock(fh, fcntl.LOCK_UN)
-
-
-def num_point_data(point):
-    values = point.values[0]
-    data_name = values.WhichOneof('data') 
-    if data_name == 'floats':
-        return len(values.floats.value)
-    elif data_name == 'ints':
-        return len(values.ints.value)
-
-def concat(arrays: list[Any], axis: int):
-    match arrays[0]:
-        case jax.numpy.Array:
-            return jax.numpy.concat(arrays, axis=axis)
-        case numpy.ndarray:
-            return numpy.concat(arrays, axis=axis)
-        case other:
-            raise RuntimeError(f"Unsupported array type: {type(other)}")
-
-def get_numpy(data):
-    try:
-        data = data.detach().numpy()
-    except BaseException:
-        pass
-    try:
-        data = np.array(data)
-
-    except BaseException as ex:
-        raise RuntimeError(
-            f'exception {ex}:\n'
-            f'Could not convert data into np.ndarray using either:\n'
-            f'data.detach().numpy() or np.array(data).  '
-            f'Got type(data) = {type(data)}')
-
-    # For the moment, converting everything to float32 
-    data = data.astype(np.float32)
-    """
-    if data.dtype == np.int64:
-        data = data.astype(np.int32)
-    elif data.dtype == np.float64:
-        data = data.astype(np.float32)
-    """
-    return data
 

@@ -6,6 +6,8 @@ import enum
 import numpy as np
 import asyncio
 import grpc
+from grpc import aio
+from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
 import random
 import time
@@ -49,14 +51,15 @@ class DataLogger:
         self, 
         grpc_uri: str,
         flush_every: float = 2.0,
-        tensor_type: Literal["jax", "torch", "numpy"]="jax",
+        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
     ):
         """
         Initialize logger to log data to the given path.
         path:  filesystem path or gs:// resource
         flush_every:  (seconds) period for flushing to disk
         """
-        self.chan = grpc.insecure_channel(grpc_uri) 
+        self.uri = grpc_uri
+        self.chan = aio.insecure_channel(grpc_uri) 
         self.stub = pb_grpc.RecordServiceStub(self.chan)
         self.flush_every = flush_every
         match tensor_type:
@@ -67,7 +70,15 @@ class DataLogger:
                 self.to_numpy = lambda ary: np.array(ary)
                 self.broadcast_arrays = jnp.broadcast_arrays
             case "numpy":
-                self.to_array = np.array
+                def downcast(ary):
+                    if np.issubdtype(ary.dtype, np.integer):
+                        return ary.astype(np.int32)
+                    elif np.issubdtype(ary.dtype, np.floating):
+                        return ary.astype(np.float32)
+                    else:
+                        return ary
+
+                self.to_array = lambda x: downcast(np.array(x))
                 self.concat = np.concat
                 self.to_numpy = lambda x: x
                 self.broadcast_arrays = np.broadcast_arrays
@@ -92,6 +103,7 @@ class DataLogger:
     async def __aexit__(self, *args):
         self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
         await self._task_group.__aexit__(*args)
+        await self.chan.close()
         self._task_group = None
 
     def upscale_inputs(self, data) -> dict[str, 'tensor']:
@@ -133,9 +145,11 @@ class DataLogger:
         This is useful for recording hyperparameters, settings, configuration etc.
         for the program.  Can only be called once for the life of the logger.
         """
+        if self.scope_id is None:
+            raise RuntimeError(f"write_config can only be called in `async with logger` context")
         if self.config_written:
             raise RuntimeError(f"Can only call write_config once during run")
-        config_req = pb.WriteConfigRequest(attributes=attrs)
+        config_req = pb.WriteConfigRequest(scope_id=self.scope_id, attributes=attrs)
         await self.stub.WriteConfig(config_req)
         self.config_written = True
 
@@ -172,8 +186,9 @@ class DataLogger:
         name_id = util.get_name_id(self.scope_id, name) 
         if name_id not in self.seen_names:
             field_sig = tuple((k, v.dtype) for k, v in data.items())
-            self.seen_names[name_id] = field_sig 
-            self.buffer.put_nowait(NameItem(name_id, name, field_sig))
+            name_item = NameItem(name_id, name, field_sig)
+            self.seen_names[name_id] = name_item
+            self.buffer.put_nowait(name_item)
         self.buffer.put_nowait(DataItem(name_id, data, start_index))
 
     async def write(self, name: str, /, start_index: int=0, **data):
@@ -189,67 +204,29 @@ class DataLogger:
 
     def _convert_to_messages(self, data_items: list[DataItem]) -> list[pb.Data]:
         all_messages = []
-        for item in data_items:
-            pb_name = self.seen_names.get(data_item.name_id)
-            if pb_name is None:
+        for data_item in data_items:
+            name_item = self.seen_names.get(data_item.name_id)
+            if name_item is None:
                 raise RuntimeError("Unknown error")
-            field_sig = pb_name.fields
             entry_id = random.randint(0, self.uint32_max)
             data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
-            messages = util.make_data_messages(entry_id, data, data_item.start_index, field_sig)
+            messages = util.make_data_messages(
+                entry_id, data, data_item.start_index, name_item.field_sig)
             all_messages.extend(messages)
         return all_messages
 
-    async def write_content(self, data_items: list[DataItem], names: list[pb.Name]):
+    async def write_content(self, data_items: list[DataItem], name_items: list[NameItem]):
         datas = self._convert_to_messages(data_items)
-        request = pb.WriteDataRequest(
-            names=names,
-            datas=datas,
-            seen_names=self.seen_names
-        )
+        names = [util.make_name_message(n.name_id, self.scope_id, n.name, n.field_sig) for
+                n in name_items]
+        request = pb.WriteDataRequest(names=names, datas=datas)
         await self.stub.WriteData(request)
-
-
-    def _write_content(self, datas: list[DataItem], names: list[NameItem]):
-        entry_args = []
-        data_bytes = []
-        rel_offsets = [0]
-        for data_item in datas:
-            pb_name = self.seen_names.get(data_item.name_id)
-            if pb_name is None:
-                raise RuntimeError("Unknown error")
-            field_sig = pb_name.fields
-            entry_id = random.randint(0, self.uint32_max)
-            data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
-            pbdatas = util.make_data_messages(entry_id, data, data_item.start_index, field_sig)
-            data_bytes.append(packed)
-            rel_offsets.append(rel_offsets[-1] + len(packed))
-            entry_args.append((entry_id, data_item.name_id))
-        all_data_bytes = b''.join(data_bytes)
-        global_end = self.safe_write(self.data_fh, all_data_bytes)
-        global_off = global_end - len(all_data_bytes)
-
-        abs_offsets = [off+global_off for off in rel_offsets]
-        z = zip(entry_args, abs_offsets[:-1], abs_offsets[1:])
-        entry_bytes = []
-        for (entry_id, meta_id), beg_offset, end_offset in z: 
-            packed = util.pack_entry(entry_id, meta_id, beg_offset, end_offset)
-            entry_bytes.append(packed)
-        all_entry_bytes = b''.join(entry_bytes)
-
-        names_bytes = []
-        for name in names:
-            packed = util.pack_name(name.name_id, self.scope_id, name.name, name.field_sig)
-            names_bytes.append(packed)
-        all_names_bytes = b''.join(names_bytes)
-        all_index_bytes = all_names_bytes + all_entry_bytes
-        _ = self.safe_write(self.index_fh, all_index_bytes)
 
     async def flush_buffer(self):
         more_work = True 
         while True:
             content_as_list = {} # data_id => Dict[str, list['tensor']]
-            names = []
+            name_items = []
             while not self.buffer.empty():
                 work = await self.buffer.get()
                 match work:
@@ -264,19 +241,20 @@ class DataLogger:
                         for k, v in data.items():
                             cdslist[k].append(v)
                     case NameItem():
-                        names.append(work)
+                        name_items.append(work)
                     case _:
                         raise RuntimeError(f"flush_buffer: Unknown work: {type(work)}")
 
             # Collate datas on-device
-            datas = []
+            data_items = []
             for (name_id, start_index), cdslist in content_as_list.items():
                 cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
                 data_item = DataItem(name_id, cds, start_index)
-                datas.append(data_item)
+                data_items.append(data_item)
 
-            self._write_content(datas, names)
+            await self.write_content(data_items, name_items)
             if not more_work:
+                # print(f"flush_buffer finished all work")
                 break
             try:
                 await asyncio.sleep(self.flush_every)

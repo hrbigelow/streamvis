@@ -46,60 +46,50 @@ def demo(path: str, scope: str):
     asyncio.run(_demo(path, scope))
 
 
-async def _demo(path, scope):
+async def _demo(uri, scope):
     """
     A demo application to log data with `scope` to `path`
     """
-    logger = DataLogger(scope)
-    logger.init(path, flush_every=2.0)
-    await logger.start()
+    logger = DataLogger(scope=scope, delete_existing=True)
+    logger.init(grpc_uri=uri, flush_every=2.0, tensor_type="numpy")
 
     N = 50
     L = 20
     left_data = np.random.randn(N, 2)
 
-    for step in range(0, 10000, 10):
-        time.sleep(0.1)
-        # top_data[group, point], where group is a logical grouping of points that
-        # form a line, and point is one of those points
-        top_data = np.array(
-                [
-                    [math.sin(1 + s / 10) for s in range(step, step+10)],
-                    [0.5 * math.sin(1.5 + s / 20) for s in range(step, step+10)],
-                    [1.5 * math.sin(2 + s / 15) for s in range(step, step+10)]
-                    ]) 
+    async with logger:
+        await logger.write_config({ "start-time": time.time() })
 
-        left_data = left_data + np.random.randn(N, 2) * 0.1
-        layer_mult = np.linspace(0, 10, L)
+        for step in range(0, 1000, 10):
+            time.sleep(0.1)
+            # top_data[group, point], where group is a logical grouping of points that
+            # form a line, and point is one of those points
+            top_data = np.array(
+                    [
+                        [math.sin(1 + s / 10) for s in range(step, step+10)],
+                        [0.5 * math.sin(1.5 + s / 20) for s in range(step, step+10)],
+                        [1.5 * math.sin(2 + s / 15) for s in range(step, step+10)]
+                        ], dtype=np.float32) 
 
-        await logger.write('top_left', x=[list(range(step, step+10))], y=top_data)
+            left_data = left_data + np.random.randn(N, 2) * 0.1
+            layer_mult = np.linspace(0, 10, L)
+            xs = np.arange(step, step+10, dtype=np.int32)[None,:]
 
-        mid_data = top_data[:,0]
+            await logger.write('top_left', x=xs, y=top_data)
 
-        # (I,), None form
-        await logger.write('middle', x=step, y=mid_data)
+            mid_data = top_data[:,0]
 
-        # Distribute the L dimension along grid cells
-        # data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
-        # logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
-         #        grid_columns=5, grid_spacing=1.0)
-        await logger.write('loss', x=step, y=mid_data[0])
+            # (I,), None form
+            await logger.write('middle', x=step, y=mid_data)
 
-        if step % 10 == 0:
-            print(f'Logged {step=}')
-        """
-        # Colorize the L dimension
-        logger.scatter(plot_name='bottom_left', data=data_rank3, spatial_dim=2,
-                append=False, color=ColorSpec('Viridis256', 0))
+            # Distribute the L dimension along grid cells
+            # data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
+            # logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
+             #        grid_columns=5, grid_spacing=1.0)
+            await logger.write('loss', x=step, y=mid_data[0])
 
-        # data4 = np.random.randn(N,3)
-        data4 = np.random.uniform(size=(N,3))
-
-        # Assign color within the spatial_dim
-        logger.scatter(plot_name='bottom_right', data=data4, spatial_dim=1,
-                append=False, color=ColorSpec('Viridis256'))
-        """
-    await logger.shutdown()
+            if step % 10 == 0:
+                print(f'Logged {step=}')
 
 async def gfetch(uri: str, scope: str=None, name: str=None):
     async with aio.insecure_channel(uri) as chan:
@@ -180,6 +170,11 @@ def main():
         for item in out:
             print(item)
 
+    def print_dict(fn, *args):
+        out = fn(*args)
+        from pprint import pprint
+        pprint(out)
+
     tasks = { 
             'serve': serve,
             'demo': demo,
@@ -187,7 +182,7 @@ def main():
             'names': partial(print_list, names),
             'gscopes': partial(print_list, gscopes),
             'gnames': partial(print_list, gnames),
-            'config': partial(print_list, config),
+            'config': partial(print_dict, config),
             }
     task = sys.argv.pop(1)
     task_fun = tasks.get(task)

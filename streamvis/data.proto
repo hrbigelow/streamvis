@@ -152,7 +152,6 @@ message IntegerResponse {
 message WriteDataRequest {
   repeated Name names = 1;
   repeated Data datas = 2;
-  map<uint32, Name> seen_names = 3;
 }
 
 
