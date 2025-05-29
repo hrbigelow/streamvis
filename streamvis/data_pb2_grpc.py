@@ -55,6 +55,21 @@ class RecordServiceStub(object):
                 request_serializer=streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
                 response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
+        self.WriteScope = channel.unary_unary(
+                '/RecordService/WriteScope',
+                request_serializer=streamvis_dot_data__pb2.WriteScopeRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.IntegerResponse.FromString,
+                _registered_method=True)
+        self.WriteConfig = channel.unary_unary(
+                '/RecordService/WriteConfig',
+                request_serializer=streamvis_dot_data__pb2.WriteConfigRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.WriteData = channel.unary_unary(
+                '/RecordService/WriteData',
+                request_serializer=streamvis_dot_data__pb2.WriteDataRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
 
 
 class RecordServiceServicer(object):
@@ -84,6 +99,24 @@ class RecordServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def WriteScope(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WriteConfig(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WriteData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_RecordServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -106,6 +139,21 @@ def add_RecordServiceServicer_to_server(servicer, server):
                     servicer.Configs,
                     request_deserializer=streamvis_dot_data__pb2.ScopeRequest.FromString,
                     response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
+            ),
+            'WriteScope': grpc.unary_unary_rpc_method_handler(
+                    servicer.WriteScope,
+                    request_deserializer=streamvis_dot_data__pb2.WriteScopeRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.IntegerResponse.SerializeToString,
+            ),
+            'WriteConfig': grpc.unary_unary_rpc_method_handler(
+                    servicer.WriteConfig,
+                    request_deserializer=streamvis_dot_data__pb2.WriteConfigRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'WriteData': grpc.unary_unary_rpc_method_handler(
+                    servicer.WriteData,
+                    request_deserializer=streamvis_dot_data__pb2.WriteDataRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -216,6 +264,87 @@ class RecordService(object):
             '/RecordService/Configs',
             streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
             streamvis_dot_data__pb2.StreamedRecord.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WriteScope(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/RecordService/WriteScope',
+            streamvis_dot_data__pb2.WriteScopeRequest.SerializeToString,
+            streamvis_dot_data__pb2.IntegerResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WriteConfig(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/RecordService/WriteConfig',
+            streamvis_dot_data__pb2.WriteConfigRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WriteData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/RecordService/WriteData',
+            streamvis_dot_data__pb2.WriteDataRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,

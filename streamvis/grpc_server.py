@@ -1,4 +1,5 @@
 import sys
+import random
 import asyncio
 import grpc
 from grpc import aio
@@ -61,6 +62,45 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
                 cfg.scope_id = cfg_entry.scope_id
                 rec = pb.StreamedRecord(type=pb.CONFIG, config=cfg)
                 await context.write(rec)
+
+    async def WriteScope(self, request: pb.WriteScopeRequest, context):
+        if request.do_delete:
+            pack = util.pack_delete_scope(request.scope)
+            util.safe_write(self.index_fh, pack)
+        pack, scope_id = util.pack_scope(request.scope)
+        util.safe_write(self.index_fh, pack)
+        return pb.IntegerResponse(value=scope_id)
+
+    async def WriteConfig(self, request: pb.WriteConfigRequest, context):
+        entry_id = random.randint(0, (1 << 32) - 1)
+        pb_config = pb.Config(entry_id=entry_id, attributes=request.attributes)
+        pack = util.pack_message(pb_config)
+        end_offset = self.safe_write(self.data_fh, pack)
+        beg_offset = end_offset - len(pack)
+        config_entry = util.pack_config_entry(entry_id, request.scope_id, beg_offset, end_offset)
+        self.safe_write(self.index_fh, config_entry)
+        return Empty()
+
+    async def WriteData(self, request: pb.WriteDataRequest, context):
+        data_packs = [util.pack_message(data) for data in request.datas]
+        lengths = [len(p) for p in data_packs]
+        pack = b''.join(data_packs)
+        global_end = util.safe_write(self.data_fh, pack)
+        global_beg = global_end - len(pack)
+        rel_offsets = [global_beg]
+        for l in lengths:
+            rel_offsets.append(rel_offsets[-1] + l)
+
+        entry_packs = []
+        for data, beg, end in zip(request.datas, rel_offsets[:-1], rel_offsets[1:]):
+            entry = pb.DataEntry(
+                    entry_id=data.entry_id, name_id=data.name_id,
+                    beg_offset=beg, end_offset=end)
+            entry_packs.append(util.pack_message(entry))
+        
+        name_packs = [util.pack_message(name) for name in request.names]
+        index_pack = b''.join(name_packs + entry_packs)
+        util.safe_write(self.index_fh, index_pack)
 
 
 

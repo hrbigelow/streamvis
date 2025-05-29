@@ -5,7 +5,8 @@ import os
 import enum
 import numpy as np
 import asyncio
-import fcntl
+import grpc
+from . import data_pb2_grpc as pb_grpc
 import random
 import time
 import signal
@@ -36,7 +37,7 @@ class DataLogger:
     def __init__(self, scope: str, delete_existing: bool=True):
         """scope: a string which defines the scope in the logical point grouping."""
         self.scope = scope
-        self.names_seen = {} # name_id => list[tuple[str, dtype]]
+        self.seen_names = {} # name_id => pb.Name 
         self.buffer = asyncio.Queue()
         self.elem_count = 0
         self.uint32_max = (1 << 32) - 1 
@@ -46,7 +47,7 @@ class DataLogger:
 
     def init(
         self, 
-        path: str, 
+        grpc_uri: str,
         flush_every: float = 2.0,
         tensor_type: Literal["jax", "torch", "numpy"]="jax",
     ):
@@ -55,8 +56,8 @@ class DataLogger:
         path:  filesystem path or gs:// resource
         flush_every:  (seconds) period for flushing to disk
         """
-        self.data_path = util.data_file(path) 
-        self.index_path = util.index_file(path)
+        self.chan = grpc.insecure_channel(grpc_uri) 
+        self.stub = pb_grpc.RecordServiceStub(self.chan)
         self.flush_every = flush_every
         match tensor_type:
             case "jax":
@@ -79,50 +80,19 @@ class DataLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
-    def _write_scope(self):
-        pack, scope_id = util.pack_scope(self.scope)
-        self.safe_write(self.index_fh, pack)
-        return scope_id
-
-    def _delete_scope(self):
-        """Logs a Control with a DELETE action."""
-        pack = util.pack_delete_scope(self.scope)
-        self.safe_write(self.index_fh, pack)
-
     async def __aenter__(self):
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
         self._task_group.create_task(self.flush_buffer())
-        self.data_fh = util.get_log_handle(self.data_path, "ab")
-        self.index_fh = util.get_log_handle(self.index_path, "ab")
-        if self.delete_existing:
-            self._delete_scope()
-        self.scope_id = self._write_scope()
+        request = pb.WriteScopeRequest(scope=self.scope, do_delete=self.delete_existing)
+        response = await self.stub.WriteScope(request)
+        self.scope_id = response.value
         return self
 
     async def __aexit__(self, *args):
         self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
         await self._task_group.__aexit__(*args)
         self._task_group = None
-        self.data_fh.close()
-        self.index_fh.close()
-
-    @staticmethod
-    def safe_write(fh, content: bytes) -> int:
-        """Write to fh in concurrency-safe way.  Return current offset after write."""
-        if not isinstance(content, bytes):
-            raise RuntimeError(f"content must be bytes")
-
-        try:
-            # Only lock during the actual write operation
-            fcntl.flock(fh, fcntl.LOCK_EX)
-            _ = fh.write(content)
-            fh.flush()
-            os.fsync(fh.fileno())
-            current_offset = fh.tell()
-            return current_offset
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
 
     def upscale_inputs(self, data) -> dict[str, 'tensor']:
         """
@@ -157,7 +127,7 @@ class DataLogger:
 
         return dict(zip(keys, vals))
 
-    def write_config(self, attrs: dict):
+    async def write_config(self, attrs: dict):
         """Write a set of attributes to associate with this scope.
 
         This is useful for recording hyperparameters, settings, configuration etc.
@@ -165,14 +135,9 @@ class DataLogger:
         """
         if self.config_written:
             raise RuntimeError(f"Can only call write_config once during run")
-        entry_id = random.randint(0, self.uint32_max)
-        config = util.pack_config(entry_id, copy.deepcopy(attrs))
-        end_offset = self.safe_write(self.data_fh, config)
-        beg_offset = end_offset - len(config)
-        config_entry = util.pack_config_entry(entry_id, self.scope_id, beg_offset, end_offset)
-        self.safe_write(self.index_fh, config_entry)
+        config_req = pb.WriteConfigRequest(attributes=attrs)
+        await self.stub.WriteConfig(config_req)
         self.config_written = True
-
 
     def write_sync(self, name: str, /, start_index: int=0, **data):
         """Writes new data, possibly creating one or more Group items.
@@ -205,9 +170,9 @@ class DataLogger:
             raise RuntimeError(f'{name=}, got exception {ex}')
 
         name_id = util.get_name_id(self.scope_id, name) 
-        if name_id not in self.names_seen:
+        if name_id not in self.seen_names:
             field_sig = tuple((k, v.dtype) for k, v in data.items())
-            self.names_seen[name_id] = field_sig 
+            self.seen_names[name_id] = field_sig 
             self.buffer.put_nowait(NameItem(name_id, name, field_sig))
         self.buffer.put_nowait(DataItem(name_id, data, start_index))
 
@@ -222,22 +187,41 @@ class DataLogger:
         """
         await asyncio.sleep(0)
 
-    def _write_content(
-        self,
-        datas: list[DataItem],
-        names: list[NameItem],
-        do_delete_scope: bool):
+    def _convert_to_messages(self, data_items: list[DataItem]) -> list[pb.Data]:
+        all_messages = []
+        for item in data_items:
+            pb_name = self.seen_names.get(data_item.name_id)
+            if pb_name is None:
+                raise RuntimeError("Unknown error")
+            field_sig = pb_name.fields
+            entry_id = random.randint(0, self.uint32_max)
+            data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
+            messages = util.make_data_messages(entry_id, data, data_item.start_index, field_sig)
+            all_messages.extend(messages)
+        return all_messages
 
+    async def write_content(self, data_items: list[DataItem], names: list[pb.Name]):
+        datas = self._convert_to_messages(data_items)
+        request = pb.WriteDataRequest(
+            names=names,
+            datas=datas,
+            seen_names=self.seen_names
+        )
+        await self.stub.WriteData(request)
+
+
+    def _write_content(self, datas: list[DataItem], names: list[NameItem]):
         entry_args = []
         data_bytes = []
         rel_offsets = [0]
         for data_item in datas:
-            field_sig = self.names_seen.get(data_item.name_id)
-            if field_sig is None:
+            pb_name = self.seen_names.get(data_item.name_id)
+            if pb_name is None:
                 raise RuntimeError("Unknown error")
+            field_sig = pb_name.fields
             entry_id = random.randint(0, self.uint32_max)
             data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
-            packed = util.pack_data(entry_id, data, data_item.start_index, field_sig)
+            pbdatas = util.make_data_messages(entry_id, data, data_item.start_index, field_sig)
             data_bytes.append(packed)
             rel_offsets.append(rel_offsets[-1] + len(packed))
             entry_args.append((entry_id, data_item.name_id))
@@ -253,16 +237,12 @@ class DataLogger:
             entry_bytes.append(packed)
         all_entry_bytes = b''.join(entry_bytes)
 
-        all_deletes_bytes = b''
-        if do_delete_scope:
-            all_deletes_bytes = util.pack_delete_scope(self.scope)
-
         names_bytes = []
         for name in names:
             packed = util.pack_name(name.name_id, self.scope_id, name.name, name.field_sig)
             names_bytes.append(packed)
         all_names_bytes = b''.join(names_bytes)
-        all_index_bytes = all_deletes_bytes + all_names_bytes + all_entry_bytes
+        all_index_bytes = all_names_bytes + all_entry_bytes
         _ = self.safe_write(self.index_fh, all_index_bytes)
 
     async def flush_buffer(self):
@@ -270,7 +250,6 @@ class DataLogger:
         while True:
             content_as_list = {} # data_id => Dict[str, list['tensor']]
             names = []
-            do_delete_scope = False
             while not self.buffer.empty():
                 work = await self.buffer.get()
                 match work:
@@ -286,9 +265,6 @@ class DataLogger:
                             cdslist[k].append(v)
                     case NameItem():
                         names.append(work)
-                    case Action.DELETE_SCOPE:
-                        content_as_list.clear()
-                        do_delete_scope = True
                     case _:
                         raise RuntimeError(f"flush_buffer: Unknown work: {type(work)}")
 
@@ -299,7 +275,7 @@ class DataLogger:
                 data_item = DataItem(name_id, cds, start_index)
                 datas.append(data_item)
 
-            self._write_content(datas, names, do_delete_scope)
+            self._write_content(datas, names)
             if not more_work:
                 break
             try:

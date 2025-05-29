@@ -72,7 +72,7 @@ message DataEntry {
   uint32 end_offset = 4; // file offset of end of Data message
 }
 
-// Describes on Config entry in data file
+// Describes one Config entry in data file
 message ConfigEntry {
   uint32 entry_id = 1; // globally unique
   uint32 scope_id = 2;
@@ -133,11 +133,37 @@ message StreamedRecord {
 }
 
 
+message WriteConfigRequest {
+  uint32 scope_id = 1;
+  google.protobuf.Struct attributes = 2;
+}
+
+
+message WriteScopeRequest {
+  string scope = 1;
+  bool do_delete = 2;
+}
+
+message IntegerResponse {
+  uint32 value = 1;
+}
+
+
+message WriteDataRequest {
+  repeated Name names = 1;
+  repeated Data datas = 2;
+  map<uint32, Name> seen_names = 3;
+}
+
+
 service RecordService {
   rpc QueryRecords (Index) returns (stream StreamedRecord);
   rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
   rpc Names (ScopeRequest) returns (stream StreamedRecord);
   rpc Configs (ScopeRequest) returns (stream StreamedRecord);
+  rpc WriteScope (WriteScopeRequest) returns (IntegerResponse);
+  rpc WriteConfig (WriteConfigRequest) returns (google.protobuf.Empty);
+  rpc WriteData (WriteDataRequest) returns (google.protobuf.Empty);
 }
 
 

@@ -1,4 +1,5 @@
 from typing import List, Dict, Iterable, Tuple, Union, Optional, Any
+import fcntl
 import re
 import datetime
 from dataclasses import dataclass
@@ -78,12 +79,12 @@ def pack_scope(scope: str) -> tuple[bytes, int]:
     return pack_message(scope), scope_id
 
 
-def pack_data(
+def make_data_messages(
     entry_id: int, 
     content: dict[str, np.ndarray],
     start_index: int,
     field_sig: list[tuple[str, np.dtype]]
-) -> bytes:
+) -> list[pb.Data]:
     """pack the data into a protobuf message.
 
     content contains only 2-D data
@@ -100,7 +101,7 @@ def pack_data(
     shape = shapes.pop()
     num_slices = shape[0]
 
-    packed = []
+    datas = []
     for index in range(num_slices):
         data = pb.Data(entry_id=entry_id, index=index+start_index)
         for name, ty in field_sig:
@@ -112,8 +113,8 @@ def pack_data(
                 vals.ints.value.extend(field_data)
             else:
                 raise RuntimeError(f"field data is an unsupported dtype: {dty}")
-        packed.append(pack_message(data))
-    return b''.join(packed)
+        datas.append(data)
+    return datas
 
 def pack_entry(entry_id: int, name_id: int, beg_offset: int, end_offset: int) -> bytes:
     entry = pb.DataEntry(
@@ -453,6 +454,23 @@ def flatten_keys(cds_map: dict[DataKey, 'cds_data']) -> dict[Tuple, 'cds_data']:
         ekey = key.scope, key.name, key.index
         out[ekey] = cds
     return out
+
+
+def safe_write(fh, content: bytes) -> int:
+    """Write to fh in concurrency-safe way.  Return current offset after write."""
+    if not isinstance(content, bytes):
+        raise RuntimeError(f"content must be bytes")
+
+    try:
+        # Only lock during the actual write operation
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        _ = fh.write(content)
+        fh.flush()
+        os.fsync(fh.fileno())
+        current_offset = fh.tell()
+        return current_offset
+    finally:
+        fcntl.flock(fh, fcntl.LOCK_UN)
 
 
 def num_point_data(point):
