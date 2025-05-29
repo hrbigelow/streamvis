@@ -1,40 +1,20 @@
 import asyncio
-import tornado
 import threading
 import numpy as np
-import sqlite3
 import signal
 import sys
 import os
 import yaml
 import re
-import functools
-from collections import defaultdict
-from contextlib import contextmanager
-from google.cloud import storage
 from bokeh.application import Application
-from bokeh.application.handlers.function import FunctionHandler
 from bokeh.application.handlers import Handler
-from tornado.ioloop import IOLoop
 from bokeh.server.server import Server as BokehServer
 from bokeh.core.validation import silence
 from bokeh.core.validation.warnings import EMPTY_LAYOUT, MISSING_RENDERERS
-import pdb
 
 from streamvis import util
 from streamvis.page import PageLayout
 from streamvis.index_page import IndexPage
-
-class CleanupHandler(Handler):
-    def __init__(self, sv_server):
-        super().__init__()
-        self.sv_server = sv_server
-
-    def modify_document(self, doc):
-        pass
-
-    def on_server_unloaded(self, server_context):
-        self.sv_server.shutdown()
     
 
 class Server:
@@ -45,11 +25,8 @@ class Server:
         silence(MISSING_RENDERERS, True)
 
         self.schema = {} # plot_name => schema
-        self.pages = {} # session_id => PageLayout
-
         self.grpc_uri = grpc_uri
         self.refresh_seconds = refresh_seconds
-        self.session_lock = asyncio.Lock()
 
     @staticmethod
     def validate_patterns(**kwargs):
@@ -72,10 +49,6 @@ class Server:
         # validate schema: TODO
         self.schema = schema
 
-    def shutdown(self):
-        """Cleanup actions.  What is needed for GCS?."""
-        pass
-
 def make_server(port, grpc_uri, schema_file, refresh_seconds=10):  
     """
     Launch a server on `port` using `schema_file` to configure plots of data in `path`
@@ -84,16 +57,13 @@ def make_server(port, grpc_uri, schema_file, refresh_seconds=10):
     sv_server.load_schema(schema_file)
     page_handler = PageLayout(sv_server)
     index_handler = IndexPage(sv_server) 
-    # handler = FunctionHandler(sv_server.add_page)
-    # bokeh_app = Application(handler)
     page_app = Application(page_handler)
     index_app = Application(index_handler)
     apps = {"/": page_app, "/index": index_app}
     bokeh_server = BokehServer(apps, port=port)
 
     def shutdown_handler(signum, frame):
-        print(f'Server received {signal.Signals(signum).name}')
-        sv_server.shutdown()
+        print(f'Server received {signal.Signals(signum).name}.')
 
     signal.signal(signal.SIGQUIT, shutdown_handler)
     signal.signal(signal.SIGHUP, shutdown_handler) 

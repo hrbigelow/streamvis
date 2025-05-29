@@ -5,10 +5,6 @@ from grpc import aio
 from dataclasses import dataclass
 from functools import partial
 import sys
-import hydra
-from hydra.core.config_store import ConfigStore
-from hydra.utils import instantiate
-from omegaconf import DictConfig
 import math
 import time
 import numpy as np
@@ -72,7 +68,6 @@ async def _demo(uri, scope):
                         ], dtype=np.float32) 
 
             left_data = left_data + np.random.randn(N, 2) * 0.1
-            layer_mult = np.linspace(0, 10, L)
             xs = np.arange(step, step+10, dtype=np.int32)[None,:]
 
             await logger.write('top_left', x=xs, y=top_data)

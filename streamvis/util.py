@@ -1,4 +1,4 @@
-from typing import List, Dict, Iterable, Tuple, Union, Optional, Any
+from typing import List, Dict, Tuple, Any
 import fcntl
 import re
 import datetime
@@ -9,7 +9,6 @@ import numpy as np
 from . import data_pb2 as pb
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.struct_pb2 import Struct
-import pdb
 
 def get_log_handle(path, mode):
     """
@@ -115,11 +114,6 @@ def make_data_messages(
                 raise RuntimeError(f"field data is an unsupported dtype: {dty}")
         datas.append(data)
     return datas
-
-def pack_entry(entry_id: int, name_id: int, beg_offset: int, end_offset: int) -> bytes:
-    entry = pb.DataEntry(
-        entry_id=entry_id, name_id=name_id, beg_offset=beg_offset, end_offset=end_offset)
-    return pack_message(entry)
 
 
 def make_name_message(

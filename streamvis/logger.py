@@ -41,7 +41,6 @@ class DataLogger:
         self.scope = scope
         self.seen_names = {} # name_id => pb.Name 
         self.buffer = asyncio.Queue()
-        self.elem_count = 0
         self.uint32_max = (1 << 32) - 1 
         random.seed(time.time())
         self.config_written = False

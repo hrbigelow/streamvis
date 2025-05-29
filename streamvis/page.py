@@ -1,17 +1,12 @@
 import asyncio
 import copy
-from typing import Dict, List, Union, Tuple, Any
+from typing import Dict, List, Tuple, Any
 from dataclasses import dataclass
 import threading
 import numpy as np
 import re
-import _io
-from tornado.httputil import HTTPServerRequest
 from bokeh.layouts import column, row
-from bokeh.document import without_document_lock
-from bokeh.models.dom import HTML
 from bokeh.models import ColumnDataSource, Legend, LegendItem
-from bokeh.models.renderers.glyph_renderer import GlyphRenderer
 from bokeh.plotting import figure
 from bokeh.document.document import Document
 from bokeh import palettes
@@ -108,7 +103,6 @@ class PageLayout(BasePage):
     def __init__(self, server):
         super().__init__(server)
         self.session = None
-        self.update_lock = threading.Lock()
         self.coords = None
         self.nbox = None
         self.box_elems = None

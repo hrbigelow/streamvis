@@ -1,9 +1,6 @@
 import asyncio
 from bokeh.application.handlers import Handler
 from bokeh.application.application import SessionContext
-from functools import partial
-from abc import abstractmethod
-from tornado.ioloop import IOLoop
 
 class BasePage(Handler):
     def __init__(self, server):
