@@ -210,7 +210,7 @@ class DataLogger:
             entry_id = random.randint(0, self.uint32_max)
             data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
             messages = util.make_data_messages(
-                entry_id, data, data_item.start_index, name_item.field_sig)
+                entry_id, name_item.name_id, data, data_item.start_index, name_item.field_sig)
             all_messages.extend(messages)
         return all_messages
 

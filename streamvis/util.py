@@ -80,6 +80,7 @@ def pack_scope(scope: str) -> tuple[bytes, int]:
 
 def make_data_messages(
     entry_id: int, 
+    name_id: int,
     content: dict[str, np.ndarray],
     start_index: int,
     field_sig: list[tuple[str, np.dtype]]
@@ -102,7 +103,7 @@ def make_data_messages(
 
     datas = []
     for index in range(num_slices):
-        data = pb.Data(entry_id=entry_id, index=index+start_index)
+        data = pb.Data(entry_id=entry_id, name_id=name_id, index=index+start_index)
         for name, ty in field_sig:
             field_data = content.get(name)[index]
             vals = data.axes.add()

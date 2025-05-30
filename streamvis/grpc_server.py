@@ -1,3 +1,4 @@
+import socket
 import sys
 import random
 import asyncio
@@ -13,12 +14,14 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
     def __init__(self, path: str):
         self.data_path = util.data_file(path)
         self.index_path = util.index_file(path)
-        self.read_index_fh = util.get_log_handle(self.index_path, "rb")
-        self.read_data_fh = util.get_log_handle(self.data_path, "rb")
         self.append_index_fh = util.get_log_handle(self.index_path, "ab")
         self.append_data_fh = util.get_log_handle(self.data_path, "ab")
+        self.read_index_fh = util.get_log_handle(self.index_path, "rb")
+        self.read_data_fh = util.get_log_handle(self.data_path, "rb")
 
     async def QueryRecords(self, request: pb.Index, context):
+        import pdb
+        pdb.set_trace()
         index = util.Index.from_message(request)
         index.update(self.read_index_fh)
         datas_map = util.load_data(self.read_data_fh, index.entry_list)
@@ -106,15 +109,37 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         return Empty()
 
 
+def port_in_use(port: int) -> bool:
+    """Check if a port is already in use."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('', port))
+            return False
+        except OSError:
+            return True
+
 
 async def serve(path: str, port: int):
-    server = aio.server()
-    rs = AsyncRecordService(path)
-    pb_grpc.add_RecordServiceServicer_to_server(rs, server)
-    server.add_insecure_port(f"[::]:{port}")
-    await server.start()
-    await server.wait_for_termination()
+    if port_in_use(port):
+        print(f"Error: port {port} already in use")
+        sys.exit(1)
+
+    try:
+        server = aio.server()
+        rs = AsyncRecordService(path)
+        pb_grpc.add_RecordServiceServicer_to_server(rs, server)
+        server.add_insecure_port(f"[::]:{port}")
+        await server.start()
+        print(f"gRPC server started on port {port}")
+        await server.wait_for_termination()
+    except KeyboardInterrupt:
+        await server.stop(5.0)
+        print("Shutdown due to Ctrl-C")
+    finally:
+        await server.stop(5.0)
+        print("Shutdown")
 
 if __name__ == "__main__":
-    asyncio.run(serve(*sys.argv[1:]))
+    path, port = sys.argv[1], int(sys.argv[2])
+    asyncio.run(serve(path, port))
 

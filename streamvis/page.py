@@ -7,8 +7,9 @@ import numpy as np
 import re
 from bokeh.layouts import column, row
 from bokeh.models import ColumnDataSource, Legend, LegendItem
+from bokeh.model.model import Model
 from bokeh.plotting import figure
-from bokeh.document.document import Document
+from bokeh.application.application import SessionContext
 from bokeh import palettes
 import grpc
 from grpc import aio
@@ -16,6 +17,47 @@ from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
 from . import util
 from .base import BasePage
+
+def parse_csv(param, arg, target_nelems):
+    # returns a num_list representing the csv param
+    if arg is None:
+        return [1] * target_nelems
+    try:
+        num_list = [float(v) for v in arg.split(",")]
+    except ValueError:
+        raise RuntimeError(
+            f'{param} value \'{arg}\' is not a valid csv list of numbers')
+    if any(num <= 0 for num in num_list):
+        raise RuntimeError(
+            f'{param} value \'{arg}\' are not all positive numbers')
+    if len(num_list) != target_nelems:
+        raise RuntimeError(
+            f'Received {len(num_list)} values but expected {target_nelems}. '
+            f'Context: {param}={arg}')
+    return num_list 
+
+
+def parse_grid(known_plots, param, grid, plots, box_elems):
+    # modifies plots and box_elems
+    if grid == '':
+        raise RuntimeError(f'Got empty {param} value') 
+    blocks = grid.split(';')
+    for block in blocks:
+        items = block.split(',')
+        for plot in items:
+            if plot not in known_plots:
+                raise RuntimeError(
+                    f'In {param}={grid}, plot \'{plot}\' is not in the schema. '
+                    f'Schema contains plots {", ".join(known_plots)}')
+            plots.append(plot)
+        box_elems.append(len(items))
+
+
+def get_decode(args, param):
+    vals = args.get(param)
+    if vals is None:
+        return None
+    return tuple(v.decode() for v in vals)
 
 
 class Plot:
@@ -46,7 +88,6 @@ class Plot:
 
 
 class Session:
-    id: int
     index: util.Index
     chan: grpc.aio._channel.Channel
     uri: str
@@ -55,12 +96,11 @@ class Session:
     name_filters: tuple[re.Pattern] # one pattern per plot
 
     def __init__(
-        self, id: int, 
+        self, 
         grpc_uri: str, 
         scope_filter: re.Pattern, 
         name_filters: tuple[re.Pattern]
     ):
-        self.id = id
         self.index = util.Index.from_filters(scope_filter, name_filters)
         self.chan = grpc.insecure_channel(grpc_uri)
         self.plots = []
@@ -102,14 +142,8 @@ class PageLayout(BasePage):
     """Represents a browser page."""
     def __init__(self, server):
         super().__init__(server)
-        self.session = None
-        self.coords = None
-        self.nbox = None
-        self.box_elems = None
-        self.widths = None
-        self.heights = None
 
-    def _set_layout(self, box_elems, box_part, plot_part):
+    def _set_layout(self, box_elems, box_part, plot_part, args) -> dict[str, Any]:
         """
         The overall page layout is a list of 'boxes', with each box containing
         one or more plots.  The boxes are either all Bokeh row or column objects.
@@ -125,35 +159,34 @@ class PageLayout(BasePage):
         plot_part:  plot_part[i] = relative size of plot i
 
         """
-        self.box_elems = box_elems
-
         denom = sum(box_part)
         box_norm = []
         for part, nelem in zip(box_part, box_elems):
             box_norm.extend([part / denom] * nelem)
 
-        self.nbox = len(box_elems)
-        cumul = [0] + [ sum(box_elems[:i+1]) for i in range(self.nbox) ]
+        args["box-norm"] = box_norm
+
+        nbox = len(box_elems)
+        cumul = [0] + [ sum(box_elems[:i+1]) for i in range(nbox) ]
 
         def _sl(lens, i):
             return slice(cumul[i], cumul[i+1])
 
-        slices = [ plot_part[_sl(box_elems, i)] for i in range(self.nbox) ]
+        slices = [ plot_part[_sl(box_elems, i)] for i in range(nbox) ]
         plot_norm = [ v / sum(sl) for sl in slices for v in sl ]
 
-        # self.coords[i] = (box_index, elem_index) for plot i
-        self.coords = []
+        args["coords"] = []
         for box, sz in enumerate(box_elems):
-            self.coords.extend([(box, elem) for elem in range(sz)])
+            args["coords"].extend([(box, elem) for elem in range(sz)])
 
-        if self.row_mode:
-            self.widths = plot_norm
-            self.heights = box_norm
+        if args["row-mode"]:
+            args["widths"] = plot_norm
+            args["heights"] = box_norm
         else:
-            self.widths = box_norm
-            self.heights = plot_norm
+            args["widths"] = box_norm
+            args["heights"] = plot_norm
 
-    def modify_document(self, doc: Document):
+    def process_request(self, request) -> dict[str, Any]:
         """
         API:
         scopes: regex pattern of scopes to include 
@@ -177,48 +210,9 @@ class PageLayout(BasePage):
         """
         # import pdb
         # pdb.set_trace()
-        ctx = doc.session_context
-        request = ctx.request
+        out_args = {}
         args = request.arguments
         known_plots = self.server.schema.keys()
-
-        def get_decode(args, param):
-            vals = args.get(param)
-            if vals is None:
-                return None
-            return tuple(v.decode() for v in vals)
-
-        def parse_grid(param, grid, plots, box_elems):
-            if grid == '':
-                raise RuntimeError(f'Got empty {param} value') 
-            blocks = grid.split(';')
-            for block in blocks:
-                items = block.split(',')
-                for plot in items:
-                    if plot not in known_plots:
-                        raise RuntimeError(
-                            f'In {param}={grid}, plot \'{plot}\' is not in the schema. '
-                            f'Schema contains plots {", ".join(known_plots)}')
-                    plots.append(plot)
-                box_elems.append(len(items))
-
-        def parse_csv(param, arg, target_nelems):
-            # Expect arg to be a csv numbers with target_nelems 
-            if arg is None:
-                return [1] * target_nelems
-            try:
-                num_list = list(map(float, arg.split(',')))
-            except ValueError:
-                raise RuntimeError(
-                    f'{param} value \'{arg}\' is not a valid csv list of numbers')
-            if any(num <= 0 for num in num_list):
-                raise RuntimeError(
-                    f'{param} value \'{arg}\' are not all positive numbers')
-            if len(num_list) != target_nelems:
-                raise RuntimeError(
-                    f'Received {len(num_list)} values but expected {target_nelems}. '
-                    f'Context: {param}={arg}')
-            return num_list 
 
         scope_pats = get_decode(args, "scopes") 
         if scope_pats is None:
@@ -251,13 +245,13 @@ class PageLayout(BasePage):
         height_arg = get_decode(args, 'height')
 
         if rows is not None:
-            self.row_mode = True
-            parse_grid('rows', rows, plots, box_elems)
+            out_args["row-mode"] = True
+            parse_grid(known_plots, 'rows', rows, plots, box_elems)
             plot_part = parse_csv('width', width_arg, len(plots))
             box_part = parse_csv('height', height_arg, len(box_elems))
         else:
-            self.row_mode = False
-            parse_grid('cols', cols, plots, box_elems)
+            out_args["row-mode"] = False
+            parse_grid(known_plots, 'cols', cols, plots, box_elems)
             plot_part = parse_csv('height', height_arg, len(plots))
             box_part = parse_csv('width', width_arg, len(box_elems))
             
@@ -280,10 +274,10 @@ class PageLayout(BasePage):
                 f"Each mode should be one of 'lin', 'xlog', 'ylog', 'xylog'.  "
                 f"Received {axes_arg=}")
         axes_mode_to_kwargs = {
-            "lin": { "x_axis_type": "linear", "y_axis_type": "linear" },
-            "xlog": { "x_axis_type": "log", "y_axis_type": "linear" },
-            "ylog": { "x_axis_type": "linear", "y_axis_type": "log" },
-            "xylog": { "x_axis_type": "log", "y_axis_type": "log" },
+            "lin":  dict(x_axis_type="linear", y_axis_type="linear"),
+            "xlog": dict(x_axis_type="log",    y_axis_type="linear"),
+            "ylog": dict(x_axis_type="linear", y_axis_type="log"),
+            "xylog":dict(x_axis_type="log",    y_axis_type="log"),
         }
         try:
             name_pats = tuple(re.compile(np) for np in name_pats)
@@ -292,10 +286,7 @@ class PageLayout(BasePage):
                     f"Error compiling one or more of names arguments: "
                     f"{name_pats}: {ex}")
 
-        self.session = Session(
-                doc.session_context.id, 
-                self.server.grpc_uri, 
-                scope_pat, name_pats)
+        self.session = Session(self.server.grpc_uri, scope_pat, name_pats)
 
         for plot_name, name_pat, mode in zip(plots, name_pats, axes):
             plot_schema = copy.deepcopy(self.server.schema.get(plot_name))
@@ -309,42 +300,40 @@ class PageLayout(BasePage):
             figure_kwargs.update(**args_update)
             self.session.plots.append(Plot(plot_name, plot_schema, name_pat))
 
-        self.set_pagesize(1800, 900)
-        self._set_layout(box_elems, box_part, plot_part)
-        self.build_page(doc)
-
-    def get_figsize(self, index):
-        width = int(self.widths[index] * self.page_width)
-        height = int(self.heights[index] * self.page_height)
-        return dict(width=width, height=height)
+        self._set_layout(box_elems, box_part, plot_part, out_args)
+        print(f"process_request returning: {out_args}")
+        return out_args 
+        
 
     def set_pagesize(self, width, height):
         self.page_width = width
         self.page_height = height
 
-    def build_page(self, doc: Document):
-        """Build the page for the first time.  
-
-        Must be scheduled as next-tick callback
-        """
-        self.container = column() if self.row_mode else row() 
+    def build_page(self, ctx: SessionContext, page_width: int, page_height: int) -> Model:
+        """Build actual page content after screen size is known."""
+        row_mode = ctx.token_payload.get("row-mode")
+        coords = ctx.token_payload.get("coords")
+        widths = ctx.token_payload.get("widths")
+        heights = ctx.token_payload.get("heights")
+        model = column() if row_mode else row() 
 
         for index, plot in enumerate(self.session.plots):
             # print(f"{self.session.id}: {plot.name}")
-            box_index, _ = self.coords[index]
-            if box_index >= len(self.container.children):
-                box = row() if self.row_mode else column()
-                self.container.children.append(box)
-            box = self.container.children[box_index]
+            box_index, _ = coords[index]
+            if box_index >= len(model.children):
+                box = row() if row_mode else column()
+                model.children.append(box)
+            box = model.children[box_index]
             fig_kwargs = plot.schema.get('figure_kwargs', {})
             title_kwargs = fig_kwargs.get("title", {})
             xaxis_kwargs = fig_kwargs.get("xaxis", {})
             yaxis_kwargs = fig_kwargs.get("yaxis", {})
             top_kwargs = { k: v for k, v in fig_kwargs.items() 
                           if k not in ("title", "xaxis", "yaxis")}
-            # fig_kwargs.update(self.get_figsize(index))
-            size_opts = self.get_figsize(index)
-            fig = figure(name=plot.name, output_backend='webgl', **size_opts, **top_kwargs)
+            fig = figure(name=plot.name, output_backend='webgl', 
+                    width=int(widths[index] * page_width),
+                    height=int(heights[index] * page_height), 
+                    **top_kwargs)
             legend_kwargs = fig_kwargs.get("legend", {})
             legend = Legend(**legend_kwargs)
             fig.add_layout(legend)
@@ -354,7 +343,7 @@ class PageLayout(BasePage):
             box.children.append(fig)
             plot.figure = fig
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
-        doc.add_root(self.container)
+        return model
 
     def maybe_add_glyph(self, plot: Plot, glyph_id: str):
         # add a glyph for the group if it doesn't exist
