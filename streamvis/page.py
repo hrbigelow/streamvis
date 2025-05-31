@@ -64,13 +64,23 @@ class Plot:
     name: str
     schema: Dict
     figure: 'figure'
+    width_frac: float
+    height_frac: float
     group_name_pat: re.Pattern
 
-    def __init__(self, name: str, plot_schema: Dict, group_name_pat: re.Pattern):
+    def __init__(
+        self, 
+        name: str, 
+        plot_schema: Dict, 
+        width_frac: float,
+        height_frac: float,
+        group_name_pat: re.Pattern
+    ):
         self.name = name
         self.schema = plot_schema 
+        self.width_frac = width_frac
+        self.height_frac = height_frac
         self.group_name_pat = group_name_pat
-
 
     def color(self, index: int, num_colors: int):
         color_opts = self.schema.get("color", {})
@@ -85,6 +95,16 @@ class Plot:
         sig = color_opts.get("key_fun", "sni")
         d = {"s": scope.scope, "n": name.name, "i": index}
         return "-".join(str(d[ch]) for ch in sig)
+
+    def scale_to_pagesize(self, page_width: float, page_height: float):
+        width, height = self.get_scaled_size(page_width, page_height)
+        self.figure.width = width
+        self.figure.height = height
+
+    def get_scaled_size(self, page_width: float, page_height: float):
+        width = int(self.width_frac * page_width)
+        height = int(self.height_frac * page_height)
+        return width, height
 
 
 class Session:
@@ -288,7 +308,12 @@ class PageLayout(BasePage):
 
         self.session = Session(self.server.grpc_uri, scope_pat, name_pats)
 
-        for plot_name, name_pat, mode in zip(plots, name_pats, axes):
+        self._set_layout(box_elems, box_part, plot_part, out_args)
+        width_fracs = out_args["widths"]
+        height_fracs = out_args["heights"]
+        z = zip(plots, name_pats, axes, width_fracs, height_fracs)
+
+        for plot_name, name_pat, mode, width_frac, height_frac in z:
             plot_schema = copy.deepcopy(self.server.schema.get(plot_name))
             if plot_schema is None:
                 raise RuntimeError(
@@ -298,9 +323,9 @@ class PageLayout(BasePage):
             args_update = axes_mode_to_kwargs.get(mode)
             figure_kwargs = plot_schema.setdefault("figure_kwargs", {})
             figure_kwargs.update(**args_update)
-            self.session.plots.append(Plot(plot_name, plot_schema, name_pat))
+            plot = Plot(plot_name, plot_schema, width_frac, height_frac, name_pat) 
+            self.session.plots.append(plot)
 
-        self._set_layout(box_elems, box_part, plot_part, out_args)
         print(f"process_request returning: {out_args}")
         return out_args 
         
@@ -313,8 +338,6 @@ class PageLayout(BasePage):
         """Build actual page content after screen size is known."""
         row_mode = ctx.token_payload.get("row-mode")
         coords = ctx.token_payload.get("coords")
-        widths = ctx.token_payload.get("widths")
-        heights = ctx.token_payload.get("heights")
         model = column() if row_mode else row() 
 
         for index, plot in enumerate(self.session.plots):
@@ -330,9 +353,10 @@ class PageLayout(BasePage):
             yaxis_kwargs = fig_kwargs.get("yaxis", {})
             top_kwargs = { k: v for k, v in fig_kwargs.items() 
                           if k not in ("title", "xaxis", "yaxis")}
+
+            width, height = plot.get_scaled_size(page_width, page_height)
             fig = figure(name=plot.name, output_backend='webgl', 
-                    width=int(widths[index] * page_width),
-                    height=int(heights[index] * page_height), 
+                    width=width, height=height,
                     **top_kwargs)
             legend_kwargs = fig_kwargs.get("legend", {})
             legend = Legend(**legend_kwargs)

@@ -20,8 +20,6 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         self.read_data_fh = util.get_log_handle(self.data_path, "rb")
 
     async def QueryRecords(self, request: pb.Index, context):
-        import pdb
-        pdb.set_trace()
         index = util.Index.from_message(request)
         index.update(self.read_index_fh)
         datas_map = util.load_data(self.read_data_fh, index.entry_list)
