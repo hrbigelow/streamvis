@@ -53,6 +53,17 @@ async def _demo(uri, scope):
     L = 20
     left_data = np.random.randn(N, 2)
 
+    cloud = np.random.normal(size=(1000,2))
+    speeds = np.random.uniform(size=(3,))
+    def cloud_step(step):
+        # produce a transformation matrix based on step
+        xscale, yscale, rot_sin = np.sin(step * speeds)
+        rot_cos = np.cos(step * speeds[2])
+        scale = np.diag([xscale, yscale])
+        rot = np.array([[rot_cos, -rot_sin], [rot_sin, rot_cos]])
+        mat = np.einsum('ij, jk -> ik', scale, rot)
+        return np.einsum('ik, li -> lk', mat, cloud)
+
     async with logger:
         await logger.write_config({ "start-time": time.time() })
 
@@ -82,6 +93,10 @@ async def _demo(uri, scope):
             # logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
              #        grid_columns=5, grid_spacing=1.0)
             await logger.write('loss', x=step, y=mid_data[0])
+
+            points = cloud_step(step)
+            xs, ys = points[:,0], points[:,1]
+            await logger.write('cloud', x=xs, y=ys, t=step)
 
             if step % 10 == 0:
                 print(f'Logged {step=}')

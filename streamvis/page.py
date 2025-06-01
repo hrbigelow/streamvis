@@ -1,9 +1,7 @@
 import re
 from typing import Any
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, Legend
 from bokeh.model.model import Model
-from bokeh.plotting import figure
 from bokeh.application.application import SessionContext
 import grpc
 from grpc import aio
@@ -221,25 +219,8 @@ class PageLayout(BasePage):
                 box = row() if row_mode else column()
                 model.children.append(box)
             box = model.children[box_index]
-            fig_kwargs = plot.plot_schema.get('figure_kwargs', {})
-            title_kwargs = fig_kwargs.get("title", {})
-            xaxis_kwargs = fig_kwargs.get("xaxis", {})
-            yaxis_kwargs = fig_kwargs.get("yaxis", {})
-            top_kwargs = { k: v for k, v in fig_kwargs.items() 
-                          if k not in ("title", "xaxis", "yaxis")}
-
-            width, height = plot.get_scaled_size(page_width, page_height)
-            fig = figure(name=plot.name, output_backend='webgl', 
-                    width=width, height=height,
-                    **top_kwargs)
-            legend_kwargs = fig_kwargs.get("legend", {})
-            legend = Legend(**legend_kwargs)
-            fig.add_layout(legend)
-            fig.title.update(**title_kwargs)
-            fig.xaxis.update(**xaxis_kwargs)
-            fig.yaxis.update(**yaxis_kwargs)
-            box.children.append(fig)
-            plot.figure = fig
+            plot_model = plot.build(ctx.token_payload, page_width, page_height)
+            box.children.append(plot_model)
             # print(f'in build, appended {fig=}, {fig.height=}, {fig.width=}, {fig.title=}')
         return model
 

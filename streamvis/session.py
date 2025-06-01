@@ -5,16 +5,20 @@ import grpc.aio
 from . import data_pb2_grpc as pb_grpc
 from . import data_pb2 as pb
 import numpy as np
-from bokeh.models import ColumnDataSource, LegendItem
+from bokeh.models import ColumnDataSource, Legend, LegendItem, CategoricalSlider
 from bokeh.application.application import SessionContext
+from bokeh.model.model import Model
+from bokeh.layouts import column
 from bokeh import palettes
+from bokeh.plotting import figure
 from . import data_pb2 as pb
 from . import util
 
 class Plot:
     name: str
     plot_schema: dict 
-    figure: 'figure'
+    model: Model  # the top-level container, either is figure or contains figure 
+    figure: Model # the figure contained in this plot
     width_frac: float
     height_frac: float
     name_pat: re.Pattern 
@@ -51,6 +55,31 @@ class Plot:
         self.filter_column = None
         self.full_sources = {}
         self.plot_sources = {}
+
+    def build(self, session_opts: dict, page_width: int, page_height: int) -> Model:
+        """Build the figure and optional widgets.  session_opts is from ctx.token_payload."""
+        fig_kwargs = self.plot_schema.get('figure_kwargs', {})
+        top_kwargs = { k: v for k, v in fig_kwargs.items() 
+                      if k not in ("title", "xaxis", "yaxis")}
+
+        w, h = self.get_scaled_size(page_width, page_height)
+        fig = figure(name=self.name, output_backend='webgl', width=w, height=h, **top_kwargs)
+        legend = Legend(**fig_kwargs.get("legend", {}))
+        fig.add_layout(legend)
+        fig.title.update(**fig_kwargs.get("title", {}))
+        fig.xaxis.update(**fig_kwargs.get("xaxis", {}))
+        fig.yaxis.update(**fig_kwargs.get("yaxis", {}))
+        self.figure = fig
+
+        filter_opts = self.plot_schema.get("filter_opts")
+        if filter_opts is not None:
+            self.filter_column = filter_opts.get("column")
+            self.slider = CategoricalSlider(value="Empty", categories=["Empty"])
+            self.model = column(fig, self.slider)
+        else:
+            self.model = fig
+        return self.model
+
 
     @staticmethod
     def make_glyph_id(name_id: int, index: int):
@@ -116,11 +145,57 @@ class Plot:
 
         cds = self.full_sources[glyph_id]
         cds.stream(cds_data)
-        self.sync_plot_source()
+        self.sync_plot_to_data()
 
     @property
     def name_ids(self):
         return set(self.get_name_id(g) for g in self.full_sources)
+
+    @property
+    def filter_values(self) -> tuple[int]:
+        if not self.is_filtered:
+            return None
+        vals = set()
+        for src in self.full_sources.values():
+            vals.update(np.unique(src.data[self.filter_column]))
+        return tuple(sorted(vals))
+        
+    @property
+    def filter_value(self):
+        index = self.slider.categories.index(self.slider.value)
+        return self.filter_values[index]
+
+    def sync_plot_to_data(self):
+        """Synchronize plot state to new data.""" 
+        if not self.is_filtered:
+            return
+
+        # update slider state to new data
+        self.slider.categories = [str(v) for v in self.filter_values]
+        if len(self.filter_values) == 0:
+            return # nothing to sync
+        try:
+            at_max_val = (self.slider.value == self.slider.categories[-1])
+        except UnsetValueError:
+            self.slider.value = self.slider.categories[-1]
+            at_max_val = True 
+
+        if at_max_val:
+            self.slider.value = self.slider.categories[-1]
+            self.filter_value = self.filter_values[-1]
+            self.sync_plot_source()
+
+
+    def sync_plot_source(self):
+        """Updates plot_sources to new filter state."""
+        if not self.is_filtered:
+            return
+        for glyph_id, full_cds in self.full_source.items():
+            all_data = full_cds.data
+            plot_cds = self.plot_source[glyph_id]
+            mask = (all_data[self.filter_column] == self.filter_value)
+            plot_vals = {k: v[mask] for k, v in all_data.items() if k != self.filter_column} 
+            plot_cds.data = plot_vals 
 
     def remove_name_id(self, name_id: int):
         remove = tuple(g for g in self.full_sources if self.get_name_id(g) == name_id)
@@ -131,36 +206,6 @@ class Plot:
             if rend.name in remove:
                 self.figure.renderers.remove(rend)
             
-
-    def sync_plot_source(self):
-        """Synchronize (possibly) filtered plot cds source with the full cds source.""" 
-        if not self.is_filtered:
-            return
-        for glyph_id, full_cds in self.full_source.items():
-            all_data = full_cds.data
-            plot_cds = self.plot_source[glyph_id]
-            mask = (all_data[self.filter_column] == self.filter_value)
-            plot_vals = {k: v[mask] for k, v in all_data.items() if k != self.filter_column} 
-            plot_cds.data = plot_vals 
-
-    def maybe_add_glyph(self, glyph_id: str):
-        # add a glyph for the group if it doesn't exist
-        if len(self.figure.select({"name": glyph_id})) > 0:
-            return
-
-        glyph_kind = plot.plot_schema.get("glyph_kind")
-        glyph_kwargs = plot.plot_schema.get("glyph_kwargs", {})
-        filter_opts = plot.plot_schema.get("filter_opts")
-
-        color = "white"
-        if glyph_kind == "line":
-            self.figure.line(*cols, source=self.plot_cds, name=glyph_id, color=color, **glyph_kwargs)
-        elif glyph_kind == "scatter":
-            self.figure.circle(*cols, name=glyph_id, source=self.plot_cds, color=color, **glyph_kwargs) 
-        else:
-            raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
-        
-
 
 class Session:
     index: util.Index
