@@ -1,10 +1,50 @@
-top_left:
-  scope_pattern: .*
-  group_pattern: top_left.*
-  glyph: line
-  # glyph_kwargs:
-  #  palette: Viridis256
+loss:
+  color:
+    key_fun: sni
+    palette: Turbo256 
+  figure_kwargs:
+    title: 
+      text: Loss
+      text_font_size: 24px
+    xaxis:
+      axis_label: SGD Step
+      axis_label_text_font_size: 24px
+      major_label_text_font_size: 24px
+    yaxis:
+      axis_label: Nats 
+      axis_label_text_font_size: 24px
+      major_label_text_font_size: 24px
+  glyph_kind: line
   columns:
     - x
     - y
 
+
+msp_process:
+  color:
+    key_fun: sni
+    palette: Viridis6
+  figure_kwargs:
+    title: 
+      text: Belief State
+      text_font_size: 24px
+    xaxis:
+      axis_label: Component 1 
+      axis_label_text_font_size: 24px
+      major_label_text_font_size: 24px
+    yaxis:
+      axis_label: Component 2 
+      axis_label_text_font_size: 24px
+      major_label_text_font_size: 24px
+  glyph_kind: scatter
+  glyph_kwargs:
+    radius: 0.001
+  filter_opts:
+    kind: index_filter
+    column: t
+    widget: slider
+
+  columns:
+    - x
+    - y
+    - t

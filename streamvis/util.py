@@ -7,6 +7,7 @@ import os
 import struct
 import numpy as np
 from . import data_pb2 as pb
+from . import data_pb2_grpc as pb_grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.struct_pb2 import Struct
 
@@ -202,7 +203,7 @@ class Index:
     file_offset: int
 
     def __init__(self, scope_filter, name_filters, scopes, names, file_offset):
-        self.scope_filter = scope_filter 
+        self.scope_filter = scope_filter
         self.name_filters = name_filters
         self.scopes = scopes
         self.names = names
@@ -221,14 +222,14 @@ class Index:
         )
 
     @classmethod
-    def from_filters(
-            cls, 
-            scope_filter: re.Pattern=None, 
-            name_filters: tuple[re.Pattern]=None):
+    def from_filters(cls, scope_filter: str=None, name_filters: tuple[str]=None):
         if scope_filter is None:
-            scope_filter = re.compile(".*")
+            scope_filter = ".*"
         if name_filters is None:
-            name_filters = (re.compile(".*"),)
+            name_filters = (".*",)
+        assert isinstance(scope_filter, str)
+        scope_filter = re.compile(scope_filter)
+        name_filters = tuple(re.compile(n) for n in name_filters)
         return cls(
             scope_filter=scope_filter, 
             name_filters=name_filters, 
@@ -241,8 +242,6 @@ class Index:
     def from_scope_name(cls, scope: str=None, name: str=None):
         scope_filter = ".*" if scope is None else f"^{scope}$"
         name_filters = ".*" if name is None else (f"^{name}$",)
-        scope_filter = re.compile(scope_filter)
-        name_filters = tuple(re.compile(nf) for nf in name_filters)
         return cls.from_filters(scope_filter, name_filters) 
 
 
@@ -379,6 +378,24 @@ def load_data(
         dl.append(data)
 
     return datas_map
+
+
+def get_new_data(
+    index: Index, 
+    stub: pb_grpc.RecordServiceStub,
+) -> tuple[Index, dict[DataKey, 'cds_data']]:
+    """Given current state of index, get new data and return updated index."""
+    pb_index = index.export()
+    datas = []
+    for record in stub.QueryRecords(pb_index):
+        match record.type:
+            case pb.INDEX:
+                index = Index.from_message(record.index)
+            case pb.DATA:
+                datas.append(record.data)
+    cds_map = data_to_cds(index, datas)
+    return index, cds_map
+
 
 
 
