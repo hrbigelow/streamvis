@@ -38,7 +38,7 @@ time_scatter:
       major_label_text_font_size: 24px
   glyph_kind: scatter
   glyph_kwargs:
-    radius: 0.001
+    radius: 0.01
   filter_opts:
     column: t
 

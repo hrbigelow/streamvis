@@ -1,4 +1,5 @@
 import asyncio
+import math
 import re
 import copy
 import grpc.aio
@@ -9,6 +10,7 @@ from bokeh.models import ColumnDataSource, Legend, LegendItem, CategoricalSlider
 from bokeh.application.application import SessionContext
 from bokeh.model.model import Model
 from bokeh.layouts import column
+from bokeh.models.ranges import Range1d, DataRange1d
 from bokeh import palettes
 from bokeh.plotting import figure
 from . import data_pb2 as pb
@@ -56,6 +58,10 @@ class Plot:
         self.full_sources = {}
         self.plot_sources = {}
 
+    @property
+    def plot_columns(self):
+        return tuple(c for c in self.full_columns if c != self.filter_column)
+
     def build(self, session_opts: dict, page_width: int, page_height: int) -> Model:
         """Build the figure and optional widgets.  session_opts is from ctx.token_payload."""
         fig_kwargs = self.plot_schema.get('figure_kwargs', {})
@@ -74,7 +80,9 @@ class Plot:
         filter_opts = self.plot_schema.get("filter_opts")
         if filter_opts is not None:
             self.filter_column = filter_opts.get("column")
-            self.slider = CategoricalSlider(value="Empty", categories=["Empty"])
+            self.slider = CategoricalSlider(value="Empty", categories=["Empty"],
+                    height=50, sizing_mode="stretch_width")
+            self.slider.on_change("value", self.on_slider_change_cb)
             self.model = column(fig, self.slider)
         else:
             self.model = fig
@@ -113,6 +121,10 @@ class Plot:
         self.figure.height = height
 
     def get_scaled_size(self, page_width: float, page_height: float):
+        if self.is_filtered:
+            page_height -= (self.slider.height + 20)
+            print(f"decreased available page height by {self.slider.height}")
+
         width = int(self.width_frac * page_width)
         height = int(self.height_frac * page_height)
         return width, height
@@ -130,16 +142,24 @@ class Plot:
         if glyph_id not in self.full_sources:
             empty_data = {k: np.zeros_like(v, shape=(0,)) for k, v in cds_data.items()}
             self.full_sources[glyph_id] = cds = ColumnDataSource(empty_data)
-            self.plot_sources[glyph_id] = ColumnDataSource(empty_data) if self.is_filtered else cds
-            cols = self.plot_schema.get("columns")
+            if self.is_filtered:
+                empty_plot_data = {k: np.zeros_like(v, shape=(0,)) for k, v in
+                        cds_data.items() if k in self.plot_columns}
+                self.plot_sources[glyph_id] = ColumnDataSource(empty_plot_data)
+            else:
+                self.plot_sources[glyph_id] = cds
+            print(f"added {self.plot_sources[glyph_id].data.keys()} columns to plot")
+
             glyph_kind = self.plot_schema.get("glyph_kind")
             glyph_kwargs = self.plot_schema.get("glyph_kwargs", {})
             plot_cds = self.plot_sources[glyph_id]
             color = "white"
             if glyph_kind == "line":
-                self.figure.line(*cols, source=plot_cds, name=glyph_id, color=color, **glyph_kwargs)
+                self.figure.line(
+                    *self.plot_columns, source=plot_cds, name=glyph_id, color=color, **glyph_kwargs)
             elif glyph_kind == "scatter":
-                self.figure.circle(*cols, name=glyph_id, source=plot_cds, color=color, **glyph_kwargs)
+                self.figure.circle(
+                    *self.plot_columns, name=glyph_id, source=plot_cds, color=color, **glyph_kwargs)
             else:
                 raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
@@ -183,19 +203,46 @@ class Plot:
         if at_max_val:
             self.slider.value = self.slider.categories[-1]
             self.filter_value = self.filter_values[-1]
-            self.sync_plot_source()
+            self.sync_plot_source(fix_ranges=False)
+
+    def _fix_ranges(self):
+        xr, yr = self.figure.x_range, self.figure.y_range
+        if any(math.isnan(val) for val in (xr.start, xr.end, yr.start, yr.end)):
+            return
+        if isinstance(xr, DataRange1d):
+            self.figure.x_range = Range1d(xr.start, xr.end)
+        if isinstance(yr, DataRange1d):
+            self.figure.y_range = Range1d(yr.start, yr.end)
+
+    def _unfix_ranges(self):
+        xr, yr = self.figure.x_range, self.figure.y_range
+        if isinstance(xr, Range1d):
+            self.figure.x_range = DataRange1d(xr.start, xr.end)
+        if isinstance(yr, Range1d):
+            self.figure.y_range = DataRange1d(yr.start, yr.end)
 
 
-    def sync_plot_source(self):
+    def sync_plot_source(self, fix_ranges=False):
         """Updates plot_sources to new filter state."""
         if not self.is_filtered:
             return
-        for glyph_id, full_cds in self.full_source.items():
+
+        for glyph_id, full_cds in self.full_sources.items():
             all_data = full_cds.data
-            plot_cds = self.plot_source[glyph_id]
+            plot_cds = self.plot_sources[glyph_id]
             mask = (all_data[self.filter_column] == self.filter_value)
             plot_vals = {k: v[mask] for k, v in all_data.items() if k != self.filter_column} 
             plot_cds.data = plot_vals 
+
+        if fix_ranges:
+            self._fix_ranges()
+        else:
+            self._unfix_ranges()
+        
+
+    def on_slider_change_cb(self, attr, old, new):
+        self.slider.value = new
+        self.sync_plot_source(fix_ranges=True)
 
     def remove_name_id(self, name_id: int):
         remove = tuple(g for g in self.full_sources if self.get_name_id(g) == name_id)
