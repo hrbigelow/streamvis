@@ -201,7 +201,6 @@ class PageLayout(BasePage):
         out_args["axes-modes"] = tuple(axes)
 
         self._set_layout(box_elems, box_part, plot_part, out_args) # update out_args
-        print(f"process_request returning: {out_args}")
         return out_args 
         
 

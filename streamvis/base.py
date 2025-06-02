@@ -8,7 +8,6 @@ from .session import Session
 
 class BasePage(Handler):
     def __init__(self, server):
-        print(f"new BasePage: {id(self)}")
         super().__init__()
         self.server = server
 

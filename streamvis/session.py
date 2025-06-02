@@ -16,6 +16,8 @@ from bokeh.plotting import figure
 from . import data_pb2 as pb
 from . import util
 
+EMPTY_VAL = "EMPTY"
+
 class Plot:
     name: str
     plot_schema: dict 
@@ -27,6 +29,7 @@ class Plot:
     full_sources: dict[str, ColumnDataSource]
     plot_sources: dict[str, ColumnDataSource]
     filter_column: str | None
+    margin: int # number of pixels of margin
 
     def __init__(
         self, 
@@ -57,6 +60,7 @@ class Plot:
         self.filter_column = None
         self.full_sources = {}
         self.plot_sources = {}
+        self.margin = 10
 
     @property
     def plot_columns(self):
@@ -80,8 +84,10 @@ class Plot:
         filter_opts = self.plot_schema.get("filter_opts")
         if filter_opts is not None:
             self.filter_column = filter_opts.get("column")
-            self.slider = CategoricalSlider(value="Empty", categories=["Empty"],
-                    height=50, sizing_mode="stretch_width")
+            self.slider = CategoricalSlider(
+                    value=EMPTY_VAL, categories=[EMPTY_VAL],
+                    height=30, sizing_mode="stretch_width",
+                    styles={"width": "50%", "margin": "0 auto"})
             self.slider.on_change("value", self.on_slider_change_cb)
             self.model = column(fig, self.slider)
         else:
@@ -123,10 +129,9 @@ class Plot:
     def get_scaled_size(self, page_width: float, page_height: float):
         if self.is_filtered:
             page_height -= (self.slider.height + 20)
-            print(f"decreased available page height by {self.slider.height}")
 
-        width = int(self.width_frac * page_width)
-        height = int(self.height_frac * page_height)
+        width = int(self.width_frac * page_width) - (self.margin * 2)
+        height = int(self.height_frac * page_height) - (self.margin * 2)
         return width, height
 
     def key_belongs(self, key: util.DataKey) -> bool:
@@ -148,7 +153,6 @@ class Plot:
                 self.plot_sources[glyph_id] = ColumnDataSource(empty_plot_data)
             else:
                 self.plot_sources[glyph_id] = cds
-            print(f"added {self.plot_sources[glyph_id].data.keys()} columns to plot")
 
             glyph_kind = self.plot_schema.get("glyph_kind")
             glyph_kwargs = self.plot_schema.get("glyph_kwargs", {})
@@ -159,13 +163,13 @@ class Plot:
                     *self.plot_columns, source=plot_cds, name=glyph_id, color=color, **glyph_kwargs)
             elif glyph_kind == "scatter":
                 self.figure.circle(
-                    *self.plot_columns, name=glyph_id, source=plot_cds, color=color, **glyph_kwargs)
+                    *self.plot_columns, name=glyph_id, source=plot_cds, 
+                    color=color, **glyph_kwargs)
             else:
                 raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
         cds = self.full_sources[glyph_id]
         cds.stream(cds_data)
-        self.sync_plot_to_data()
 
     @property
     def name_ids(self):
@@ -173,6 +177,7 @@ class Plot:
 
     @property
     def filter_values(self) -> tuple[int]:
+        # the set of values determined from
         if not self.is_filtered:
             return None
         vals = set()
@@ -186,44 +191,36 @@ class Plot:
         return self.filter_values[index]
 
     def sync_plot_to_data(self):
+        # print("sync_plot_to_data")
         """Synchronize plot state to new data.""" 
         if not self.is_filtered:
             return
+        self.sync_slider()
+        self.sync_plot_source(fix_ranges=False)
+        
+    def sync_slider(self):
+        """Synchronize the slider state to the filter_values."""
+        new_categories = [str(v) for v in self.filter_values]
+        if self.slider.categories == new_categories:
+            return
 
-        # update slider state to new data
-        self.slider.categories = [str(v) for v in self.filter_values]
-        if len(self.filter_values) == 0:
-            return # nothing to sync
-        try:
-            at_max_val = (self.slider.value == self.slider.categories[-1])
-        except UnsetValueError:
-            self.slider.value = self.slider.categories[-1]
-            at_max_val = True 
-
+        at_max_val = (self.slider.value == self.slider.categories[-1])
+        self.slider.categories = new_categories
+        if len(self.slider.categories) == 0:
+            self.slider.categories.append(EMPTY_VAL)
+            self.slider.value = EMPTY_VAL
         if at_max_val:
             self.slider.value = self.slider.categories[-1]
-            self.filter_value = self.filter_values[-1]
-            self.sync_plot_source(fix_ranges=False)
-
-    def _fix_ranges(self):
-        xr, yr = self.figure.x_range, self.figure.y_range
-        if any(math.isnan(val) for val in (xr.start, xr.end, yr.start, yr.end)):
-            return
-        if isinstance(xr, DataRange1d):
-            self.figure.x_range = Range1d(xr.start, xr.end)
-        if isinstance(yr, DataRange1d):
-            self.figure.y_range = Range1d(yr.start, yr.end)
-
-    def _unfix_ranges(self):
-        xr, yr = self.figure.x_range, self.figure.y_range
-        if isinstance(xr, Range1d):
-            self.figure.x_range = DataRange1d(xr.start, xr.end)
-        if isinstance(yr, Range1d):
-            self.figure.y_range = DataRange1d(yr.start, yr.end)
+        # print(f"sync_slider: {len(self.slider.categories)} categories, value={self.slider.value}")
 
 
     def sync_plot_source(self, fix_ranges=False):
-        """Updates plot_sources to new filter state."""
+        """Updates plot_sources from full_sources.
+
+        May be called either because the filter state changed or there was new data.
+        If filter state changed, should be called with fix_ranges=True
+        """
+        # print("sync_plot_source")
         if not self.is_filtered:
             return
 
@@ -238,7 +235,24 @@ class Plot:
             self._fix_ranges()
         else:
             self._unfix_ranges()
-        
+            
+
+    def _fix_ranges(self):
+        xr, yr = self.figure.x_range, self.figure.y_range
+        if any(math.isnan(val) for val in (xr.start, xr.end, yr.start, yr.end)):
+            return
+        if isinstance(xr, DataRange1d):
+            self.figure.x_range = Range1d(start=xr.start, end=xr.end)
+        if isinstance(yr, DataRange1d):
+            self.figure.y_range = Range1d(start=yr.start, end=yr.end)
+
+    def _unfix_ranges(self):
+        xr, yr = self.figure.x_range, self.figure.y_range
+        if isinstance(xr, Range1d):
+            self.figure.x_range = DataRange1d(start=xr.start, end=xr.end)
+        if isinstance(yr, Range1d):
+            self.figure.y_range = DataRange1d(start=yr.start, end=yr.end)
+
 
     def on_slider_change_cb(self, attr, old, new):
         self.slider.value = new
@@ -338,11 +352,13 @@ class Session:
             for name_id in plot.name_ids:
                 if name_id not in self.index.names: 
                     plot.remove_name_id(name_id)
+            plot.sync_slider()
 
         for plot in self.plots:
             for key, cds in cds_map.items():
                 if plot.key_belongs(key):
                     plot.add_data(key, cds)
+            plot.sync_plot_to_data()
 
         for plot in self.plots:
             label_ord, label_to_rend_map = self.glyph_index_map(plot)
@@ -351,6 +367,7 @@ class Session:
                 idx = label_ord[label]
                 for r in rs:
                     r.glyph.line_color = plot.color(idx, num_colors)
+                    r.glyph.fill_color = plot.color(idx, num_colors)
 
             legend = plot.figure.legend[0]
             existing_label_ord = {item.label.value: item.index for item in legend.items}

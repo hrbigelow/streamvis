@@ -38,23 +38,24 @@ def names(path: str, scope: str=None) -> list[str]:
     return index.name_list
     
 
-def demo(path: str, scope: str):
-    asyncio.run(_demo(path, scope))
+def demo(path: str, scope: str, num_steps: str="10000"):
+    num_steps = int(num_steps)
+    asyncio.run(_demo(path, scope, num_steps))
 
 
-async def _demo(uri, scope):
+async def _demo(uri, scope, num_steps):
     """
     A demo application to log data with `scope` to `path`
     """
     logger = DataLogger(scope=scope, delete_existing=True)
-    logger.init(grpc_uri=uri, flush_every=2.0, tensor_type="numpy")
+    logger.init(grpc_uri=uri, flush_every=1.0, tensor_type="numpy")
 
     N = 50
     L = 20
     left_data = np.random.randn(N, 2)
 
-    cloud = np.random.normal(size=(1000,2))
-    speeds = np.random.uniform(size=(3,))
+    cloud = np.random.normal(size=(10000,2))
+    speeds = np.random.uniform(size=(3,)) * (num_steps ** -1)
     def cloud_step(step):
         # produce a transformation matrix based on step
         xscale, yscale, rot_sin = np.sin(step * speeds)
@@ -67,7 +68,7 @@ async def _demo(uri, scope):
     async with logger:
         await logger.write_config({ "start-time": time.time() })
 
-        for step in range(0, 1000, 10):
+        for step in range(0, num_steps, 10):
             time.sleep(0.1)
             # top_data[group, point], where group is a logical grouping of points that
             # form a line, and point is one of those points
