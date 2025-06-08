@@ -7,7 +7,6 @@ import grpc
 from grpc import aio
 from . import util
 from .base import BasePage
-from .session import Plot, Session
 
 def parse_csv(param, arg, target_nelems):
     # returns a num_list representing the csv param

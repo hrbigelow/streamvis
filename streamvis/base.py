@@ -18,7 +18,7 @@ class BasePage(Handler):
                 self.server.schema, self.server.grpc_uri, ctx, scope_pat, name_pats,
                 self.server.refresh_seconds)
         await ctx.custom_state.__aenter__()
-        print(f"finished on_session_created, session id: {ctx.id}")
+        # print(f"finished on_session_created, session id: {ctx.id}")
 
     async def on_session_destroyed(self, ctx: SessionContext) -> None:
         await ctx.custom_state.__aexit__(None, None, None)
@@ -43,7 +43,7 @@ class BasePage(Handler):
         session_state = doc.session_context.custom_state
 
         def on_change_fun(attr, old, new):
-            print(f"in on_change_fun with {attr}, {old}, {new}")
+            # print(f"in on_change_fun with {attr}, {old}, {new}")
             width = new["width"][0]
             height = new["height"][0]
             for plot in session_state.plots:

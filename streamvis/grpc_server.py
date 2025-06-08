@@ -23,7 +23,7 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         index = util.Index.from_message(request)
         index.update(self.read_index_fh)
         datas_map = util.load_data(self.read_data_fh, index.entry_list)
-        pb_index = index.export()
+        pb_index = index.to_message()
         rec = pb.StreamedRecord(type=pb.INDEX, index=pb_index)
         await context.write(rec)
 
@@ -42,7 +42,7 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
             await context.write(rec)
 
     async def Names(self, request: pb.ScopeRequest, context):
-        scope_pat = re.compile(f"^{request.scope}$")
+        scope_pat = f"^{request.scope}$"
         index = util.Index.from_filters(scope_filter=scope_pat)
         index.update(self.read_index_fh)
         for name in index.name_list:
@@ -50,11 +50,11 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
             await context.write(rec)
 
     async def Configs(self, request: pb.ScopeRequest, context):
-        scope_pat = re.compile(f"^{request.scope}$")
+        scope_pat = f"^{request.scope}$"
         index = util.Index.from_filters(scope_filter=scope_pat)
         index.update(self.read_index_fh)
 
-        pb_index = index.export()
+        pb_index = index.to_message()
         rec = pb.StreamedRecord(type=pb.INDEX, index=pb_index)
         await context.write(rec)
 

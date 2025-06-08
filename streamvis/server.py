@@ -6,6 +6,7 @@ import sys
 import os
 import yaml
 import re
+import copy
 from bokeh.application import Application
 from bokeh.application.handlers import Handler
 from bokeh.server.server import Server as BokehServer
@@ -15,7 +16,7 @@ from bokeh.core.validation.warnings import EMPTY_LAYOUT, MISSING_RENDERERS
 from streamvis import util
 from streamvis.page import PageLayout
 from streamvis.index_page import IndexPage
-    
+
 
 class Server:
     def __init__(self, grpc_uri: str, refresh_seconds=2.0):

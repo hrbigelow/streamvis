@@ -113,7 +113,7 @@ def gfetch_sync(uri: str, scope: str=None, name: str=None):
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.RecordServiceStub(channel)
     index = util.Index.from_scope_name(scope, name)
-    pb_index = index.export()
+    pb_index = index.to_message()
     datas = []
     for record in stub.QueryRecords(pb_index):
         match record.type:

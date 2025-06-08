@@ -1,5 +1,7 @@
-from typing import List, Dict, Tuple, Any
+from typing import Any
+import itertools
 import fcntl
+import copy
 import re
 import datetime
 from dataclasses import dataclass
@@ -98,7 +100,7 @@ def make_data_messages(
             f"expected signature {field_sig}")
 
     shapes = set(a.shape for a in content.values())
-    assert len(shapes) == 1
+    assert len(shapes) == 1, f"got mixed shape contents: {shapes}"
     shape = shapes.pop()
     num_slices = shape[0]
 
@@ -227,7 +229,7 @@ class Index:
             scope_filter = ".*"
         if name_filters is None:
             name_filters = (".*",)
-        assert isinstance(scope_filter, str)
+        assert isinstance(scope_filter, str), "scope_filter must be a string"
         scope_filter = re.compile(scope_filter)
         name_filters = tuple(re.compile(n) for n in name_filters)
         return cls(
@@ -347,7 +349,7 @@ class Index:
                 self.file_offset += len(pack) - exc.value
                 break
 
-    def export(self) -> pb.Index:
+    def to_message(self) -> pb.Index:
         msg = pb.Index(
             scope_filter=self.scope_filter.pattern,
             name_filters=tuple(n.pattern for n in self.name_filters),
@@ -356,28 +358,42 @@ class Index:
             file_offset=self.file_offset)
         return msg
 
+    def to_bytes(self) -> bytes:
+        """Serialize the index to protobuf message bytes."""
+        packs = []
+        messages = itertools.chain(
+            self.scopes.values(), 
+            self.names.values(),
+            self.entries.values(),
+            self.config_entries.values()
+        )
+        for msg in messages:
+            pack = pack_message(msg)
+            packs.append(pack)
+        return b''.join(packs)
+
 
 def load_data(
     fh, 
-    entries: list[pb.DataEntry],
-) -> dict[int, list[pb.Data]]:   # entry_id => list[pb.Data]
+    entries: list[pb.DataEntry | pb.ConfigEntry],
+) -> dict[int, list[pb.Data | pb.Config]]:   # entry_id => list[pb.Data]
     """Load pb.Data from data file corresponding to entries."""
     entries = sorted(entries, key=lambda ent: ent.beg_offset)
-    data_pack = []
-    datas_map = {}
+    content_packs = []
+    content_map = {}
 
     for ent in entries:
         fh.seek(ent.beg_offset, os.SEEK_SET)
         pack = fh.read(ent.end_offset - ent.beg_offset)
-        data_pack.append(pack)
-    data_pack = b''.join(data_pack)
-    datas = list(unpack(data_pack))
+        content_packs.append(pack)
+    content_pack = b''.join(content_packs)
+    contents = list(unpack(content_pack))
 
-    for data in datas:
-        dl = datas_map.setdefault(data.entry_id, [])
-        dl.append(data)
+    for content in contents:
+        dl = content_map.setdefault(content.entry_id, [])
+        dl.append(content)
 
-    return datas_map
+    return content_map 
 
 
 def get_new_data(
@@ -385,7 +401,7 @@ def get_new_data(
     stub: pb_grpc.RecordServiceStub,
 ) -> tuple[Index, dict[DataKey, 'cds_data']]:
     """Given current state of index, get new data and return updated index."""
-    pb_index = index.export()
+    pb_index = index.to_message()
     datas = []
     for record in stub.QueryRecords(pb_index):
         match record.type:
@@ -453,7 +469,7 @@ def export_configs(index: Index, configs: list[pb.Config]) -> dict[str, Any]:
     return res
 
 
-def flatten_keys(cds_map: dict[DataKey, 'cds_data']) -> dict[Tuple, 'cds_data']:
+def flatten_keys(cds_map: dict[DataKey, 'cds_data']) -> dict[tuple, 'cds_data']:
     out = {}
     for key, cds in cds_map.items():
         ekey = key.scope, key.name, key.index
@@ -477,3 +493,16 @@ def safe_write(fh, content: bytes) -> int:
     finally:
         fcntl.flock(fh, fcntl.LOCK_UN)
 
+
+def fill_defaults(defaults: dict, settings: dict):
+    """Update the possibly nested `settings` dict with any defaults.
+
+    Creates any key path in settings that is not previously in settings but present
+    in defaults.
+    """
+    for k, v in defaults.items():
+        if k not in settings:
+            settings[k] = copy.deepcopy(v)
+        if isinstance(v, dict):
+            fill_defaults(v, settings[k])
+    

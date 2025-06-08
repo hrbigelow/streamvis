@@ -11,6 +11,7 @@ from bokeh.application.application import SessionContext
 from bokeh.model.model import Model
 from bokeh.layouts import column
 from bokeh.models.ranges import Range1d, DataRange1d
+from bokeh.models import glyphs
 from bokeh import palettes
 from bokeh.plotting import figure
 from . import data_pb2 as pb
@@ -108,6 +109,8 @@ class Plot:
         return self.filter_column is not None
 
     def color(self, index: int, num_colors: int):
+        import pdb
+        pdb.set_trace()
         color_opts = self.plot_schema.get("color", {})
         palette_name = color_opts.get("palette", "Viridis8")
         pal = palettes.__dict__[palette_name]
@@ -141,7 +144,7 @@ class Plot:
         """Adds data to the plot."""
         if set(cds_data) != set(self.full_columns):
             raise RuntimeError(
-                    f"Plot {name} takes columns {set(self.full_columns)} "
+                    f"Plot `{self.name}` takes columns {set(self.full_columns)} "
                     f"but received {set(cds_data)}")
         glyph_id = self.make_glyph_id(key.name_id, key.index)
         if glyph_id not in self.full_sources:
@@ -199,6 +202,9 @@ class Plot:
         self.sync_plot_source(fix_ranges=False)
         
     def sync_slider(self):
+        if not self.is_filtered:
+            return
+
         """Synchronize the slider state to the filter_values."""
         new_categories = [str(v) for v in self.filter_values]
         if self.slider.categories == new_categories:
@@ -305,6 +311,9 @@ class Session:
 
         for plot_name, name_pat, axes_mode, width_frac, height_frac in z:
             plot_schema = self.schema.get(plot_name)
+            default_schema = self.schema.get("DEFAULTS", {})
+            util.fill_defaults(default_schema, plot_schema)
+
             if plot_schema is None:
                 raise RuntimeError(
                     f"No name '{plot_name}' found in global_schema. "
@@ -348,6 +357,10 @@ class Session:
         return cds_map
 
     def send_patch_cb(self, cds_map: dict[util.DataKey, 'cds'], fut):
+        if len(cds_map) == 0:
+            fut.set_result(None)
+            return
+
         for plot in self.plots:
             for name_id in plot.name_ids:
                 if name_id not in self.index.names: 
@@ -355,10 +368,13 @@ class Session:
             plot.sync_slider()
 
         for plot in self.plots:
+            plot_updated = False
             for key, cds in cds_map.items():
                 if plot.key_belongs(key):
                     plot.add_data(key, cds)
-            plot.sync_plot_to_data()
+                    plot_updated = True
+            if plot_updated:
+                plot.sync_plot_to_data()
 
         for plot in self.plots:
             label_ord, label_to_rend_map = self.glyph_index_map(plot)
@@ -366,8 +382,10 @@ class Session:
             for label, rs in label_to_rend_map.items():
                 idx = label_ord[label]
                 for r in rs:
-                    r.glyph.line_color = plot.color(idx, num_colors)
-                    r.glyph.fill_color = plot.color(idx, num_colors)
+                    if hasattr(r.glyph, "line_color"):
+                        r.glyph.line_color = plot.color(idx, num_colors)
+                    if hasattr(r.glyph, "fill_color"):
+                        r.glyph.fill_color = plot.color(idx, num_colors)
 
             legend = plot.figure.legend[0]
             existing_label_ord = {item.label.value: item.index for item in legend.items}
