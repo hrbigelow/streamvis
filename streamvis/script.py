@@ -29,11 +29,11 @@ def export(path, scope=None, name=None):
     cds_map = util.fetch_cds_data(data_fh, index)
     return util.flatten_keys(cds_map)
 
-def scopes(path: str) -> list[str]:
+def local_scopes(path: str) -> list[str]:
     index = util.load_index(path)
     return index.scope_list
 
-def names(path: str, scope: str=None) -> list[str]:
+def local_names(path: str, scope: str=None) -> list[str]:
     index = util.load_index(path, scope)
     return index.name_list
     
@@ -103,11 +103,12 @@ async def _demo(uri, scope, num_steps):
                 print(f'Logged {step=}')
 
 async def gfetch(uri: str, scope: str=None, name: str=None):
-    async with aio.insecure_channel(uri) as chan:
-        stub = pb_grpc.RecordServiceStub(chan)
-        query = pb.QueryRequest(scope=scope, name=name) 
-        async for record in stub.QueryRecords(query):
-            pass
+    raise NotImplementedError
+# async with aio.insecure_channel(uri) as chan:
+        # stub = pb_grpc.RecordServiceStub(chan)
+        # query = pb.QueryRequest(scope=scope, name=name) 
+        # async for record in stub.QueryRecords(query):
+            # pass
 
 def gfetch_sync(uri: str, scope: str=None, name: str=None):
     channel = grpc.insecure_channel(uri)
@@ -125,7 +126,7 @@ def gfetch_sync(uri: str, scope: str=None, name: str=None):
     return util.flatten_keys(cds_map)
 
 
-def gscopes(uri: str) -> list[str]:
+def scopes(uri: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.RecordServiceStub(channel)
     scopes = []
@@ -136,7 +137,7 @@ def gscopes(uri: str) -> list[str]:
     return scopes
 
 
-def gnames(uri: str, scope: str) -> list[str]:
+def names(uri: str, scope: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.RecordServiceStub(channel)
     request = pb.ScopeRequest(scope=scope)
@@ -162,14 +163,20 @@ def config(uri: str, scope: str) -> dict[str, Any]:
     return util.export_configs(index, configs)
 
 
-def serve(port: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
+def serve(web_uri: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
     from streamvis import server
-    return server.make_server(int(port), grpc_uri, schema_file, refresh_seconds)
+    return server.make_server(web_uri, grpc_uri, schema_file, refresh_seconds)
+
+
+def grpc_serve(path: str, port: str):
+    from streamvis import grpc_server
+    asyncio.run(grpc_server.serve(path, int(port)))
+
 
 def help():
     print("Usage:")
     print("script.py <task> <args...>")
-    print("Available tasks: serve, demo, groups, list, scopes, names, export, delete")
+    print("Available tasks: web-serve, grpc-serve, demo, groups, list, scopes, names, export, delete")
 
 def main():
     if len(sys.argv) < 2:
@@ -187,13 +194,12 @@ def main():
         pprint(out)
 
     tasks = { 
-            'serve': serve,
-            'demo': demo,
-            'scopes': partial(print_list, scopes),
-            'names': partial(print_list, names),
-            'gscopes': partial(print_list, gscopes),
-            'gnames': partial(print_list, gnames),
-            'config': partial(print_dict, config),
+            "web-serve": serve,
+            "grpc-serve": grpc_serve,
+            "demo": demo,
+            "scopes": partial(print_list, scopes),
+            "names": partial(print_list, names),
+            "config": partial(print_dict, config),
             }
     task = sys.argv.pop(1)
     task_fun = tasks.get(task)

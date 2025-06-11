@@ -127,8 +127,9 @@ message StreamedRecord {
   oneof record {
     Index index = 2;
     Data data = 3;
-    Config config = 4;
-    string value = 5;
+    Name name = 4;
+    Config config = 5;
+    string value = 6;
   }
 }
 
@@ -149,9 +150,12 @@ message IntegerResponse {
 }
 
 
-message WriteDataRequest {
+message WriteNameRequest {
   repeated Name names = 1;
-  repeated Data datas = 2;
+}
+
+message WriteDataRequest {
+  repeated Data datas = 1;
 }
 
 
@@ -162,6 +166,7 @@ service RecordService {
   rpc Configs (ScopeRequest) returns (stream StreamedRecord);
   rpc WriteScope (WriteScopeRequest) returns (IntegerResponse);
   rpc WriteConfig (WriteConfigRequest) returns (google.protobuf.Empty);
+  rpc WriteNames (WriteNameRequest) returns (stream StreamedRecord);
   rpc WriteData (WriteDataRequest) returns (google.protobuf.Empty);
 }
 

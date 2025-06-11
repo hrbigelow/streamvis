@@ -1,5 +1,14 @@
 # streamvis - interactive visualizations of streaming data with Bokeh
 
+# Introduction
+
+Streamvis logger allows you to log analytic data progressively as your program runs.  This
+data then streams automatically into visualizations without any UI intervention.
+Visualizations themselves are somewhat interactive, allowing zoom and scroll.  They are
+powered by Bokeh and use webGL acceleration - so that scatter plots with many thousands of
+points are performant.
+
+
 # Install
 
     pip install git+https://github.com/hrbigelow/streamvis.git
@@ -7,31 +16,67 @@
 ## Quick Start
 
 ```sh
-# start the server
-# streamvis serve PORT SCHEMA PATH
-streamvis serve 5006 data/demo.yaml gs://bucket/path/to/file
-streamvis serve 5006 data/demo.yaml s3://bucket/path/to/file
-streamvis serve 5006 data/demo.yaml hdfs://bucket/path/to/file
-streamvis serve 5006 data/demo.yaml /path/to/file
+IP=100.68.200.91
+GRPC_PORT=8081
+GRPC_URI=$IP:GRPC_PORT
+WEB_URI=$IP:8888
+DATA_PREFIX=/data/test
+SCHEMA_FILE=streamvis.yaml
+DEMO_SCOPE=run24
+NUM_STEPS=2000
+
+# start the data server
+streamvis grpc-serve $DATA_PREFIX $GRPC_PORT
+
+# start the web server
+streamvis web-serve $WEB_URI $GRPC_URI $SCHEMA_FILE 
 
 # run a test data producing demo app 
-# streamvis demo SCOPE PATH
-streamvis demo run24 gs://bucket/path/to/file
+streamvis demo $DEMO_SCOPE $NUM_STEPS
 
-# summarize the data in a log file
-# streamvis list PATH
-streamvis list gs://bucket/path/to/file
+# list scopes logged so far 
+streamvis scopes $GRPC_URI  
 
-# show all scopes in the log file
-# streamvis scopes PATH
-streamvis scopes gs://bucket/path/to/file
+# list names logged under scope
+streamvis names $GRPC_URI $DEMO_SCOPE
 ```
 
-Starts the web server on localhost:PORT, using the yaml SCHEMA file to configure how the
-data in PATH is plotted.  PATH may be any locator accepted by
-[tf.io.gfile.GFile](https://www.tensorflow.org/api_docs/python/tf/io/gfile/GFile).
-Visit localhost:PORT to see interactive plots, and watch the data progressively
-appear as your data-producing application runs.
+# Logging Data
+
+There is both a sync and async API for logging data in your application.  Both involve
+first instantiating the logger:
+
+```python
+logger = DataLogger(scope=scope, delete_existing=True)
+logger.init(grpc_uri=uri, flush_every=1.0, tensor_type="numpy")
+```
+
+The `flush_every` parameter is only relevant for the async API.  Using this, you would use
+its async context manager as follows:
+
+```python
+# This starts the flushing task
+async with logger:
+    await logger.write_config({ "start-time": time.time() })
+    ...
+    # Choose any name (i.e. "top_left") you would like your data tagged with
+    # Choose any column names - here "x" and "y" are used
+    await logger.write("top_left", x=xs, y=top_data)
+
+    # Here, "x", "y", and "t" are used.
+    xs, ys = points[:,0], points[:,1]
+    await logger.write('cloud', x=xs, y=ys, t=step)
+
+# When the logger context manager exits, all remaining queued data is flushed
+```
+
+Streamvis is built for efficient logging of data - in particular, it accepts tensor types
+of jax, torch and numpy data.  Importantly, the tensor data is not transferred over to CPU
+when `logger.write` is called, but rather during the flush.  So, you may freely log
+individual SGD steps without causing any GPU<=>CPU synchronization.  The only thing that
+forces transfer of tensor data from GPU to CPU is the flush call, at an interval of your
+choosing.
+
 
 The non-local (`gs://` etc) forms of PATH enable you to run your data producing
 application and the server on different machines, and communicate through the shared
@@ -46,34 +91,6 @@ be used with unbatched or batched data.  This is merely a convenience for the us
 The batched forms of `write` are logically identical to multiple calls of the
 unbatched form.
 
-```python
-from streamvis.logger import DataLogger
-# `scope` is a name that will be applied to all data points produced by this process
-logger = DataLogger(scope='run24')
-logger.init(path='gs://bucket/path/to/file', buffer_max_elem=100) 
-
-...
-for step in range(100):
-    # generate some data and log it. 
-    # This is the 0D (scalar) logging
-    logger.write('kldiv', x=step, y=some_kldiv_val)
-    logger.write('weight_norm', x=step, y=some_norm_val)
-
-# or, log in batches of points (1D logging) 
-# accepts Python list, numpy, jax/pytorch/tensorflow tensors
-for step in range(100, 200, 10):
-    logger.write('kldiv', x=list(range(step, step+10)), y=kldiv_val_list)
-    logger.write('weight_norm', x=list(range(step, step+10)), y=norm_val_list)
-
-# or, log to a series of plots
-for step in range(200, 300, 10):
-    # attn[layer, point], value at `layer` for a particular step
-    logger.write('attn_layer', x=list(range(step, step+10)), y=attn)
-
-# buffer is flushed automatically every `buffer_max_elem` data points, but
-# you may call this at the end or at an interrupt handler:
-logger.flush_buffer()
-```
 
 The SCHEMA is in yaml format.  It defines how logged data is interpreted by Bokeh to
 draw interactive figues.  Some examples can be found in
@@ -284,13 +301,13 @@ Then, on the machine you want to consume the data:
 Command-line:
 
 ```bash
-$ streamvis gscopes 100.68.200.91:8081
+$ streamvis scopes 100.68.200.91:8081
 fig4-bos-17-coin-sm-c100
 fig4-bos-23-coin-sm-c100
 fig4-bos-1-coin-sm-c100
 ...
 
-$ streamvis gnames 100.68.200.91:8081 fig4-bos-17-coin-sm-c100
+$ streamvis names 100.68.200.91:8081 fig4-bos-17-coin-sm-c100
 xent-process-ent-ratio
 sem-cross-entropy
 sem-kl-divergence

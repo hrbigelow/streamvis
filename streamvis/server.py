@@ -50,9 +50,13 @@ class Server:
         # validate schema: TODO
         self.schema = schema
 
-def make_server(port, grpc_uri, schema_file, refresh_seconds=10):  
-    """
-    Launch a server on `port` using `schema_file` to configure plots of data in `path`
+def make_server(web_uri, grpc_uri, schema_file, refresh_seconds=3):  
+    """Launch a Bokeh web server
+
+    web_uri:  IP:PORT format to be used for accessing pages from the browser
+    grpc_uri: IP:PORT format, used to access the grpc server 
+    schema_file: yaml file specifying plot formats
+    refresh_seconds: how frequently the server pulls newly logged data
     """
     sv_server = Server(grpc_uri, refresh_seconds)
     sv_server.load_schema(schema_file)
@@ -61,7 +65,8 @@ def make_server(port, grpc_uri, schema_file, refresh_seconds=10):
     page_app = Application(page_handler)
     index_app = Application(index_handler)
     apps = {"/": page_app, "/index": index_app}
-    bokeh_server = BokehServer(apps, port=port)
+    port = int(web_uri.split(":")[1])
+    bokeh_server = BokehServer(apps, port=port, allow_websocket_origin=[web_uri])
 
     def shutdown_handler(signum, frame):
         print(f'Server received {signal.Signals(signum).name}.')

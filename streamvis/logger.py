@@ -20,15 +20,9 @@ class Action(enum.Enum):
 
 @dataclass
 class DataItem:
-    name_id: int
+    name: str
     data: dict[str, 'tensor']
     start_index: int
-
-@dataclass
-class NameItem:
-    name_id: int
-    name: str
-    field_sig: tuple[tuple[str, np.dtype], ...]
 
 
 class DataLogger:
@@ -39,9 +33,8 @@ class DataLogger:
     def __init__(self, scope: str, delete_existing: bool=True):
         """scope: a string which defines the scope in the logical point grouping."""
         self.scope = scope
-        self.seen_names = {} # name_id => pb.Name 
+        self.logged_names = {} # name => pb.Name 
         self.buffer = asyncio.Queue()
-        self.uint32_max = (1 << 32) - 1 
         random.seed(time.time())
         self.config_written = False
         self.delete_existing = delete_existing
@@ -182,13 +175,7 @@ class DataLogger:
         except BaseException as ex:
             raise RuntimeError(f'{name=}, got exception {ex}')
 
-        name_id = util.get_name_id(self.scope_id, name) 
-        if name_id not in self.seen_names:
-            field_sig = tuple((k, v.dtype) for k, v in data.items())
-            name_item = NameItem(name_id, name, field_sig)
-            self.seen_names[name_id] = name_item
-            self.buffer.put_nowait(name_item)
-        self.buffer.put_nowait(DataItem(name_id, data, start_index))
+        self.buffer.put_nowait(DataItem(name, data, start_index))
 
     async def write(self, name: str, /, start_index: int=0, **data):
         self.write_sync(name, **data)
@@ -201,25 +188,32 @@ class DataLogger:
         """
         await asyncio.sleep(0)
 
-    def _convert_to_messages(self, data_items: list[DataItem]) -> list[pb.Data]:
+    async def write_content(self, data_items: list[DataItem]):
         all_messages = []
+        names = []
+        # find any names not yet logged
         for data_item in data_items:
-            name_item = self.seen_names.get(data_item.name_id)
-            if name_item is None:
-                raise RuntimeError("Unknown error")
-            entry_id = random.randint(0, self.uint32_max)
-            data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
-            messages = util.make_data_messages(
-                entry_id, name_item.name_id, data, data_item.start_index, name_item.field_sig)
-            all_messages.extend(messages)
-        return all_messages
+            pb_name = self.logged_names.get(data_item.name, None)
+            if pb_name is None:
+                field_sig = tuple((k, v.dtype) for k, v in data_item.data.items())
+                pb_name = util.make_name_message(self.scope_id, data_item.name, field_sig)
+                names.append(pb_name)
 
-    async def write_content(self, data_items: list[DataItem], name_items: list[NameItem]):
-        datas = self._convert_to_messages(data_items)
-        names = [util.make_name_message(n.name_id, self.scope_id, n.name, n.field_sig) for
-                n in name_items]
-        request = pb.WriteDataRequest(names=names, datas=datas)
+        request = pb.WriteNameRequest(names=names)
+        async for rec in self.stub.WriteNames(request):
+            pb_name = rec.name
+            self.logged_names[pb_name.name] = pb_name 
+
+        datas = []
+        for data_item in data_items:
+            data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
+            pb_name = self.logged_names[data_item.name]
+            messages = util.make_data_messages(
+                pb_name.name_id, data, data_item.start_index, pb_name.fields)
+            datas.extend(messages)
+        request = pb.WriteDataRequest(datas=datas)
         await self.stub.WriteData(request)
+
 
     async def flush_buffer(self):
         more_work = True 
@@ -228,30 +222,25 @@ class DataLogger:
             name_items = []
             while not self.buffer.empty():
                 work = await self.buffer.get()
-                match work:
-                    case None:
-                        more_work = False
-                        break
-                    case DataItem(name_id=name_id, data=data, start_index=start_index):
-                        data_id = (name_id, start_index)
-                        if data_id not in content_as_list:
-                            content_as_list[data_id] = {k: [] for k in data.keys()}
-                        cdslist = content_as_list[data_id]
-                        for k, v in data.items():
-                            cdslist[k].append(v)
-                    case NameItem():
-                        name_items.append(work)
-                    case _:
-                        raise RuntimeError(f"flush_buffer: Unknown work: {type(work)}")
+                if work is None:
+                    more_work = False
+                    break
+
+                data_id = work.name, work.start_index
+                if data_id not in content_as_list:
+                    content_as_list[data_id] = {k: [] for k in work.data.keys()}
+                cdslist = content_as_list[data_id]
+                for k, v in work.data.items():
+                    cdslist[k].append(v)
 
             # Collate datas on-device
             data_items = []
-            for (name_id, start_index), cdslist in content_as_list.items():
+            for (name, start_index), cdslist in content_as_list.items():
                 cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
-                data_item = DataItem(name_id, cds, start_index)
+                data_item = DataItem(name, cds, start_index)
                 data_items.append(data_item)
 
-            await self.write_content(data_items, name_items)
+            await self.write_content(data_items)
             if not more_work:
                 # print(f"flush_buffer finished all work")
                 break

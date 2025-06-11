@@ -18,6 +18,18 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         self.append_data_fh = util.get_log_handle(self.data_path, "ab")
         self.read_index_fh = util.get_log_handle(self.index_path, "rb")
         self.read_data_fh = util.get_log_handle(self.data_path, "rb")
+        self.last_issued_id = self._get_max_id()
+
+    def _get_max_id(self):
+        index = util.Index.from_filters()
+        index.update(self.read_index_fh)
+        return index.max_id
+
+
+    def issue_id(self):
+        assert self.last_issued_id is not None, "Must scan index first"
+        self.last_issued_id += 1
+        return self.last_issued_id
 
     async def QueryRecords(self, request: pb.Index, context):
         index = util.Index.from_message(request)
@@ -70,12 +82,13 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         if request.do_delete:
             pack = util.pack_delete_scope(request.scope)
             util.safe_write(self.append_index_fh, pack)
-        pack, scope_id = util.pack_scope(request.scope)
+        scope_id = self.issue_id()
+        pack = util.pack_scope(scope_id, request.scope)
         util.safe_write(self.append_index_fh, pack)
         return pb.IntegerResponse(value=scope_id)
 
     async def WriteConfig(self, request: pb.WriteConfigRequest, context):
-        entry_id = random.randint(0, (1 << 32) - 1)
+        entry_id = self.issue_id() 
         pb_config = pb.Config(entry_id=entry_id, attributes=request.attributes)
         pack = util.pack_message(pb_config)
         end_offset = util.safe_write(self.append_data_fh, pack)
@@ -84,8 +97,24 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         util.safe_write(self.append_index_fh, config_entry)
         return Empty()
 
+    async def WriteNames(self, request: pb.WriteNameRequest, context):
+        name_packs = []
+        for name in request.names:
+            name.name_id = self.issue_id()
+            name_packs.append(util.pack_message(name))
+        pack = b''.join(name_packs)
+        util.safe_write(self.append_index_fh, pack)
+
+        for name in request.names:
+            rec = pb.StreamedRecord(type=pb.NAME, name=name)
+            await context.write(rec)
+
     async def WriteData(self, request: pb.WriteDataRequest, context):
-        data_packs = [util.pack_message(data) for data in request.datas]
+        data_packs = []
+        for pb_data in request.datas:
+            pb_data.entry_id = self.issue_id()
+            data_packs.append(util.pack_message(pb_data))
+
         lengths = [len(p) for p in data_packs]
         pack = b''.join(data_packs)
         global_end = util.safe_write(self.append_data_fh, pack)
@@ -95,16 +124,19 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
             rel_offsets.append(rel_offsets[-1] + l)
 
         entry_packs = []
-        for data, beg, end in zip(request.datas, rel_offsets[:-1], rel_offsets[1:]):
+        for pb_data, beg, end in zip(request.datas, rel_offsets[:-1], rel_offsets[1:]):
             entry = pb.DataEntry(
-                    entry_id=data.entry_id, name_id=data.name_id,
+                    entry_id=pb_data.entry_id, name_id=pb_data.name_id,
                     beg_offset=beg, end_offset=end)
             entry_packs.append(util.pack_message(entry))
-        
-        name_packs = [util.pack_message(name) for name in request.names]
-        index_pack = b''.join(name_packs + entry_packs)
-        util.safe_write(self.append_index_fh, index_pack)
+
+        entry_pack = b''.join(entry_packs)
+        util.safe_write(self.append_index_fh, entry_pack)
         return Empty()
+
+    async def RewriteLogs(self, request: Empty, context):
+        """Rewrite the index and data log files."""
+        pass
 
 
 def port_in_use(port: int) -> bool:

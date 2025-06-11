@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterable
 import itertools
 import fcntl
 import copy
@@ -58,10 +58,7 @@ PROTO_TO_DTYPE = {
     pb.FieldType.FLOAT: np.float32,
 }
 
-def get_scope_id(scope: str, timestamp) -> int:
-    return hash((scope, timestamp.seconds, timestamp.nanos)) % ((1 << 32) - 1)
-
-def get_name_id(scope_id: int, name: str) -> int:
+def get_name_hash(scope_id: int, name: str) -> int:
     return hash((scope_id, name)) % ((1 << 32) - 1)
 
 
@@ -73,20 +70,18 @@ def pack_message(message):
     return kind_code + length_code + content 
 
 
-def pack_scope(scope: str) -> tuple[bytes, int]:
+def pack_scope(scope_id, scope: str) -> bytes:
     timestamp = Timestamp()
     timestamp.FromDatetime(datetime.datetime.now(datetime.UTC))
-    scope_id = get_scope_id(scope, timestamp)
     scope = pb.Scope(scope_id=scope_id, scope=scope, time=timestamp)
-    return pack_message(scope), scope_id
+    return pack_message(scope)
 
 
 def make_data_messages(
-    entry_id: int, 
     name_id: int,
     content: dict[str, np.ndarray],
     start_index: int,
-    field_sig: list[tuple[str, np.dtype]]
+    field_sig: list[tuple[str, pb.FieldType]]
 ) -> list[pb.Data]:
     """pack the data into a protobuf message.
 
@@ -94,7 +89,8 @@ def make_data_messages(
     """
     content_types = { k: v.dtype for k, v in content.items() }
     if (len(field_sig) != len(content_types)
-        or any(content_types.get(name) != ty for name, ty in field_sig)):
+        or any(content_types.get(field.name) != PROTO_TO_DTYPE[field.type] 
+            for field in field_sig)):
         raise RuntimeError(
             f"content has signature {content_types.items()} which mismatches "
             f"expected signature {field_sig}")
@@ -106,9 +102,9 @@ def make_data_messages(
 
     datas = []
     for index in range(num_slices):
-        data = pb.Data(entry_id=entry_id, name_id=name_id, index=index+start_index)
-        for name, ty in field_sig:
-            field_data = content.get(name)[index]
+        data = pb.Data(name_id=name_id, index=index+start_index)
+        for field in field_sig:
+            field_data = content.get(field.name)[index]
             vals = data.axes.add()
             if np.issubdtype(field_data.dtype, np.floating):
                 vals.floats.value.extend(field_data)
@@ -121,9 +117,9 @@ def make_data_messages(
 
 
 def make_name_message(
-    name_id: int, scope_id: int, name: str, field_sig: list[tuple[str, np.dtype]]
+    scope_id: int, name: str, field_sig: list[tuple[str, np.dtype]]
 ) -> pb.Name:
-    name = pb.Name(name_id=name_id, scope_id=scope_id, name=name)
+    name = pb.Name(scope_id=scope_id, name=name)
     for field_name, dtype in field_sig:
         field = name.fields.add()
         field.name = field_name
@@ -230,6 +226,7 @@ class Index:
         if name_filters is None:
             name_filters = (".*",)
         assert isinstance(scope_filter, str), "scope_filter must be a string"
+        assert isinstance(name_filters, Iterable), "name_filters must be an iterable"
         scope_filter = re.compile(scope_filter)
         name_filters = tuple(re.compile(n) for n in name_filters)
         return cls(
@@ -350,6 +347,10 @@ class Index:
                 break
 
     def to_message(self) -> pb.Index:
+        """Converts index into protobuf Message object.
+        
+        Content of entries and config_entries are discarded, but file_offset is retained
+        """
         msg = pb.Index(
             scope_filter=self.scope_filter.pattern,
             name_filters=tuple(n.pattern for n in self.name_filters),
@@ -371,6 +372,16 @@ class Index:
             pack = pack_message(msg)
             packs.append(pack)
         return b''.join(packs)
+
+    @property
+    def max_id(self):
+        return max(
+            itertools.chain(
+                self.scopes.keys(), 
+                self.names.keys(), 
+                self.entries.keys(), 
+                self.config_entries.keys()),
+            default=0)
 
 
 def load_data(

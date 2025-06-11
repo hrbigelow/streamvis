@@ -2,12 +2,12 @@ import asyncio
 import math
 import re
 import copy
-import grpc.aio
+import grpc
 from . import data_pb2_grpc as pb_grpc
 from . import data_pb2 as pb
 import numpy as np
 from bokeh.models import ColumnDataSource, Legend, LegendItem, CategoricalSlider
-from bokeh.application.application import SessionContext
+from bokeh.application.application import SessionContext, Document
 from bokeh.model.model import Model
 from bokeh.layouts import column
 from bokeh.models.ranges import Range1d, DataRange1d
@@ -21,6 +21,7 @@ EMPTY_VAL = "EMPTY"
 
 class Plot:
     name: str
+    doc: Document 
     plot_schema: dict 
     model: Model  # the top-level container, either is figure or contains figure 
     figure: Model # the figure contained in this plot
@@ -35,6 +36,7 @@ class Plot:
     def __init__(
         self, 
         name: str, 
+        doc: Document,
         plot_schema: dict, 
         axis_mode: str,
         width_frac: float,
@@ -53,6 +55,7 @@ class Plot:
         figure_kwargs.update(**args_update)
 
         self.name = name
+        self.doc = doc
         self.plot_schema = plot_schema 
         self.width_frac = width_frac
         self.height_frac = height_frac
@@ -61,6 +64,7 @@ class Plot:
         self.filter_column = None
         self.full_sources = {}
         self.plot_sources = {}
+        self.sync_plot_source_cb = None
         self.margin = 10
 
     @property
@@ -109,13 +113,11 @@ class Plot:
         return self.filter_column is not None
 
     def color(self, index: int, num_colors: int):
-        import pdb
-        pdb.set_trace()
         color_opts = self.plot_schema.get("color", {})
         palette_name = color_opts.get("palette", "Viridis8")
         pal = palettes.__dict__[palette_name]
-        pal = palettes.interp_palette(pal, num_colors+2)
-        return pal[index+1]
+        pal = palettes.interp_palette(pal, num_colors)
+        return pal[index]
 
     def label(self, scope: pb.Scope, name: pb.Name, index: int) -> str:
         """Compute a label for this group.  Will be used to index a palette."""
@@ -241,6 +243,7 @@ class Plot:
             self._fix_ranges()
         else:
             self._unfix_ranges()
+        self.sync_plot_source_cb = None
             
 
     def _fix_ranges(self):
@@ -261,6 +264,14 @@ class Plot:
 
 
     def on_slider_change_cb(self, attr, old, new):
+        self.slider.value = new
+        if self.sync_plot_source_cb is not None:
+            self.doc.remove_next_tick_callback(self.sync_plot_source_cb)
+        self.sync_plot_source_cb = self.doc.add_next_tick_callback(
+            lambda: self.sync_plot_source(fix_ranges=True)
+        )
+
+    def on_slider_change_cb_old(self, attr, old, new):
         self.slider.value = new
         self.sync_plot_source(fix_ranges=True)
 
@@ -308,6 +319,7 @@ class Session:
         height_fracs = req_args["heights"]
 
         z = zip(plots, name_filters, axes_modes, width_fracs, height_fracs)
+        doc = self.session_context._document
 
         for plot_name, name_pat, axes_mode, width_frac, height_frac in z:
             plot_schema = self.schema.get(plot_name)
@@ -318,7 +330,7 @@ class Session:
                 raise RuntimeError(
                     f"No name '{plot_name}' found in global_schema. "
                     f"Available names: {', '.join(name for name in self.schema)}")
-            plot = Plot(plot_name, plot_schema, axes_mode, width_frac, height_frac, name_pat) 
+            plot = Plot(plot_name, doc, plot_schema, axes_mode, width_frac, height_frac, name_pat) 
             self.plots.append(plot)
 
 
