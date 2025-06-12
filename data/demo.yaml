@@ -1,48 +1,70 @@
-loss:
+DEFAULTS:
   color:
     key_fun: sni
+    palette: Set1_9
+  figure_kwargs:
+    title:
+      text_font_size: 24px
+    xaxis:
+      axis_label_text_font_size: 24px
+      major_label_text_font_size: 24px
+    yaxis:
+      axis_label_text_font_size: 24px
+      major_label_text_font_size: 24px
+
+
+# A line plot
+loss:
+  color:
+    # compute a color key using ordering (scope, name, index)
+    # can use any combination and permutation of s, n and i.
+    key_fun: sni  
     palette: Turbo256 
   figure_kwargs:
     title: 
       text: Loss
-      text_font_size: 24px
     xaxis:
       axis_label: SGD Step
-      axis_label_text_font_size: 24px
-      major_label_text_font_size: 24px
     yaxis:
       axis_label: Nats 
-      axis_label_text_font_size: 24px
-      major_label_text_font_size: 24px
   glyph_kind: line
   columns:
     - x
     - y
 
-
-time_scatter:
-  color:
-    key_fun: sni
-    palette: Viridis6
+# A line plot with a slider to filter over column t
+filtered-lines:
   figure_kwargs:
     title: 
-      text: Temporal Data Scatterplot 
-      text_font_size: 24px
+      text: Lines 
     xaxis:
       axis_label: Component 1 
-      axis_label_text_font_size: 24px
-      major_label_text_font_size: 24px
     yaxis:
       axis_label: Component 2 
-      axis_label_text_font_size: 24px
-      major_label_text_font_size: 24px
+  glyph_kind: line 
+  filter_opts:
+    column: t
+  columns:
+    - x
+    - y
+    - t
+
+# A scatter plot with a slider to filter over column t
+filtered-scatter:
+  figure_kwargs:
+    title: 
+      text: Belief State
+    xaxis:
+      axis_label: Component 1 
+    yaxis:
+      axis_label: Component 2 
   glyph_kind: scatter
   glyph_kwargs:
     radius: 0.001
   filter_opts:
     column: t
-
   columns:
     - x
     - y
     - t
+

@@ -133,44 +133,6 @@ individual SGD steps without causing any GPU<=>CPU synchronization.  The only th
 forces transfer of tensor data from GPU to CPU is the flush call, at an interval of your
 choosing.
 
-Streamvis provides interactive visualizations for data that is periodically produced
-from your application as it is running.  In your application you create a
-`streamvis.logger.DataLogger` instance, then call `write` to write data to PATH. 
-
-PATH is an append-only log.  The Streamvis server reads it on startup, and
-periodically reads new data appended to it, updating the visualizations dynamically.
-The logger periodically appends data as driven by your application.  The data format
-is a set of delimited Protobuf messages described by
-[data.proto](streamvis/data.proto).  
-
-
-There is no visualization-specific data logged to PATH.  Data consists of individual
-`Point` objects, each `Point` has one or more `Fields`, which is of either a float or
-int type.  Also, each `Point` is tagged with a tuple of (scope, name, index) of type
-(string, stringm integer).  The `scope` associated with each logged Point is
-set when the DataLogger is instantiated with `logger = DataLogger(scope=...)`.  The
-name is set with `logger.write(name=..., **data)`.  Finally, the index is set
-automatically depending on the broadcasted structure of the data elements, see
-`DataLogger::write` for details.
-
-The set of points tagged with a given (scope, name, index) tuple form a glyph.  The
-set of glyphs included in a plot is determined by the plot-level yaml field
-`name_pattern`, which is set to a regex pattern to select all glyphs whose `name`
-matches `name_pattern`.  For example, if this occurs at the top of the yaml file:
-
-```yaml
-loss:
-  name_pattern: (kldiv|cross_entropy)
-```
-
-Then this means all points whose `name` is either `kldiv` or `cross_entropy` (as
-logged by `logger.write(name="kldiv", ...)` or `logger.write(name="cross_entropy",
-...)` will appear in the plot called `loss`.  This plot can then be viewed using a
-URL of:
-
-    http://localhost:5006/?rows=loss
-
-for example.
 
 Multiple glyphs can appear on the same plot.  To specify glyph color, the yaml file
 includes a `color` section as follows:
