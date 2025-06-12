@@ -58,7 +58,7 @@ async def gfetch(uri: str, scope: str=None, name: str=None):
         # async for record in stub.QueryRecords(query):
             # pass
 
-def gfetch_sync(uri: str, scope: str=None, name: str=None):
+def fetch(uri: str, scope: str=None, name: str=None):
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.RecordServiceStub(channel)
     index = util.Index.from_scope_name(scope, name)

@@ -155,11 +155,7 @@ async def demo_log_data_async(grpc_uri, scope, num_steps):
 
 ```
 
-# Fetching the data that was logged programmatically
-
-You may programmatically fetch the data that was logged with the logging API if you so
-choose.  
-
+# Fetching logged data 
 
 ## Python Fetch API
 
@@ -170,19 +166,20 @@ grpc_uri="100.68.200.91:8081"
 scopes = script.scopes(uri=grpc_uri)
 names = script.names(uri=grpc_uri, scope=scopes[0])
 
-all_data = script.gfetch_sync(uri=grpc_uri)
+all_data = script.fetch(uri=grpc_uri)
 # all_data[(scope, name, index)] = { axis: ndarray }
 
-scope_data = script.gfetch_sync(grpc_uri, scopes[0])
+scope_data = script.fetch(grpc_uri, scopes[0])
 # scope_data[(scope, name, index)] = { axis: ndarray }
 
-name_data = script.gfetch_sync(uri, scopes[0], names[0])
+name_data = script.fetch(uri, scopes[0], names[0])
 # name_data[(scope, name, index)] = { axis: ndarray }
 
+# fetch the data that was written using logger.write_config(...)
+config_data = script.config(uri, scopes[0]) 
 ```
 
 # Interactive Visualization with Bokeh Server
-
 
 
 ## Yaml syntax
