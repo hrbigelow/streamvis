@@ -6,7 +6,6 @@ import enum
 import numpy as np
 import asyncio
 import grpc
-from grpc import aio
 from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
 import random
@@ -25,12 +24,19 @@ class DataItem:
     start_index: int
 
 
-class DataLogger:
+class BaseLogger:
     """
     Create one instance of this in the producer script, to send data to
     a bokeh server.
     """
-    def __init__(self, scope: str, delete_existing: bool=True):
+    def __init__(
+        self, 
+        scope: str, 
+        grpc_uri: str,
+        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
+        delete_existing: bool=True,
+        flush_every: float=2.0,
+        ):
         """scope: a string which defines the scope in the logical point grouping."""
         self.scope = scope
         self.logged_names = {} # name => pb.Name 
@@ -38,20 +44,8 @@ class DataLogger:
         random.seed(time.time())
         self.config_written = False
         self.delete_existing = delete_existing
-
-    def init(
-        self, 
-        grpc_uri: str,
-        flush_every: float = 2.0,
-        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-    ):
-        """
-        Initialize logger to log data to the given path.
-        path:  filesystem path or gs:// resource
-        flush_every:  (seconds) period for flushing to disk
-        """
         self.uri = grpc_uri
-        self.chan = aio.insecure_channel(grpc_uri) 
+        self.chan = grpc.insecure_channel(grpc_uri) 
         self.stub = pb_grpc.RecordServiceStub(self.chan)
         self.flush_every = flush_every
         match tensor_type:
@@ -83,20 +77,11 @@ class DataLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
-    async def __aenter__(self):
-        self._task_group = asyncio.TaskGroup()
-        await self._task_group.__aenter__()
-        self._task_group.create_task(self.flush_buffer())
+    def _init_scope(self):
+        """This must be called before any calls to write."""
         request = pb.WriteScopeRequest(scope=self.scope, do_delete=self.delete_existing)
-        response = await self.stub.WriteScope(request)
+        response = self.stub.WriteScope(request)
         self.scope_id = response.value
-        return self
-
-    async def __aexit__(self, *args):
-        self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
-        await self._task_group.__aexit__(*args)
-        await self.chan.close()
-        self._task_group = None
 
     def upscale_inputs(self, data) -> dict[str, 'tensor']:
         """
@@ -131,7 +116,7 @@ class DataLogger:
 
         return dict(zip(keys, vals))
 
-    async def write_config(self, attrs: dict):
+    def write_config(self, attrs: dict):
         """Write a set of attributes to associate with this scope.
 
         This is useful for recording hyperparameters, settings, configuration etc.
@@ -142,10 +127,10 @@ class DataLogger:
         if self.config_written:
             raise RuntimeError(f"Can only call write_config once during run")
         config_req = pb.WriteConfigRequest(scope_id=self.scope_id, attributes=attrs)
-        await self.stub.WriteConfig(config_req)
+        self.stub.WriteConfig(config_req)
         self.config_written = True
 
-    def write_sync(self, name: str, /, start_index: int=0, **data):
+    def write(self, name: str, /, start_index: int=0, **data):
         """Writes new data, possibly creating one or more Group items.
 
         Inputs:
@@ -177,18 +162,7 @@ class DataLogger:
 
         self.buffer.put_nowait(DataItem(name, data, start_index))
 
-    async def write(self, name: str, /, start_index: int=0, **data):
-        self.write_sync(name, **data)
-        await asyncio.sleep(0) # explicit yield
-
-    async def yield_to_flush(self):
-        """An explicit yield function to allow buffer flush.
-
-        If you only use write_sync, call this periodically.
-        """
-        await asyncio.sleep(0)
-
-    async def write_content(self, data_items: list[DataItem]):
+    def write_content(self, data_items: list[DataItem]):
         all_messages = []
         names = []
         # find any names not yet logged
@@ -200,7 +174,7 @@ class DataLogger:
                 names.append(pb_name)
 
         request = pb.WriteNameRequest(names=names)
-        async for rec in self.stub.WriteNames(request):
+        for rec in self.stub.WriteNames(request):
             pb_name = rec.name
             self.logged_names[pb_name.name] = pb_name 
 
@@ -212,37 +186,66 @@ class DataLogger:
                 pb_name.name_id, data, data_item.start_index, pb_name.fields)
             datas.extend(messages)
         request = pb.WriteDataRequest(datas=datas)
-        await self.stub.WriteData(request)
+        try:
+            self.stub.WriteData(request)
+        except grpc.RpcError as ex:
+            import pdb
+            pdb.set_trace()
 
+
+
+    def _flush_buffer(self) -> bool:
+        content_as_list = {} # data_id => Dict[str, list['tensor']]
+        name_items = []
+        while not self.buffer.empty():
+            work = self.buffer.get_nowait()
+            if work is None:
+                return False
+
+            data_id = work.name, work.start_index
+            if data_id not in content_as_list:
+                content_as_list[data_id] = {k: [] for k in work.data.keys()}
+            cdslist = content_as_list[data_id]
+            for k, v in work.data.items():
+                cdslist[k].append(v)
+
+        # Collate datas on-device
+        data_items = []
+        for (name, start_index), cdslist in content_as_list.items():
+            cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
+            data_item = DataItem(name, cds, start_index)
+            data_items.append(data_item)
+
+        self.write_content(data_items)
+        return True
+
+
+
+        if not more_work:
+            # print(f"flush_buffer finished all work")
+            break
+        try:
+            await asyncio.sleep(self.flush_every)
+        except asyncio.CancelledError:
+            print(f"flush_buffer cancelled")
+            break
+
+class AsyncDataLogger(BaseLogger):
+
+    def __init__(
+        self, 
+        scope: str, 
+        grpc_uri: str,
+        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
+        delete_existing: bool=True,
+        flush_every: float=2.0
+    ):
+        super().__init__(scope, grpc_uri, tensor_type, delete_existing, flush_every)
+        self.buffer = asyncio.Queue()
 
     async def flush_buffer(self):
-        more_work = True 
         while True:
-            content_as_list = {} # data_id => Dict[str, list['tensor']]
-            name_items = []
-            while not self.buffer.empty():
-                work = await self.buffer.get()
-                if work is None:
-                    more_work = False
-                    break
-
-                data_id = work.name, work.start_index
-                if data_id not in content_as_list:
-                    content_as_list[data_id] = {k: [] for k in work.data.keys()}
-                cdslist = content_as_list[data_id]
-                for k, v in work.data.items():
-                    cdslist[k].append(v)
-
-            # Collate datas on-device
-            data_items = []
-            for (name, start_index), cdslist in content_as_list.items():
-                cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
-                data_item = DataItem(name, cds, start_index)
-                data_items.append(data_item)
-
-            await self.write_content(data_items)
-            if not more_work:
-                # print(f"flush_buffer finished all work")
+            if not self._flush_buffer():
                 break
             try:
                 await asyncio.sleep(self.flush_every)
@@ -250,4 +253,61 @@ class DataLogger:
                 print(f"flush_buffer cancelled")
                 break
 
+    async def __aenter__(self):
+        self._task_group = asyncio.TaskGroup()
+        await self._task_group.__aenter__()
+        self._task_group.create_task(self.flush_buffer())
+        self._init_scope()
+        return self
+
+    async def __aexit__(self, *args):
+        self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
+        await self._task_group.__aexit__(*args)
+        await self.chan.close()
+        self._task_group = None
+
+    async def write(self, name: str, /, start_index: int=0, **data):
+        """The default write function for the async logger.
+
+        If using this instead of write_sync, there is no need to call yield_to_flush"""
+        super().write(name, start_index, **data)
+        await asyncio.sleep(0) # explicit yield
+
+    def write_sync(self, name: str, /, start_index: int=0, **data):
+        """A convenience function to avoid making every function async.
+
+        If using write_sync, you must periodically call yield_to_flush() to allow
+        the flush task to wake up.
+        """
+        super().write(name, start_index, **data)
+
+    async def yield_to_flush(self):
+        """An explicit yield function to allow buffer flush.
+
+        If you only use write_sync, call this periodically.
+        """
+        await asyncio.sleep(0)
+
+class DataLogger(BaseLogger):
+    """The synchronous data logger."""
+
+    def __init__(
+        self, 
+        scope: str, 
+        grpc_uri: str,
+        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
+        delete_existing: bool=True,
+    ):
+        super().__init__(scope, grpc_uri, tensor_type, delete_existing, 0.0)
+        self.buffer = queue.Queue()
+
+    def init_scope():
+        return super()._init_scope()
+
+    def flush_buffer(self):
+        """Call periodically to flush the data written by calls to `write`."""
+        return self._flush_buffer()
+
+    def write(self, name: str, /, start_index: int=0, **data):
+        super().write(name, start_index, **data)
 

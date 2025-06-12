@@ -6,7 +6,21 @@ Streamvis logger allows you to log analytic data progressively as your program r
 data then streams automatically into visualizations without any UI intervention.
 Visualizations themselves are somewhat interactive, allowing zoom and scroll.  They are
 powered by Bokeh and use webGL acceleration - so that scatter plots with many thousands of
-points are performant.
+points are responsive when zooming or panning.
+
+# Design Philosophy
+
+**Flexible Data Collection**:  Streamvis decouples data writing (calls to `write`) from data
+grouping.  All data logged are tagged with a `(scope, name, index)` tuple.  Within one
+tag, data are in columnar format - i.e. a dictionary of column names and same-length 1D
+arrays of numbers.  A call to `write` always produces data for a single `(scope, name)`
+setting, but may produce data under multiple `index` values. 
+
+**Deferred Visualization Decisions** - downstream visualizations can specify which `(scope,
+name, index)` tuples will be included in the visualization, and what type of visualization
+is used (scatter plot or line plot) and how the `(scope, name, index)` tag is interpreted
+for the visualization.  This decision can be made any time, while data are in the process
+of being logged, or after.
 
 
 # Install
@@ -43,32 +57,74 @@ streamvis names $GRPC_URI $DEMO_SCOPE
 
 # Logging Data
 
-There is both a sync and async API for logging data in your application.  Both involve
-first instantiating the logger:
+There is both a sync and async API for logging data in your application.
+
+## Async API
 
 ```python
-logger = DataLogger(scope=scope, delete_existing=True)
-logger.init(grpc_uri=uri, flush_every=1.0, tensor_type="numpy")
-```
+logger = AsyncDataLogger(
+    scope=scope, 
+    grpc_uri=uri,
+    tensor_type="numpy", # or "jax" or "torch"
+    delete_existing=True,
+    flush_every=2.0  # seconds
+    )
 
-The `flush_every` parameter is only relevant for the async API.  Using this, you would use
-its async context manager as follows:
-
-```python
-# This starts the flushing task
+# This starts the flushing task.
 async with logger:
-    await logger.write_config({ "start-time": time.time() })
+    # Will write settings under the logger's scope
+    logger.write_config(settings) # settings is a (possibly nested) dictionary of POD types
     ...
-    # Choose any name (i.e. "top_left") you would like your data tagged with
-    # Choose any column names - here "x" and "y" are used
-    await logger.write("top_left", x=xs, y=top_data)
 
-    # Here, "x", "y", and "t" are used.
-    xs, ys = points[:,0], points[:,1]
-    await logger.write('cloud', x=xs, y=ys, t=step)
+    for step in range(1000):
+        # Choose any name (i.e. "top_left") you would like your data tagged with
+        # Choose any column names - here "x" and "y" are used
+        await logger.write("top-left", x=xs, y=top_data)
+
+        # Here, "x", "y", and "t" are used.
+        xs, ys = points[:,0], points[:,1]
+        await logger.write("cloud", x=xs, y=ys, t=step)
+
+        # You may also use write_sync and periodic calls to yield_to_flush.
+        # This is convenient when you are calling the logger from inside existing functions
+        # and don't want to convert them to async.
+        logger.write_sync("cloud", x=xs, y=hs, t=step)
+        ...
+        await logger.yield_to_flush()
 
 # When the logger context manager exits, all remaining queued data is flushed
 ```
+
+## Sync API
+
+```python
+logger = DataLogger(
+    scope=scope,
+    grpc_uri=uri,
+    tensor_type="numpy", # or "jax" or "torch"
+    delete_existing=True,  # if True, will delete all existing data under scope
+)
+
+# When using the sync API, must call init_scope() before any calls to write.
+logger.init_scope()
+
+# Will write settings under the logger's scope
+logger.write_config(settings) # settings is a (possibly nested) dictionary of POD types
+
+for step in range(1000):
+    logger.write("top-left", x=xs, y=top_data)
+    ...
+    logger.write("cloud", x=xs, y=hs, t=step)
+
+    # Application must call flush_buffer() periodically 
+    if step % 100 == 0:
+        logger.flush_buffer()
+
+
+# flush any remaining buffered writes
+logger.flush_buffer()
+```
+
 
 Streamvis is built for efficient logging of data - in particular, it accepts tensor types
 of jax, torch and numpy data.  Importantly, the tensor data is not transferred over to CPU
@@ -76,27 +132,6 @@ when `logger.write` is called, but rather during the flush.  So, you may freely 
 individual SGD steps without causing any GPU<=>CPU synchronization.  The only thing that
 forces transfer of tensor data from GPU to CPU is the flush call, at an interval of your
 choosing.
-
-
-The non-local (`gs://` etc) forms of PATH enable you to run your data producing
-application and the server on different machines, and communicate through the shared
-resource at PATH.  (To create a GCS bucket for example, see [creating a
-project](https://developers.google.com/workspace/guides/create-project) and [enabling
-APIs](https://developers.google.com/workspace/guides/enable-apis).)
-
-In your data-producing application you instantiate one `DataLogger` object and call
-its `write` method to log any data that you produce.  It is buffered logging, so
-there is no need to worry about how frequently you call it.  The `write` method can
-be used with unbatched or batched data.  This is merely a convenience for the user.
-The batched forms of `write` are logically identical to multiple calls of the
-unbatched form.
-
-
-The SCHEMA is in yaml format.  It defines how logged data is interpreted by Bokeh to
-draw interactive figues.  Some examples can be found in
-[data](streamvis/data/aiayn.yaml).
-
-# Introduction
 
 Streamvis provides interactive visualizations for data that is periodically produced
 from your application as it is running.  In your application you create a
@@ -245,77 +280,25 @@ Detail
 cols=A,B;C    # Left column contains plots A and B, right column contains plot C
 width=2,1     # Left column is 1/3 of page width, right column is 2/3
 height=1,2,1  # Plots A and B take up 1/3 and 2/3 of page height.  Plot C is full page height
-```
 
-## Python Local File API
 
-Command-line
+## Python Data API
+
 
 ```bash
-streamvis scopes /data/streamvis.log
+$ streamvis scopes $GRPC_URI
 fig4-bos-17-coin-sm-c100
 fig4-bos-23-coin-sm-c100
 fig4-bos-1-coin-sm-c100
 ...
 
-streamvis names /data/streamvis.log "fig4-bos-1-coin-sm-c100"
-xent-process-ent-ratio
-sem-cross-entropy
-sem-kl-divergence
-eval-kl-divergence
-...
-
-```python
-from streamvis import script
-logfile = "..."
-scopes = script.scopes(path=logfile)
-names = script.names(path=logfile, scope=scopes[0])
-
-all_data = script.export(path=logfile)
-# all_data[(scope, name, index)] = { axis: ndarray }
-
-scope_data = script.export(path=logfile, scope=scopes[0])
-# scope_data[(scope, name, index)] = { axis: ndarray }
-
-name_data = script.export(path=logfile, scope=scopes[0], name=names[0])
-# name_data[(scope, name, index)] = { axis: ndarray }
-```
-
-## Python Remote Fetch API
-
-This API does not require you to download the log file.  It is more convenient when the
-log file is updated more frequently so that you don't have to repeatedly download a log
-file just to receive updates.
-
-
-```bash
-# on the machine hosting the log file and index file
-# find the public IP address
-g347 $ hostname -I
-10.15.36.97 172.17.0.1 100.68.200.91 fd7a:115c:a1e0::5601:c85b
-# launch the server
-$ python -m streamvis.grpc_server /data/streamvis.log 8081
-```
-Then, on the machine you want to consume the data:
-
-Command-line:
-
-```bash
-$ streamvis scopes 100.68.200.91:8081
-fig4-bos-17-coin-sm-c100
-fig4-bos-23-coin-sm-c100
-fig4-bos-1-coin-sm-c100
-...
-
-$ streamvis names 100.68.200.91:8081 fig4-bos-17-coin-sm-c100
+$ streamvis names $GRPC_URI fig4-bos-17-coin-sm-c100
 xent-process-ent-ratio
 sem-cross-entropy
 sem-kl-divergence
 eval-kl-divergence
 ...
 ```
-
-Python:
 
 
 ```python
@@ -325,8 +308,8 @@ from streamvis import script
 # uri is public_ip_addr:port
 uri="100.68.200.91:8081"
 
-scopes = script.gscopes(uri=uri)
-names = script.gnames(uri=uri, scope=scopes[0])
+scopes = script.scopes(uri=uri)
+names = script.names(uri=uri, scope=scopes[0])
 
 all_data = script.gfetch_sync(uri=uri)
 # all_data[(scope, name, index)] = { axis: ndarray }
