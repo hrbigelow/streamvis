@@ -1,4 +1,4 @@
-# streamvis - interactive, streaming data WebGL visualizations
+# Interactive, streaming data WebGL visualizations
 
 # Introduction
 
