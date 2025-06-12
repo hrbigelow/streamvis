@@ -1,4 +1,4 @@
-# streamvis - interactive visualizations of streaming data with Bokeh
+# streamvis - interactive, streaming data WebGL visualizations
 
 # Introduction
 
