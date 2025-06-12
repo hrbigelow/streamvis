@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal
+import queue
 import copy
 import os
 import enum
@@ -220,16 +221,6 @@ class BaseLogger:
         return True
 
 
-
-        if not more_work:
-            # print(f"flush_buffer finished all work")
-            break
-        try:
-            await asyncio.sleep(self.flush_every)
-        except asyncio.CancelledError:
-            print(f"flush_buffer cancelled")
-            break
-
 class AsyncDataLogger(BaseLogger):
 
     def __init__(
@@ -263,7 +254,7 @@ class AsyncDataLogger(BaseLogger):
     async def __aexit__(self, *args):
         self.buffer.put_nowait(None) # sentinel, allow flush task to finish normally
         await self._task_group.__aexit__(*args)
-        await self.chan.close()
+        self.chan.close()
         self._task_group = None
 
     async def write(self, name: str, /, start_index: int=0, **data):
@@ -301,7 +292,7 @@ class DataLogger(BaseLogger):
         super().__init__(scope, grpc_uri, tensor_type, delete_existing, 0.0)
         self.buffer = queue.Queue()
 
-    def init_scope():
+    def init_scope(self):
         return super()._init_scope()
 
     def flush_buffer(self):

@@ -22,6 +22,13 @@ is used (scatter plot or line plot) and how the `(scope, name, index)` tag is in
 for the visualization.  This decision can be made any time, while data are in the process
 of being logged, or after.
 
+**Efficiency** - Streamvis is built for efficient logging of data - in particular, it
+accepts tensor types of jax, torch and numpy data.  The tensor data is not transferred
+over to CPU when `logger.write` is called, but rather during the flush.  So, you may
+call `write` frequently with small amounts of data, without causing any transfer of data
+from GPU to CPU.  The only transfers happen during `flush_buffer()` which happen at
+a fixed frequency of your choosing.
+
 
 # Install
 
@@ -35,7 +42,7 @@ GRPC_PORT=8081
 GRPC_URI=$IP:GRPC_PORT
 WEB_URI=$IP:8888
 DATA_PREFIX=/data/test
-SCHEMA_FILE=streamvis.yaml
+SCHEMA_FILE=./data/demo.yaml  # see demo.yaml in this repo
 DEMO_SCOPE=run24
 NUM_STEPS=2000
 
@@ -46,7 +53,7 @@ streamvis grpc-serve $DATA_PREFIX $GRPC_PORT
 streamvis web-serve $WEB_URI $GRPC_URI $SCHEMA_FILE 
 
 # run a test data producing demo app 
-streamvis demo $DEMO_SCOPE $NUM_STEPS
+streamvis logging-demo $DEMO_SCOPE $NUM_STEPS
 
 # list scopes logged so far 
 streamvis scopes $GRPC_URI  
@@ -59,128 +66,139 @@ streamvis names $GRPC_URI $DEMO_SCOPE
 
 There is both a sync and async API for logging data in your application.
 
-## Async API
+## Async Logging API
+
+```bash
+streamvis logging-demo-async $GRPC_URI $SCOPE
+```
+
+See [streamvis/demo_async.py](streamvis/demo_async.py)
 
 ```python
-logger = AsyncDataLogger(
-    scope=scope, 
-    grpc_uri=uri,
-    tensor_type="numpy", # or "jax" or "torch"
-    delete_existing=True,
-    flush_every=2.0  # seconds
+import time
+from streamvis.logger import AsyncDataLogger
+from .demo_funcs import Cloud, Sinusoidal
+
+async def demo_log_data_async(grpc_uri, scope, num_steps):
+    """Demo of the AsyncDataLogger."""
+    logger = AsyncDataLogger(
+        scope=scope, 
+        grpc_uri=grpc_uri, 
+        tensor_type="numpy", 
+        delete_existing=True, 
+        flush_every=1.0,
     )
 
-# This starts the flushing task.
-async with logger:
-    # Will write settings under the logger's scope
-    logger.write_config(settings) # settings is a (possibly nested) dictionary of POD types
-    ...
+    cloud = Cloud(num_points=10000, num_steps=num_steps)
+    sinusoidal = Sinusoidal()
 
-    for step in range(1000):
-        # Choose any name (i.e. "top_left") you would like your data tagged with
-        # Choose any column names - here "x" and "y" are used
-        await logger.write("top-left", x=xs, y=top_data)
+    async with logger:
+        logger.write_config({ "start-time": time.time() })
 
-        # Here, "x", "y", and "t" are used.
-        xs, ys = points[:,0], points[:,1]
-        await logger.write("cloud", x=xs, y=ys, t=step)
+        for step in range(0, num_steps, 10):
+            time.sleep(0.1)
+            # top_data[group, point], where group is a logical grouping of points that
+            # form a line, and point is one of those points
+            xs, top_data = sinusoidal.step(step)
+            await logger.write('sinusoidal', x=xs, y=top_data)
 
-        # You may also use write_sync and periodic calls to yield_to_flush.
-        # This is convenient when you are calling the logger from inside existing functions
-        # and don't want to convert them to async.
-        logger.write_sync("cloud", x=xs, y=hs, t=step)
-        ...
-        await logger.yield_to_flush()
+            points = cloud.step(step)
+            xs, ys = points[:,0], points[:,1]
+            await logger.write('cloud', x=xs, y=ys, t=step)
 
-# When the logger context manager exits, all remaining queued data is flushed
+            if step % 10 == 0:
+                print(f'Logged {step=}')
 ```
 
-## Sync API
+## Sync Logging API
+
+```bash
+streamvis logging-demo $GRPC_URI $SCOPE
+```
+
+See [streamvis/demo_sync.py](streamvis/demo_sync.py)
 
 ```python
-logger = DataLogger(
-    scope=scope,
-    grpc_uri=uri,
-    tensor_type="numpy", # or "jax" or "torch"
-    delete_existing=True,  # if True, will delete all existing data under scope
-)
+import time
+from streamvis.logger import AsyncDataLogger
+from .demo_funcs import Cloud, Sinusoidal
 
-# When using the sync API, must call init_scope() before any calls to write.
-logger.init_scope()
+async def demo_log_data_async(grpc_uri, scope, num_steps):
+    """Demo of the AsyncDataLogger."""
+    logger = AsyncDataLogger(
+        scope=scope, 
+        grpc_uri=grpc_uri, 
+        tensor_type="numpy", 
+        delete_existing=True, 
+        flush_every=1.0,
+    )
 
-# Will write settings under the logger's scope
-logger.write_config(settings) # settings is a (possibly nested) dictionary of POD types
+    cloud = Cloud(num_points=10000, num_steps=num_steps)
+    sinusoidal = Sinusoidal()
 
-for step in range(1000):
-    logger.write("top-left", x=xs, y=top_data)
-    ...
-    logger.write("cloud", x=xs, y=hs, t=step)
+    async with logger:
+        logger.write_config({ "start-time": time.time() })
 
-    # Application must call flush_buffer() periodically 
-    if step % 100 == 0:
-        logger.flush_buffer()
+        for step in range(0, num_steps, 10):
+            time.sleep(0.1)
+            # top_data[group, point], where group is a logical grouping of points that
+            # form a line, and point is one of those points
+            xs, top_data = sinusoidal.step(step)
+            await logger.write('sinusoidal', x=xs, y=top_data)
 
+            points = cloud.step(step)
+            xs, ys = points[:,0], points[:,1]
+            await logger.write('cloud', x=xs, y=ys, t=step)
 
-# flush any remaining buffered writes
-logger.flush_buffer()
+            if step % 10 == 0:
+                print(f'Logged {step=}')
+
 ```
 
+# Fetching the data that was logged programmatically
 
-Streamvis is built for efficient logging of data - in particular, it accepts tensor types
-of jax, torch and numpy data.  Importantly, the tensor data is not transferred over to CPU
-when `logger.write` is called, but rather during the flush.  So, you may freely log
-individual SGD steps without causing any GPU<=>CPU synchronization.  The only thing that
-forces transfer of tensor data from GPU to CPU is the flush call, at an interval of your
-choosing.
+You may programmatically fetch the data that was logged with the logging API if you so
+choose.  
 
 
-Multiple glyphs can appear on the same plot.  To specify glyph color, the yaml file
-includes a `color` section as follows:
+## Python Fetch API
 
-```yaml
-loss:
-  color:
-    formula: name_index # one of: name_index, index_name, name, or index
-    palette: Viridis10  # one of the Bokeh palettes, se
-    num_colors:         # number of distinct colors to draw from palette
-    num_indices:        # used in the `index_name` formula (default 1)
-    num_groups:         # used in the `name_index` formula (default 1) 
+```python
+from streamvis import script
+grpc_uri="100.68.200.91:8081"
+
+scopes = script.scopes(uri=grpc_uri)
+names = script.names(uri=grpc_uri, scope=scopes[0])
+
+all_data = script.gfetch_sync(uri=grpc_uri)
+# all_data[(scope, name, index)] = { axis: ndarray }
+
+scope_data = script.gfetch_sync(grpc_uri, scopes[0])
+# scope_data[(scope, name, index)] = { axis: ndarray }
+
+name_data = script.gfetch_sync(uri, scopes[0], names[0])
+# name_data[(scope, name, index)] = { axis: ndarray }
+
 ```
 
+# Interactive Visualization with Bokeh Server
 
-You can use the same PATH for multiple runs of your application.  If two runs are
-considered logically the same (such as when you are resuming from a training
-checkpoint), use the same `scope` when instantiating the `DataLogger`.
 
-## Some Design Principles
 
-### Separation of data from presentation
+## Yaml syntax
 
-The logged data is agnostic to presentation, or membership in any particular
-visualization.  The data has a two-level structure - each datum is called a `Point`
-and all `Points` are part of exactly one `Group`.  The `Group` has three descriptors
-called `scope`, `name`, and `index`.  As mentioned above, `scope` and `name` are used
-by the schema to associate `Group`s to each figure.  `index` is used to further group
-the data into separate glyphs (currently, lines) within the same figure.
 
-### Easy to combine multiple experiments
-
-At the moment, Streamvis reads from a single log file.  But, this file can include
-results from multiple experiments.  Then, multiple schema files can each define
-specific subsets of data to visualize.  One possible extension for Streamvis could be
-to support multiple log files, however.
+# URI API
 
 ### Multiple browser tabs and multi-plot page layouts
 
 If you have several different plots, you may want to view subsets of them in
 different browser tabs, and design page layouts that you don't know ahead of time.
-The `streamvis_server` lets you do this using URL parameters to specify layouts
-organized as rows or columns.
 
 ### Row-based layout
 
 ```
-localhost:5006/?rows=A,B;C&width=1,2,1&height=1,2
+$WEB_URI/?rows=A,B;C&width=1,2,1&height=1,2
 
 +----------+----+
 |     A    | B  |
@@ -261,27 +279,4 @@ sem-kl-divergence
 eval-kl-divergence
 ...
 ```
-
-
-```python
-from streamvis import script
-
-# uri of the remote fetch server (see gfile_server.py)
-# uri is public_ip_addr:port
-uri="100.68.200.91:8081"
-
-scopes = script.scopes(uri=uri)
-names = script.names(uri=uri, scope=scopes[0])
-
-all_data = script.gfetch_sync(uri=uri)
-# all_data[(scope, name, index)] = { axis: ndarray }
-
-scope_data = script.gfetch_sync(uri, scopes[0])
-# scope_data[(scope, name, index)] = { axis: ndarray }
-
-name_data = script.gfetch_sync(uri, scopes[0], names[0])
-# name_data[(scope, name, index)] = { axis: ndarray }
-
-```
-
 

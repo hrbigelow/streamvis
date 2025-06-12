@@ -11,8 +11,11 @@ import numpy as np
 import re
 from streamvis import util
 from streamvis.logger import DataLogger
+from . import demo_sync, demo_async
 from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
+from .demo_async import demo_log_data_async
+from .demo_sync import demo_log_data
 from google.protobuf.empty_pb2 import Empty
 
 
@@ -38,69 +41,14 @@ def local_names(path: str, scope: str=None) -> list[str]:
     return index.name_list
     
 
-def demo(path: str, scope: str, num_steps: str="10000"):
+def demo_sync(grpc_uri: str, scope: str, num_steps: str="2000"):
     num_steps = int(num_steps)
-    asyncio.run(_demo(path, scope, num_steps))
+    demo_log_data(grpc_uri, scope, num_steps)
 
+def demo_async(grpc_uri: str, scope: str, num_steps: str="2000"):
+    num_steps = int(num_steps)
+    asyncio.run(demo_log_data_async(grpc_uri, scope, num_steps))
 
-async def _demo(uri, scope, num_steps):
-    """
-    A demo application to log data with `scope` to `path`
-    """
-    logger = DataLogger(scope=scope, delete_existing=True)
-    logger.init(grpc_uri=uri, flush_every=1.0, tensor_type="numpy")
-
-    N = 50
-    L = 20
-    left_data = np.random.randn(N, 2)
-
-    cloud = np.random.normal(size=(10000,2))
-    speeds = np.random.uniform(size=(3,)) * (num_steps ** -1)
-    def cloud_step(step):
-        # produce a transformation matrix based on step
-        xscale, yscale, rot_sin = np.sin(step * speeds)
-        rot_cos = np.cos(step * speeds[2])
-        scale = np.diag([xscale, yscale])
-        rot = np.array([[rot_cos, -rot_sin], [rot_sin, rot_cos]])
-        mat = np.einsum('ij, jk -> ik', scale, rot)
-        return np.einsum('ik, li -> lk', mat, cloud)
-
-    async with logger:
-        await logger.write_config({ "start-time": time.time() })
-
-        for step in range(0, num_steps, 10):
-            time.sleep(0.1)
-            # top_data[group, point], where group is a logical grouping of points that
-            # form a line, and point is one of those points
-            top_data = np.array(
-                    [
-                        [math.sin(1 + s / 10) for s in range(step, step+10)],
-                        [0.5 * math.sin(1.5 + s / 20) for s in range(step, step+10)],
-                        [1.5 * math.sin(2 + s / 15) for s in range(step, step+10)]
-                        ], dtype=np.float32) 
-
-            left_data = left_data + np.random.randn(N, 2) * 0.1
-            xs = np.arange(step, step+10, dtype=np.int32)[None,:]
-
-            await logger.write('top_left', x=xs, y=top_data)
-
-            mid_data = top_data[:,0]
-
-            # (I,), None form
-            await logger.write('middle', x=step, y=mid_data)
-
-            # Distribute the L dimension along grid cells
-            # data_rank3 = np.random.randn(L,N,2) * layer_mult.reshape(L,1,1)
-            # logger.scatter_grid(plot_name='top_right', data=data_rank3, append=False,
-             #        grid_columns=5, grid_spacing=1.0)
-            await logger.write('loss', x=step, y=mid_data[0])
-
-            points = cloud_step(step)
-            xs, ys = points[:,0], points[:,1]
-            await logger.write('cloud', x=xs, y=ys, t=step)
-
-            if step % 10 == 0:
-                print(f'Logged {step=}')
 
 async def gfetch(uri: str, scope: str=None, name: str=None):
     raise NotImplementedError
@@ -176,7 +124,7 @@ def grpc_serve(path: str, port: str):
 def help():
     print("Usage:")
     print("script.py <task> <args...>")
-    print("Available tasks: web-serve, grpc-serve, demo, groups, list, scopes, names, export, delete")
+    print("Available tasks: web-serve, grpc-serve, demo, demo-async, groups, list, scopes, names, export, delete")
 
 def main():
     if len(sys.argv) < 2:
@@ -196,7 +144,8 @@ def main():
     tasks = { 
             "web-serve": serve,
             "grpc-serve": grpc_serve,
-            "demo": demo,
+            "logging-demo": demo_sync,
+            "logging-demo-async": demo_async,
             "scopes": partial(print_list, scopes),
             "names": partial(print_list, names),
             "config": partial(print_dict, config),
