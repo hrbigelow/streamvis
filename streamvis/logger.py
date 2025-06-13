@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal
+import threading
 import queue
 import copy
 import os
@@ -288,16 +289,25 @@ class DataLogger(BaseLogger):
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
         delete_existing: bool=True,
+        flush_every: float=2.0
     ):
-        super().__init__(scope, grpc_uri, tensor_type, delete_existing, 0.0)
+        super().__init__(scope, grpc_uri, tensor_type, delete_existing, flush_every)
         self.buffer = queue.Queue()
+        self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
-    def init_scope(self):
-        return super()._init_scope()
+    def start(self):
+        self._flush_thread.start()
+        super()._init_scope()
 
     def flush_buffer(self):
-        """Call periodically to flush the data written by calls to `write`."""
-        return self._flush_buffer()
+        while True:
+            if not self._flush_buffer():
+                break
+            time.sleep(self.flush_every)
+
+    def stop(self):
+        self.buffer.put_nowait(None)
+        self._flush_thread.join()
 
     def write(self, name: str, /, start_index: int=0, **data):
         super().write(name, start_index, **data)

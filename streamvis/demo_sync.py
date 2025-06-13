@@ -9,12 +9,14 @@ def demo_log_data(grpc_uri, scope, num_steps):
         grpc_uri=grpc_uri,
         tensor_type="numpy",
         delete_existing=True,
+        flush_every=2.0,
     )
 
     cloud = Cloud(num_points=10000, num_steps=num_steps)
     sinusoidal = Sinusoidal()
 
-    logger.init_scope()
+    # Call start before any logging
+    logger.start()
     logger.write_config({ "start-time": time.time() })
 
     for step in range(0, num_steps, 10):
@@ -30,9 +32,6 @@ def demo_log_data(grpc_uri, scope, num_steps):
         if step % 10 == 0:
             print(f'Logged {step=}')
 
-        if step % 100 == 0:
-            logger.flush_buffer()
-
-    # final flush
-    logger.flush_buffer()
+    # blocks until all remaining writes are flushed  
+    logger.stop()
 
