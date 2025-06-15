@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Iterable, Generator
 import threading
 import queue
 import copy
@@ -19,11 +19,25 @@ class Action(enum.Enum):
     DELETE_SCOPE = 0
     DELETE_NAME = 1
 
+MAX_ELEMS_PER_REQUEST = 800_000 # 3.2M or 80% of maximum grpc request 
+
 @dataclass
 class DataItem:
     name: str
-    data: dict[str, 'tensor']
     start_index: int
+    data: dict[str, 'tensor']
+
+    def split(self) -> Generator['DataItem', None, None]:
+        shape_set = set(ten.shape for ten in self.data.values())
+        assert len(shape_set) == 1, "Can't call split yet"
+        dim1 = shape_set.pop()[1]
+        num_elems = sum(np.prod(ten.shape) for ten in self.data.values())
+        num_splits = int(np.ceil(num_elems / MAX_ELEMS_PER_REQUEST))
+        steps = np.linspace(0, dim1, num_splits+1, dtype=int)
+        for beg, end in zip(steps[:-1], steps[1:]):
+            data = {k: v[:,beg:end] for k, v in self.data.items()}
+            item = DataItem(self.name, self.start_index, data)
+            yield item
 
 
 class BaseLogger:
@@ -57,6 +71,7 @@ class BaseLogger:
                 self.concat = jnp.concatenate 
                 self.to_numpy = lambda ary: np.array(ary)
                 self.broadcast_arrays = jnp.broadcast_arrays
+                self.tensor_size = jnp.size
             case "numpy":
                 def downcast(ary):
                     if np.issubdtype(ary.dtype, np.integer):
@@ -70,12 +85,14 @@ class BaseLogger:
                 self.concat = np.concat
                 self.to_numpy = lambda x: x
                 self.broadcast_arrays = np.broadcast_arrays
+                self.tensor_size = np.size
             case "torch":
                 import torch
                 self.to_array = torch.tensor
                 self.concat = lambda arrays, axis: torch.cat(arrays, dim=axis)
                 self.to_numpy = lambda ary: ary.detach().numpy()
                 self.broadcast_arrays = torch.broadcast_tensors 
+                self.tensor_size = torch.numel
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
@@ -162,7 +179,47 @@ class BaseLogger:
         except BaseException as ex:
             raise RuntimeError(f'{name=}, got exception {ex}')
 
-        self.buffer.put_nowait(DataItem(name, data, start_index))
+        item = DataItem(name, start_index, data)
+        self.buffer.put_nowait(item)
+
+    def total_elems(self, item: DataItem):
+        return sum(self.tensor_size(ten) for l in item.data.values() for ten in l)
+
+    def _coalesce_items(self, data_items: list[DataItem]) -> list[DataItem]:
+        """Condense data items by name and start_index"""
+
+        items = sorted(data_items, key=lambda d: (d.name, d.start_index))
+        out_items = []
+        out_item = None
+        item_iter = iter(items)
+        prev_name, prev_index = None, None
+        while True:
+            item = next(item_iter, None)
+            if item is None:
+                if out_item is not None:
+                    out_items.append(out_item)
+                break
+            if prev_name != item.name or prev_index != item.start_index:
+                if out_item is not None:
+                    out_items.append(out_item)
+                out_item = DataItem(
+                    item.name,
+                    item.start_index,
+                    {k: [] for k in item.data.keys()}
+                )
+            for k, v in item.data.items():
+                out_item.data[k].append(v)
+
+            prev_name = item.name
+            prev_index = item.start_index
+
+        for out_item in out_items:
+            cds = {k: self.concat(vs, axis=1) for k, vs in out_item.data.items()}
+            out_item.data = cds
+
+        split_items = [sp for item in out_items for sp in item.split()]
+        return split_items
+
 
     def write_content(self, data_items: list[DataItem]):
         all_messages = []
@@ -180,46 +237,46 @@ class BaseLogger:
             pb_name = rec.name
             self.logged_names[pb_name.name] = pb_name 
 
-        datas = []
+        requests = []
+        sizes = []
         for data_item in data_items:
+            data_elems = self.total_elems(data_item)
+            assert data_elems <= MAX_ELEMS_PER_REQUEST, "Single element exceeds size"
+            if len(sizes) == 0 or sizes[-1] + data_elems > MAX_ELEMS_PER_REQUEST:
+                request = pb.WriteDataRequest()
+                requests.append(request)
+                sizes.append(0)
+
             data = {k: self.to_numpy(v) for k, v in data_item.data.items()}
             pb_name = self.logged_names[data_item.name]
             messages = util.make_data_messages(
                 pb_name.name_id, data, data_item.start_index, pb_name.fields)
-            datas.extend(messages)
-        request = pb.WriteDataRequest(datas=datas)
-        try:
-            self.stub.WriteData(request)
-        except grpc.RpcError as ex:
-            import pdb
-            pdb.set_trace()
+            requests[-1].datas.extend(messages)
+            sizes[-1] += data_elems
 
+        print(f"Sending requests of element counts: {sizes}")
+        assert all(size <= MAX_ELEMS_PER_REQUEST for size in sizes), "Exceeded allowed size"
+
+        try:
+            for req in requests:
+                self.stub.WriteData(req)
+        except grpc.RpcError as ex:
+            raise RuntimeError(f"Could not write request to grpc: {ex}") from ex
 
 
     def _flush_buffer(self) -> bool:
-        content_as_list = {} # data_id => Dict[str, list['tensor']]
-        name_items = []
-        while not self.buffer.empty():
-            work = self.buffer.get_nowait()
-            if work is None:
-                return False
-
-            data_id = work.name, work.start_index
-            if data_id not in content_as_list:
-                content_as_list[data_id] = {k: [] for k in work.data.keys()}
-            cdslist = content_as_list[data_id]
-            for k, v in work.data.items():
-                cdslist[k].append(v)
-
-        # Collate datas on-device
         data_items = []
-        for (name, start_index), cdslist in content_as_list.items():
-            cds = {k: self.concat(vs, axis=1) for k, vs in cdslist.items()}
-            data_item = DataItem(name, cds, start_index)
-            data_items.append(data_item)
+        more_work = True
+        while not self.buffer.empty():
+            data_item = self.buffer.get_nowait()
+            if data_item is None:
+                more_work = False
+                break
+            data_items.append(data_item) 
 
+        data_items = self._coalesce_items(data_items)
         self.write_content(data_items)
-        return True
+        return more_work 
 
 
 class AsyncDataLogger(BaseLogger):
