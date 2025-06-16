@@ -223,16 +223,16 @@ class BaseLogger:
 
     def write_content(self, data_items: list[DataItem]):
         all_messages = []
-        names = []
+        pending_names = {} # str -> pb.Name
         # find any names not yet logged
         for data_item in data_items:
             pb_name = self.logged_names.get(data_item.name, None)
-            if pb_name is None:
+            if pb_name is None and data_item.name not in pending_names:
                 field_sig = tuple((k, v.dtype) for k, v in data_item.data.items())
                 pb_name = util.make_name_message(self.scope_id, data_item.name, field_sig)
-                names.append(pb_name)
+                pending_names[data_item.name] = pb_name
 
-        request = pb.WriteNameRequest(names=names)
+        request = pb.WriteNameRequest(names=pending_names.values())
         for rec in self.stub.WriteNames(request):
             pb_name = rec.name
             self.logged_names[pb_name.name] = pb_name 
@@ -254,7 +254,7 @@ class BaseLogger:
             requests[-1].datas.extend(messages)
             sizes[-1] += data_elems
 
-        print(f"Sending requests of element counts: {sizes}")
+        # print(f"Sending requests of element counts: {sizes}")
         assert all(size <= MAX_ELEMS_PER_REQUEST for size in sizes), "Exceeded allowed size"
 
         try:
