@@ -1,3 +1,5 @@
+// compile from streamvis dir (repo directory)
+// python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. streamvis/data.proto
 syntax = "proto3";
 
 import "google/protobuf/empty.proto";
