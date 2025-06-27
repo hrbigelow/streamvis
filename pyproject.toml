@@ -14,7 +14,7 @@ dependencies = [
   "bokeh>=3.0.0",
   "google-cloud-storage",
   "hydra-core>=1.3.2",
-  "grpcio-tools==1.71.0",
+  "grpcio-tools==1.73.1",
   "vulture>=2.14",
 ]
 
