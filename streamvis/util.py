@@ -424,23 +424,42 @@ def get_new_data(
     return index, cds_map
 
 
+def _concatenate(nums_list: list[Iterable], dtype: np.dtype) -> np.ndarray:
+    total_length = sum(len(nums) for nums in nums_list)
+    out = np.empty(total_length, dtype=dtype)
+    offset = 0
+    for nums in nums_list:
+        n = len(nums)
+        out[offset:offset+n] = nums
+        offset += n
+    return out
 
 
 def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']:
     collate = {} # DataKey => cds_data
+    tmpdata = {}
     for data in datas:
         key = index.get_key(data)
         name = index.get_name(data)
         if key not in collate:
-            cds = {f.name: np.array((), dtype=PROTO_TO_DTYPE[f.type]) for f in name.fields}
+            cds = {f.name: PROTO_TO_DTYPE[f.type] for f in name.fields}
+            tmp = {f.name: [] for f in name.fields}
             collate[key] = cds
+            tmpdata[key] = tmp
         cds = collate[key]
+        tmp = tmpdata[key]
         for axis, field in zip(data.axes, name.fields):
             if field.type == pb.FieldType.FLOAT:
                 nums = axis.floats.value
             elif field.type == pb.FieldType.INT:
                 nums = axis.ints.value
-            cds[field.name] = np.append(cds[field.name], nums)
+            tmp[field.name].append(nums)
+
+    for key, tmp in tmpdata.items():
+        cds = collate[key]
+        for field, nums_list in tmp.items():
+            cds[field] = _concatenate(nums_list, cds[field])
+
     return collate
 
 

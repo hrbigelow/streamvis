@@ -64,6 +64,7 @@ def fetch(uri: str, scope: str=None, name: str=None):
     index = util.Index.from_scope_name(scope, name)
     pb_index = index.to_message()
     datas = []
+    i = 0
     for record in stub.QueryRecords(pb_index):
         match record.type:
             case pb.INDEX:
