@@ -1,3 +1,4 @@
+from typing import Any
 import asyncio
 import math
 import re
@@ -108,6 +109,10 @@ class Plot:
     def get_name_id(glyph_id: str):
         return int(glyph_id.split(",")[0])
 
+    @staticmethod
+    def to_label(label_key: tuple[Any]) -> str:
+        return "-".join(str(v) for v in label_key)
+
     @property
     def is_filtered(self):
         return self.filter_column is not None
@@ -119,12 +124,17 @@ class Plot:
         pal = palettes.interp_palette(pal, num_colors)
         return pal[index]
 
-    def label(self, scope: pb.Scope, name: pb.Name, index: int) -> str:
-        """Compute a label for this group.  Will be used to index a palette."""
+    def label_key(self, scope: pb.Scope, name: pb.Name, index: int) -> tuple[Any]:
+        """Compute the label key, defining the ordering for labels."""
         color_opts = self.plot_schema.get("color", {})
         sig = color_opts.get("key_fun", "sni")
         d = {"s": scope.scope, "n": name.name, "i": index}
-        return "-".join(str(d[ch]) for ch in sig)
+        return tuple(d[ch] for ch in sig)
+
+    def label(self, scope: pb.Scope, name: pb.Name, index: int) -> str:
+        """Compute a label for this group.  Will be used to index a palette."""
+        key = self.label_key(scope, name, index)
+        return self.to_label(key)
 
     def scale_to_pagesize(self, page_width: float, page_height: float):
         width, height = self.get_scaled_size(page_width, page_height)
@@ -346,15 +356,14 @@ class Session:
         label_ord: label -> order index
         label_to_rend_map: label -> list[renderer]
         """
-        labels = set()
+        label_keys = set()
         label_to_rend_map = {}
         for r in list(plot.figure.renderers):
             name_id, index = self.split_glyph_id(r.name)
             name = self.index.names[name_id]
             scope = self.index.scopes[name.scope_id]
-            label = plot.label(scope, name, index)
-            labels.add(label)
-        label_ord = {k: i for i, k in enumerate(sorted(labels))}
+            label_key = plot.label_key(scope, name, index)
+            label_keys.add(label_key)
         for r in list(plot.figure.renderers):
             name_id, index = self.split_glyph_id(r.name)
             name = self.index.names[name_id]
@@ -362,6 +371,8 @@ class Session:
             label = plot.label(scope, name, index)
             rs = label_to_rend_map.setdefault(label, [])
             rs.append(r)
+
+        label_ord = {plot.to_label(k): i for i, k in enumerate(sorted(label_keys))}
         return label_ord, label_to_rend_map
 
     async def refresh_data(self):
@@ -402,10 +413,11 @@ class Session:
             legend = plot.figure.legend[0]
             existing_label_ord = {item.label.value: item.index for item in legend.items}
             if label_ord == existing_label_ord:
+                # all labels are identical, nothing to update
                 continue
             legend.items.clear()
-            for label, rs in label_to_rend_map.items():
-                idx = label_ord[label]
+            for label, idx in sorted(label_ord.items(), key=lambda kv: kv[1]):
+                rs = label_to_rend_map[label]
                 legend_item = LegendItem(index=idx, label=label, renderers=rs)
                 legend.items.append(legend_item)
 
