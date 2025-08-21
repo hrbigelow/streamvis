@@ -47,10 +47,11 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
                 await context.write(rec)
 
     async def Scopes(self, request: Empty, context):
+        """Return a list of scope names that have content"""
         index = util.Index.from_filters()
         index.update(self.read_index_fh)
-        for scope in index.scope_list:
-            rec = pb.StreamedRecord(type=pb.STRING, value=scope.scope)
+        for scope_name in index.scope_list:
+            rec = pb.StreamedRecord(type=pb.STRING, value=scope_name)
             await context.write(rec)
 
     async def Names(self, request: pb.ScopeRequest, context):
@@ -58,7 +59,7 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         index = util.Index.from_filters(scope_filter=scope_pat)
         index.update(self.read_index_fh)
         for name in index.name_list:
-            rec = pb.StreamedRecord(type=pb.STRING, value=name.name)
+            rec = pb.StreamedRecord(type=pb.STRING, value=name)
             await context.write(rec)
 
     async def Configs(self, request: pb.ScopeRequest, context):
@@ -79,9 +80,6 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
                 await context.write(rec)
 
     async def WriteScope(self, request: pb.WriteScopeRequest, context):
-        if request.do_delete:
-            pack = util.pack_delete_scope(request.scope)
-            util.safe_write(self.append_index_fh, pack)
         scope_id = self.issue_id()
         pack = util.pack_scope(scope_id, request.scope)
         util.safe_write(self.append_index_fh, pack)
@@ -109,6 +107,14 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
             rec = pb.StreamedRecord(type=pb.NAME, name=name)
             await context.write(rec)
 
+    async def DeleteScopeNames(self, request:pb.ScopeNameRequest, context):
+        messages = []
+        for name in request.names:
+            messages.append(util.pack_delete_name(request.scope, name))
+        pack = b''.join(messages)
+        util.safe_write(self.append_index_fh, pack)
+        return Empty()
+
     async def WriteData(self, request: pb.WriteDataRequest, context):
         data_packs = []
         for pb_data in request.datas:
@@ -133,6 +139,7 @@ class AsyncRecordService(pb_grpc.RecordServiceServicer):
         entry_pack = b''.join(entry_packs)
         util.safe_write(self.append_index_fh, entry_pack)
         return Empty()
+
 
     async def RewriteLogs(self, request: Empty, context):
         """Rewrite the index and data log files."""

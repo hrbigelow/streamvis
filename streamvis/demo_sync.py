@@ -2,13 +2,13 @@ import time
 from .logger import DataLogger
 from .demo_funcs import Cloud, Sinusoidal
 
-def demo_log_data(grpc_uri, scope, num_steps):
+def demo_log_data(grpc_uri, scope, delete_existing_names, num_steps):
     """Demo of the Synchronous DataLogger."""
     logger = DataLogger(
         scope=scope, 
         grpc_uri=grpc_uri,
         tensor_type="numpy",
-        delete_existing=True,
+        delete_existing_names=delete_existing_names,
         flush_every=2.0,
     )
 

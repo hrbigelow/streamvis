@@ -144,7 +144,6 @@ message WriteConfigRequest {
 
 message WriteScopeRequest {
   string scope = 1;
-  bool do_delete = 2;
 }
 
 message IntegerResponse {
@@ -154,6 +153,11 @@ message IntegerResponse {
 
 message WriteNameRequest {
   repeated Name names = 1;
+}
+
+message ScopeNameRequest {
+  string scope = 1;
+  repeated string names = 2;
 }
 
 message WriteDataRequest {
@@ -169,6 +173,7 @@ service RecordService {
   rpc WriteScope (WriteScopeRequest) returns (IntegerResponse);
   rpc WriteConfig (WriteConfigRequest) returns (google.protobuf.Empty);
   rpc WriteNames (WriteNameRequest) returns (stream StreamedRecord);
+  rpc DeleteScopeNames (ScopeNameRequest) returns (google.protobuf.Empty); 
   rpc WriteData (WriteDataRequest) returns (google.protobuf.Empty);
 }
 

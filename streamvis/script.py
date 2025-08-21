@@ -1,3 +1,4 @@
+import fire
 from typing import Any
 import asyncio
 import grpc
@@ -11,7 +12,6 @@ import numpy as np
 import re
 from streamvis import util
 from streamvis.logger import DataLogger
-from . import demo_sync, demo_async
 from . import data_pb2 as pb
 from . import data_pb2_grpc as pb_grpc
 from .demo_async import demo_log_data_async
@@ -19,35 +19,15 @@ from .demo_sync import demo_log_data
 from google.protobuf.empty_pb2 import Empty
 
 
-def export(path, scope=None, name=None):
-    """Return all data full-matching scope_pat.
-
-    Returns:
-       (scope, name, index) => Dict[axis, data]
-    """
-    index_fh = util.get_log_handle(util.index_file(path), "rb")
-    index = util.Index.from_filters(scope=scope, name=name)
-    index.update(index_fh)
-    data_fh = util.get_log_handle(util.data_file(path), "rb")
-    cds_map = util.fetch_cds_data(data_fh, index)
-    return util.flatten_keys(cds_map)
-
-def local_scopes(path: str) -> list[str]:
-    index = util.load_index(path)
-    return index.scope_list
-
-def local_names(path: str, scope: str=None) -> list[str]:
-    index = util.load_index(path, scope)
-    return index.name_list
-    
-
-def demo_sync(grpc_uri: str, scope: str, num_steps: str="2000"):
+def demo_sync_fn(
+    grpc_uri: str, scope: str, delete_existing_names: bool=True, num_steps: str="2000"):
     num_steps = int(num_steps)
-    demo_log_data(grpc_uri, scope, num_steps)
+    demo_log_data(grpc_uri, scope, delete_existing_names, num_steps)
 
-def demo_async(grpc_uri: str, scope: str, num_steps: str="2000"):
+def demo_async_fn(
+    grpc_uri: str, scope: str, delete_existing_names: bool=True, num_steps: str="2000"):
     num_steps = int(num_steps)
-    asyncio.run(demo_log_data_async(grpc_uri, scope, num_steps))
+    asyncio.run(demo_log_data_async(grpc_uri, scope, delete_existing_names, num_steps))
 
 
 async def gfetch(uri: str, scope: str=None, name: str=None):
@@ -71,8 +51,7 @@ def fetch(uri: str, scope: str=None, name: str=None):
                 index = util.Index.from_message(record.index)
             case pb.DATA:
                 datas.append(record.data)
-    cds_map = util.data_to_cds(index, datas)
-    return util.flatten_keys(cds_map)
+    return util.data_to_cds_flat(index, datas)
 
 
 def scopes(uri: str) -> list[str]:
@@ -122,16 +101,13 @@ def grpc_serve(path: str, port: str):
     asyncio.run(grpc_server.serve(path, int(port)))
 
 
-def help():
-    print("Usage:")
-    print("script.py <task> <args...>")
-    print("Available tasks: web-serve, grpc-serve, demo, demo-async, groups, list, scopes, names, export, delete")
+def counts(grpc_uri: str, scope: str):
+    res = fetch(grpc_uri, scope)
+    for (s, n, i), cds in res.items():
+        shape_str = " ".join(f"{k}: {v.shape}" for k, v in cds.items())
+        print(f"{s}\t{n}\t{i}\t{shape_str}")
 
 def main():
-    if len(sys.argv) < 2:
-        help()
-        return
-
     def print_list(fn, *args):
         out = fn(*args)
         for item in out:
@@ -145,18 +121,14 @@ def main():
     tasks = { 
             "web-serve": serve,
             "grpc-serve": grpc_serve,
-            "logging-demo": demo_sync,
-            "logging-demo-async": demo_async,
+            "logging-demo": demo_sync_fn,
+            "logging-demo-async": demo_async_fn,
             "scopes": partial(print_list, scopes),
             "names": partial(print_list, names),
+            "counts": counts,
             "config": partial(print_dict, config),
             }
-    task = sys.argv.pop(1)
-    task_fun = tasks.get(task)
-    if task_fun is None:
-        help()
-    task_fun(*sys.argv[1:])
-
+    fire.Fire(tasks)
 
 if __name__ == '__main__':
     main()

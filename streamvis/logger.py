@@ -50,16 +50,17 @@ class BaseLogger:
         scope: str, 
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing: bool=True,
+        delete_existing_names: bool=True,
         flush_every: float=2.0,
-        ):
+    ):
         """scope: a string which defines the scope in the logical point grouping."""
         self.scope = scope
         self.logged_names = {} # name => pb.Name 
         self.buffer = asyncio.Queue()
         random.seed(time.time())
         self.config_written = False
-        self.delete_existing = delete_existing
+        self.delete_existing_names = delete_existing_names
+        self.deleted_names = set() # name: str
         self.uri = grpc_uri
         self.chan = grpc.insecure_channel(grpc_uri) 
         self.stub = pb_grpc.RecordServiceStub(self.chan)
@@ -98,9 +99,20 @@ class BaseLogger:
 
     def _init_scope(self):
         """This must be called before any calls to write."""
-        request = pb.WriteScopeRequest(scope=self.scope, do_delete=self.delete_existing)
+        request = pb.WriteScopeRequest(scope=self.scope)
         response = self.stub.WriteScope(request)
         self.scope_id = response.value
+
+    def delete_scope(self):
+        """Call this to delete all data under this scope."""
+        request = pb.ScopeRequest(scope=scope)
+        names = []
+        for record in stub.Names(request):
+            match record.type:
+                case pb.STRING:
+                    names.append(record.value)
+        request = pb.ScopeNameRequest(scope=scope, names=names)
+        self.stub.DeleteScopeNames(request)
 
     def upscale_inputs(self, data) -> dict[str, 'tensor']:
         """
@@ -170,6 +182,11 @@ class BaseLogger:
 
         x[point], y[index, point]
         """
+        if self.delete_existing_names and name not in self.deleted_names:
+            req = pb.ScopeNameRequest(scope=self.scope, names=(name,))
+            self.stub.DeleteScopeNames(req)
+            self.deleted_names.add(name)
+
         try:
             data = {k: self.to_array(v) for k, v in data.items()}
         except BaseException as ex:
@@ -286,10 +303,10 @@ class AsyncDataLogger(BaseLogger):
         scope: str, 
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing: bool=True,
+        delete_existing_names: bool=True,
         flush_every: float=2.0
     ):
-        super().__init__(scope, grpc_uri, tensor_type, delete_existing, flush_every)
+        super().__init__(scope, grpc_uri, tensor_type, delete_existing_names, flush_every)
         self.buffer = asyncio.Queue()
 
     async def flush_buffer(self):
@@ -345,10 +362,10 @@ class DataLogger(BaseLogger):
         scope: str, 
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing: bool=True,
+        delete_existing_names: bool=True,
         flush_every: float=2.0
     ):
-        super().__init__(scope, grpc_uri, tensor_type, delete_existing, flush_every)
+        super().__init__(scope, grpc_uri, tensor_type, delete_existing_names, flush_every)
         self.buffer = queue.Queue()
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 

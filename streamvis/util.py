@@ -1,4 +1,4 @@
-from typing import Any, Iterable
+from typing import Any, Iterable, Union
 import itertools
 import fcntl
 import copy
@@ -131,6 +131,10 @@ def pack_delete_scope(scope: str) -> bytes:
     control = pb.Control(scope=scope, name="", action=pb.DELETE_SCOPE)
     return pack_message(control)
 
+def pack_delete_name(scope: str, name: str) -> bytes:
+    control = pb.Control(scope=scope, name=name, action=pb.DELETE_NAME)
+    return pack_message(control)
+
 
 def pack_config_entry(entry_id: int, scope_id: int, beg_offset: int, end_offset: int) -> bytes:
     config_entry = pb.ConfigEntry(
@@ -183,13 +187,14 @@ def unpack(packed: bytes):
     return len(packed) - off
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class DataKey:
     scope_id: int
     scope: str
     name_id: int
     name: str
     index: int
+
 
 class Index:
     scope_filter: re.Pattern 
@@ -240,7 +245,7 @@ class Index:
     @classmethod
     def from_scope_name(cls, scope: str=None, name: str=None):
         scope_filter = ".*" if scope is None else f"^{scope}$"
-        name_filters = ".*" if name is None else (f"^{name}$",)
+        name_filters = (".*",) if name is None else (f"^{name}$",)
         return cls.from_filters(scope_filter, name_filters) 
 
 
@@ -262,12 +267,18 @@ class Index:
         return tuple(self.config_entries.values())
 
     @property
-    def scope_list(self):
-        return tuple(self.scopes.values())
+    def scope_list(self) -> tuple[str]:
+        """Return a list of scope names that have content"""
+        scopes = set() 
+        for scope_id, scope in self.scopes.items():
+            gen = (pb.scope_id == scope_id for pb in self.names.values())
+            if next(gen, None) != None:
+                scopes.add(scope.scope)
+        return tuple(scopes)
 
     @property
-    def name_list(self):
-        return tuple(self.names.values())
+    def name_list(self) -> tuple[str]:
+        return tuple(set(pb.name for pb in self.names.values()))
 
     def get_key(self, data: pb.Data) -> DataKey:
         name = self.names[data.name_id]
@@ -297,29 +308,24 @@ class Index:
                     assert name_id not in self.names, "Duplicate name_id in index"
                     self.names[name_id] = item
 
-            case pb.Control(scope=scope, action=pb.Action.DELETE_SCOPE):
-                if not self._filter(scope=scope):
+            case pb.Control(scope=scope, name=name, action=pb.Action.DELETE_NAME):
+                if not self._filter(scope=scope, name=name):
                     return
-                scopes_to_del = {}
-                names_to_del = {} 
+                scope_ids = set(k for k, v in self.scopes.items() if v.scope == scope)
+                names_to_del = set()
                 entries_to_del = set() 
                 config_entries_to_del = set()
-                for scope_id, pb_scope in self.scopes.items():
-                    if pb_scope.scope == scope:
-                        scopes_to_del[scope_id] = pb_scope
                 for name_id, pb_name in self.names.items():
-                    if pb_name.scope_id in scopes_to_del:
-                        names_to_del[name_id] = pb_name
+                    if pb_name.scope_id in scope_ids and pb_name.name == name:
+                        names_to_del.add(name_id)
                 for entry_id, pb_entry in self.entries.items():
                     if pb_entry.name_id in names_to_del:
                         entries_to_del.add(entry_id)
                 for centry_id, pb_centry in self.config_entries.items():
-                    if pb_centry.scope_id in scopes_to_del:
+                    if pb_centry.scope_id in scope_ids:
                         config_entries_to_del.add(centry_id)
                 for name_id in names_to_del:
                     del self.names[name_id]
-                for scope_id in scopes_to_del:
-                    del self.scopes[scope_id]
                 for entry_id in entries_to_del:
                     del self.entries[entry_id]
                 for centry_id in config_entries_to_del:
@@ -435,12 +441,16 @@ def _concatenate(nums_list: list[Iterable], dtype: np.dtype) -> np.ndarray:
     return out
 
 
-def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']:
+def _data_to_cds(
+    index: Index, datas: list[pb.Data], flatten: bool
+) -> dict[Union[DataKey, tuple], 'cds_data']:
     collate = {} # DataKey => cds_data
-    tmpdata = {}
+    tmpdata = {} # DataKey => (str => list[num])
     for data in datas:
         key = index.get_key(data)
         name = index.get_name(data)
+        if flatten:
+            key = key.scope, key.name, key.index
         if key not in collate:
             cds = {f.name: PROTO_TO_DTYPE[f.type] for f in name.fields}
             tmp = {f.name: [] for f in name.fields}
@@ -462,17 +472,11 @@ def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']
 
     return collate
 
+def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']:
+    return _data_to_cds(index, datas, flatten=False)
 
-def fetch_cds_data(data_fh, index: Index) -> dict[DataKey, 'cds_data']:
-    datas_map = load_data(data_fh, index.entries_list)
-    datas = []
-    for name_id, entry_map in index.entries.items():
-        for entry_id, entry in entry_map.items():
-            datas_list = datas_map[entry_id]
-            for data in datas_list:
-                data.name_id = entry.name_id
-                datas.append(data)
-    return data_to_cds(index, datas)
+def data_to_cds_flat(index: Index, datas: list[pb.Data]) -> dict[tuple, 'cds_data']:
+    return _data_to_cds(index, datas, flatten=True)
 
 
 def _struct_to_dict(struct: Struct) -> dict:
@@ -497,14 +501,6 @@ def export_configs(index: Index, configs: list[pb.Config]) -> dict[str, Any]:
         l = res.setdefault(scope.scope, [])
         l.append(d)
     return res
-
-
-def flatten_keys(cds_map: dict[DataKey, 'cds_data']) -> dict[tuple, 'cds_data']:
-    out = {}
-    for key, cds in cds_map.items():
-        ekey = key.scope, key.name, key.index
-        out[ekey] = cds
-    return out
 
 
 def safe_write(fh, content: bytes) -> int:
