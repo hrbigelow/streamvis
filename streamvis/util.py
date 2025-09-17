@@ -202,6 +202,7 @@ class Index:
     scopes: dict[int, pb.Scope]    # scope_id => Scope
     names: dict[int, pb.Name]      # name_id => Name
     entries: dict[int, pb.DataEntry]  # entry_id => DataEntry
+    names_to_entries: dict[int, int]  # name_id => entry_id
     config_entries: dict[int, pb.ConfigEntry]  # entry_id => ConfigEntry
     file_offset: int
 
@@ -211,6 +212,7 @@ class Index:
         self.scopes = scopes
         self.names = names
         self.entries = {} 
+        self.names_to_entries = {}
         self.config_entries = {}
         self.file_offset = file_offset
 
@@ -271,7 +273,7 @@ class Index:
         """Return a list of scope names that have content"""
         scopes = set() 
         for scope_id, scope in self.scopes.items():
-            gen = (pb.scope_id == scope_id for pb in self.names.values())
+            gen = (pb for pb in self.names.values() if pb.scope_id == scope_id)
             if next(gen, None) != None:
                 scopes.add(scope.scope)
         return tuple(scopes)
@@ -313,27 +315,24 @@ class Index:
                     return
                 scope_ids = set(k for k, v in self.scopes.items() if v.scope == scope)
                 names_to_del = set()
-                entries_to_del = set() 
                 config_entries_to_del = set()
                 for name_id, pb_name in self.names.items():
                     if pb_name.scope_id in scope_ids and pb_name.name == name:
                         names_to_del.add(name_id)
-                for entry_id, pb_entry in self.entries.items():
-                    if pb_entry.name_id in names_to_del:
-                        entries_to_del.add(entry_id)
                 for centry_id, pb_centry in self.config_entries.items():
                     if pb_centry.scope_id in scope_ids:
                         config_entries_to_del.add(centry_id)
                 for name_id in names_to_del:
                     del self.names[name_id]
-                for entry_id in entries_to_del:
-                    del self.entries[entry_id]
+                    for entry_id in self.names_to_entries.pop(name_id):
+                        del self.entries[entry_id]
                 for centry_id in config_entries_to_del:
                     del self.config_entries[centry_id]
 
             case pb.DataEntry(entry_id=entry_id, name_id=name_id):
                 if name_id in self.names:
                     self.entries[entry_id] = item
+                    self.names_to_entries.setdefault(name_id, set()).add(entry_id)
 
             case pb.ConfigEntry(entry_id=entry_id, scope_id=scope_id):
                 if scope_id in self.scopes:
