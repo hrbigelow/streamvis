@@ -199,11 +199,13 @@ class DataKey:
 class Index:
     scope_filter: re.Pattern 
     name_filters: tuple[re.Pattern] 
-    scopes: dict[int, pb.Scope]    # scope_id => Scope
-    names: dict[int, pb.Name]      # name_id => Name
-    entries: dict[int, pb.DataEntry]  # entry_id => DataEntry
-    names_to_entries: dict[int, int]  # name_id => entry_id
-    config_entries: dict[int, pb.ConfigEntry]  # entry_id => ConfigEntry
+    scopes:          dict[int, pb.Scope]    # scope_id => Scope
+    names:           dict[int, pb.Name]      # name_id => Name
+    entries:         dict[int, pb.DataEntry]  # entry_id => DataEntry
+    config_entries:  dict[int, pb.ConfigEntry]  # entry_id => ConfigEntry
+    _tag_to_names:    dict[tuple[str, str], set[int]] # (scope, name) => set[name_id]
+    _name_to_entries: dict[int, set[int]]  # name_id => set[entry_id]
+    _scope_to_configs:dict[str, list[pb.ConfigEntry]] # scope => list[pb.ConfigEntry]
     file_offset: int
 
     def __init__(self, scope_filter, name_filters, scopes, names, file_offset):
@@ -212,8 +214,10 @@ class Index:
         self.scopes = scopes
         self.names = names
         self.entries = {} 
-        self.names_to_entries = {}
         self.config_entries = {}
+        self._tag_to_names = {}
+        self._name_to_entries = {}
+        self._scope_to_configs = {}
         self.file_offset = file_offset
 
     @classmethod
@@ -309,34 +313,38 @@ class Index:
                 if self._filter(name=name) and scope_id in self.scopes:
                     assert name_id not in self.names, "Duplicate name_id in index"
                     self.names[name_id] = item
+                    scope = self.scopes[scope_id].scope
+                    _scope_to_names = self._tag_to_names.setdefault(scope, dict())
+                    _scope_to_names.setdefault(name, list()).append(name_id)
 
             case pb.Control(scope=scope, name=name, action=pb.Action.DELETE_NAME):
                 if not self._filter(scope=scope, name=name):
                     return
-                scope_ids = set(k for k, v in self.scopes.items() if v.scope == scope)
-                names_to_del = set()
-                config_entries_to_del = set()
-                for name_id, pb_name in self.names.items():
-                    if pb_name.scope_id in scope_ids and pb_name.name == name:
-                        names_to_del.add(name_id)
-                for centry_id, pb_centry in self.config_entries.items():
-                    if pb_centry.scope_id in scope_ids:
-                        config_entries_to_del.add(centry_id)
-                for name_id in names_to_del:
+                _scope_to_names = self._tag_to_names.get(scope, {})
+                for name_id in _scope_to_names.pop(name, set()):
                     del self.names[name_id]
-                    for entry_id in self.names_to_entries.pop(name_id):
+                    for entry_id in self._name_to_entries.pop(name_id, tuple()):
                         del self.entries[entry_id]
-                for centry_id in config_entries_to_del:
-                    del self.config_entries[centry_id]
+                if len(_scope_to_names) == 0:
+                    # scope is now empty
+                    self._tag_to_names.pop(scope, None)
+                    scopes_to_del = set()
+                    for entry_id in self._scope_to_configs.pop(scope, tuple()):
+                        scope_id = self.config_entries.pop(entry_id).scope_id
+                        scopes_to_del.add(scope_id)
+                    for scope_id in scopes_to_del:
+                        del self.scopes[scope_id]
 
             case pb.DataEntry(entry_id=entry_id, name_id=name_id):
                 if name_id in self.names:
                     self.entries[entry_id] = item
-                    self.names_to_entries.setdefault(name_id, set()).add(entry_id)
+                    self._name_to_entries.setdefault(name_id, set()).add(entry_id)
 
             case pb.ConfigEntry(entry_id=entry_id, scope_id=scope_id):
                 if scope_id in self.scopes:
+                    scope = self.scopes[scope_id].scope
                     self.config_entries[entry_id] = item
+                    self._scope_to_configs.setdefault(scope, list()).append(entry_id)
 
     def update(self, fh):
         """Updates using any new data that may have been written to fh."""
@@ -346,10 +354,10 @@ class Index:
         while True:
             try:
                 item = next(gen)
-                self._update_with_item(item)
             except StopIteration as exc:
                 self.file_offset += len(pack) - exc.value
                 break
+            self._update_with_item(item)
 
     def to_message(self) -> pb.Index:
         """Converts index into protobuf Message object.

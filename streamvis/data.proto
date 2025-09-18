@@ -70,16 +70,16 @@ message Control {
 message DataEntry {
   uint32 entry_id = 1; // globally unqiue 
   uint32 name_id = 2; // foreign key to Name message
-  uint32 beg_offset = 3; // file offset of begin of Data message
-  uint32 end_offset = 4; // file offset of end of Data message
+  uint64 beg_offset = 3; // file offset of begin of Data message
+  uint64 end_offset = 4; // file offset of end of Data message
 }
 
 // Describes one Config entry in data file
 message ConfigEntry {
   uint32 entry_id = 1; // globally unique
   uint32 scope_id = 2;
-  uint32 beg_offset = 3;
-  uint32 end_offset = 4;
+  uint64 beg_offset = 3;
+  uint64 end_offset = 4;
 }
 
 // Data, Config are stored in .log file 
@@ -103,7 +103,7 @@ message Index {
   repeated string name_filters = 2;
   map<uint32, Scope> scopes = 3;
   map<uint32, Name> names = 4;
-  uint32 file_offset = 5;
+  uint64 file_offset = 5;
 }
 
 

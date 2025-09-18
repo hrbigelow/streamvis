@@ -53,6 +53,25 @@ def fetch(uri: str, scope: str=None, name: str=None):
                 datas.append(record.data)
     return util.data_to_cds_flat(index, datas)
 
+def fetch_with_filters(
+    uri: str,
+    scope_filter: str=None,
+    name_filters: tuple[str]=None
+):
+    channel = grpc.insecure_channel(uri)
+    stub = pb_grpc.RecordServiceStub(channel)
+    index = util.Index.from_filters(scope_filter, name_filters)
+    pb_index = index.to_message()
+    datas = []
+    i = 0
+    for record in stub.QueryRecords(pb_index):
+        match record.type:
+            case pb.INDEX:
+                index = util.Index.from_message(record.index)
+            case pb.DATA:
+                datas.append(record.data)
+    return util.data_to_cds_flat(index, datas)
+
 
 def scopes(uri: str) -> list[str]:
     channel = grpc.insecure_channel(uri)

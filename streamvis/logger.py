@@ -278,6 +278,8 @@ class BaseLogger:
             for req in requests:
                 self.stub.WriteData(req)
         except grpc.RpcError as ex:
+            import pdb
+            pdb.set_trace()
             raise RuntimeError(f"Could not write request to grpc: {ex}") from ex
 
 
