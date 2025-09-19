@@ -321,10 +321,13 @@ class Index:
                 if not self._filter(scope=scope, name=name):
                     return
                 _scope_to_names = self._tag_to_names.get(scope, {})
-                for name_id in _scope_to_names.pop(name, set()):
+                for name_id in _scope_to_names.pop(name, list()):
                     del self.names[name_id]
                     for entry_id in self._name_to_entries.pop(name_id, tuple()):
                         del self.entries[entry_id]
+                """
+                # this doesn't work since scope is logged, then DELETE_NAMEs are
+                # logged before any data.
                 if len(_scope_to_names) == 0:
                     # scope is now empty
                     self._tag_to_names.pop(scope, None)
@@ -334,11 +337,12 @@ class Index:
                         scopes_to_del.add(scope_id)
                     for scope_id in scopes_to_del:
                         del self.scopes[scope_id]
+                """
 
             case pb.DataEntry(entry_id=entry_id, name_id=name_id):
                 if name_id in self.names:
                     self.entries[entry_id] = item
-                    self._name_to_entries.setdefault(name_id, set()).add(entry_id)
+                    self._name_to_entries.setdefault(name_id, list()).append(entry_id)
 
             case pb.ConfigEntry(entry_id=entry_id, scope_id=scope_id):
                 if scope_id in self.scopes:
