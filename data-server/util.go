@@ -159,9 +159,9 @@ type Index struct {
 	names          map[uint32]data.Name
 	entries        map[uint32]data.DataEntry
 	configEntries  map[uint32]data.ConfigEntry
-	tagToNames     map[[2]string]map[int]struct{}
-	nameToEntries  map[int]map[int]struct{}
-	scopeToConfigs map[string][]data.ConfigEntry
+	tagToNames     map[[2]string][]uint32
+	nameToEntries  map[uint32][]uint32
+	scopeToConfigs map[string][]uint32
 	fileOffset     uint64
 }
 
@@ -226,9 +226,8 @@ func IndexFromFilters(scopeFilter string, nameFilters []string) (Index, error) {
 	return Index{
 		scopeFilter: scopeFilterRx,
 		nameFilters: nameFiltersRx,
-		scopes:      map[uint32]data.Scope{},
-		names:       map[uint32]data.Name{},
-		fileOffset:  0,
+		scopes:      make(map[uint32]data.Scope),
+		names:       make(map[uint32]data.Name),
 	}, nil
 }
 
@@ -259,7 +258,7 @@ func (idx *Index) ScopeList() []string {
 		}
 	}
 	scopeList := make([]string, 0, len(scopeNames))
-	for scopeName := range scopeNames {
+	for scopeName, _ := range scopeNames {
 		scopeList = append(scopeList, scopeName)
 	}
 	return scopeList
@@ -271,7 +270,7 @@ func (idx *Index) NameList() []string {
 		names[nameMsg.Name] = struct{}{}
 	}
 	nameList := make([]string, 0, len(names))
-	for name := range names {
+	for name, _ := range names {
 		nameList = append(nameList, name)
 	}
 	return nameList
@@ -317,5 +316,124 @@ func (idx *Index) filter(scope *string, name *string) bool {
 }
 
 func (idx *Index) updateWithItem(item Item) {
-	switch kj
+  switch m := item.Msg.(type) {
+  case *data.Scope: {
+    if _, ok := idx.scopes[m.ScopeId]; ok { 
+      panic(fmt.Sprintf("Duplicate scopeId %s in index", m.ScopeId))
+    }
+    if idx.filter(&m.Scope, nil) {
+      idx.scopes[m.ScopeId] = *m
+    }
+  }
+  case *data.Name: {
+    if idx.filter(nil, &m.Name) {
+      if _, ok1 := idx.scopes[m.ScopeId]; ok1 {
+        if _, ok2 := idx.names[m.NameId]; ok2 {
+          panic(fmt.Sprintf("Duplicate nameId %s in index", m.NameId))
+        }
+        scope := idx.scopes[m.ScopeId].Scope
+        tag := [2]string{scope, m.Name}
+        names := idx.tagToNames[tag]
+        if names == nil {
+          names := make([]uint32, 0)
+          idx.tagToNames[tag] = names
+        }
+        idx.tagToNames[tag] = append(idx.tagToNames[tag], m.NameId)
+      }
+    }
+  }
+  case *data.Control: {
+    if !idx.filter(&m.Scope, &m.Name) {
+      return
+    }
+    if m.Action == data.Action_DELETE_NAME {
+      tag := [2]string{m.Scope, m.Name}
+      names := idx.tagToNames[tag]
+      if names == nil {
+        names := make([]uint32, 0)
+        idx.tagToNames[tag] = names
+      }
+      for _, nameId := range names {
+        delete(idx.names, nameId)
+        // TODO: check for nil
+        for _, entryId := range idx.nameToEntries[nameId] {
+          delete(idx.entries, entryId)
+        }
+        delete(idx.nameToEntries, nameId)
+      }
+      delete(idx.tagToNames, tag)
+    }
+  }
+  case *data.DataEntry: {
+    if _, ok := idx.names[m.NameId]; ok {
+      idx.entries[m.NameId] = *m 
+      entries := idx.nameToEntries[m.NameId]
+      if entries == nil {
+        entries := make([]uint32, 0)
+        idx.nameToEntries[m.NameId] = entries
+      }
+      idx.nameToEntries[m.NameId] = append(idx.nameToEntries[m.NameId], m.EntryId)
+    }
+  }
+
+  case *data.ConfigEntry: {
+    if scopeMsg, ok := idx.scopes[m.ScopeId]; ok {
+      scope := scopeMsg.Scope
+      idx.configEntries[m.EntryId] = *m 
+      configIds := idx.scopeToConfigs[scope]
+      if configIds == nil {
+        configIds = make([]uint32, 0)
+        idx.scopeToConfigs[scope] = configIds
+      }
+      idx.scopeToConfigs[scope] = append(idx.scopeToConfigs[scope], m.EntryId)
+    }
+  }
 }
+}
+
+
+func (idx *Index) update(fh *os.File) {
+  fh.Seek(int64(idx.fileOffset), 0)
+  pack := make([]byte, 0)
+  if _, err := fh.Read(pack); err != nil {
+    panic(fmt.Errorf("Error reading index file, %w", err.Error()))
+  }
+  unpacker := NewUnpacker(pack)
+  for unpacker.Scan() {
+    idx.updateWithItem(unpacker.Item())
+  }
+  if err := unpacker.Err(); err != nil {
+    panic(err)
+  }
+  idx.fileOffset = uint64(unpacker.Consumed())
+}
+
+
+func (idx *Index) toMessage() data.Index {
+  nameFilters := make([]string, len(idx.nameFilters))
+  for _, re := range idx.nameFilters {
+    nameFilters = append(nameFilters, re.String())
+  }
+  scopesMap := make(map[uint32]*data.Scope, len(idx.scopes))
+  namesMap := make(map[uint32]*data.Name, len(idx.names))
+
+  for k, v := range idx.scopes {
+    scopesMap[k] = &v
+  }
+  for k, v := range idx.names {
+    namesMap[k] = &v
+  }
+
+  return data.Index{
+    ScopeFilter: idx.scopeFilter.String(),
+    NameFilters: nameFilters,
+    Scopes: scopesMap,
+    Names: namesMap,
+    FileOffset: idx.fileOffset,
+  }
+}
+
+func (idx *Index) toBytes() []byte {
+}
+
+
