@@ -58,9 +58,6 @@ PROTO_TO_DTYPE = {
     pb.FieldType.FLOAT: np.float32,
 }
 
-def get_name_hash(scope_id: int, name: str) -> int:
-    return hash((scope_id, name)) % ((1 << 32) - 1)
-
 
 def pack_message(message):
     """Create a delimited protobuf message as bytes."""
@@ -77,6 +74,7 @@ def pack_scope(scope_id, scope: str) -> bytes:
     return pack_message(scope)
 
 
+# This is Python-only
 def make_data_messages(
     name_id: int,
     content: dict[str, np.ndarray],
@@ -116,6 +114,7 @@ def make_data_messages(
     return datas
 
 
+# Python-only
 def make_name_message(
     scope_id: int, name: str, field_sig: list[tuple[str, np.dtype]]
 ) -> pb.Name:
@@ -248,6 +247,7 @@ class Index:
             file_offset=0
         )
 
+    # only used in script.py
     @classmethod
     def from_scope_name(cls, scope: str=None, name: str=None):
         scope_filter = ".*" if scope is None else f"^{scope}$"

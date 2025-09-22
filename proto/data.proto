@@ -2,6 +2,8 @@
 // python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. streamvis/data.proto
 syntax = "proto3";
 
+option go_package = "./data";
+
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";

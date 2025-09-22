@@ -1,0 +1,321 @@
+package util
+
+import (
+	"data-server/pb/data"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"reflect"
+	"regexp"
+	"strings"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+func getLogHandle(path string, mode int) *os.File {
+	fh, err := os.OpenFile(path, mode, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return fh
+}
+
+func indexFile(path string) string {
+	return fmt.Sprintf("%s.idx", path)
+}
+
+func dataFile(path string) string {
+	return fmt.Sprintf("%s.log", path)
+}
+
+var kindCodes map[reflect.Type]data.StoredType
+
+// var dtypeToProto map[
+
+func init() {
+	kindCodes = map[reflect.Type]data.StoredType{
+		reflect.TypeOf(&data.Scope{}):       data.StoredType_SCOPE,
+		reflect.TypeOf(&data.Name{}):        data.StoredType_NAME,
+		reflect.TypeOf(&data.DataEntry{}):   data.StoredType_DATA_ENTRY,
+		reflect.TypeOf(&data.ConfigEntry{}): data.StoredType_CONFIG_ENTRY,
+		reflect.TypeOf(&data.Data{}):        data.StoredType_DATA,
+		reflect.TypeOf(&data.Config{}):      data.StoredType_CONFIG,
+		reflect.TypeOf(&data.Control{}):     data.StoredType_CONTROL,
+	}
+}
+
+func PackMessage(message proto.Message) ([]byte, error) {
+	msgType := reflect.TypeOf(message)
+	kindCode := kindCodes[msgType]
+	content, err := proto.Marshal(message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal message: %w", err)
+	}
+	lengthCode := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthCode, uint32(len(content)))
+
+	result := make([]byte, 0, 1+4+len(content))
+	result = append(result, byte(kindCode))
+	result = append(result, lengthCode...)
+	result = append(result, content...)
+
+	return result, nil
+}
+
+func PackScope(scopeId uint32, scope string) ([]byte, error) {
+	timestamp := timestamppb.Now()
+	scopeMsg := &data.Scope{ScopeId: scopeId, Scope: scope, Time: timestamp}
+	return PackMessage(scopeMsg)
+}
+
+func PackDeleteScope(scope string) ([]byte, error) {
+	control := &data.Control{Scope: scope, Name: "", Action: data.Action_DELETE_SCOPE}
+	return PackMessage(control)
+}
+
+func PackDeleteName(scope string, name string) ([]byte, error) {
+	control := &data.Control{Scope: scope, Name: name, Action: data.Action_DELETE_NAME}
+	return PackMessage(control)
+}
+
+func PackConfigEntry(entryId uint32, scopeId uint32, begOffset uint64, endOffset uint64) ([]byte, error) {
+	configEntry := &data.ConfigEntry{
+		EntryId:   entryId,
+		ScopeId:   scopeId,
+		BegOffset: begOffset,
+		EndOffset: endOffset,
+	}
+	return PackMessage(configEntry)
+}
+
+type Item struct {
+	Kind data.StoredType
+	Msg  proto.Message
+}
+
+type Unpacker struct {
+	pack []byte
+	off  int
+	err  error
+	cur  Item
+}
+
+func NewUnpacker(pack []byte) *Unpacker {
+	return &Unpacker{pack: pack}
+}
+
+func (u *Unpacker) Scan() bool {
+	if u.err != nil {
+		return false
+	}
+	kind := data.StoredType(u.pack[u.off])
+	u.off++
+	length := int(binary.BigEndian.Uint32(u.pack[u.off : u.off+4]))
+	u.off += 4
+	if length < 0 || u.off+length > len(u.pack) {
+		u.err = io.ErrUnexpectedEOF
+		return false
+	}
+	payload := u.pack[u.off : u.off+length]
+	u.off += length
+
+	var msg proto.Message
+	switch kind {
+	case data.StoredType_SCOPE:
+		msg = &data.Scope{}
+	case data.StoredType_NAME:
+		msg = &data.Name{}
+	case data.StoredType_DATA_ENTRY:
+		msg = &data.DataEntry{}
+	case data.StoredType_CONFIG_ENTRY:
+		msg = &data.ConfigEntry{}
+	case data.StoredType_DATA:
+		msg = &data.Data{}
+	case data.StoredType_CONFIG:
+		msg = &data.Config{}
+	case data.StoredType_CONTROL:
+		msg = &data.Control{}
+	}
+
+	if err := proto.Unmarshal(payload, msg); err != nil {
+		u.err = err
+		return false
+	}
+	u.cur = Item{Kind: kind, Msg: msg}
+	return true
+}
+
+func (u *Unpacker) Item() Item    { return u.cur }
+func (u *Unpacker) Err() error    { return u.err }
+func (u *Unpacker) Consumed() int { return u.off }
+
+type Index struct {
+	scopeFilter    *regexp.Regexp
+	nameFilters    []*regexp.Regexp
+	scopes         map[uint32]data.Scope
+	names          map[uint32]data.Name
+	entries        map[uint32]data.DataEntry
+	configEntries  map[uint32]data.ConfigEntry
+	tagToNames     map[[2]string]map[int]struct{}
+	nameToEntries  map[int]map[int]struct{}
+	scopeToConfigs map[string][]data.ConfigEntry
+	fileOffset     uint64
+}
+
+func parseRegexps(patterns []string) ([]*regexp.Regexp, error) {
+	var regexps []*regexp.Regexp
+	var messages []string
+	for i, pattern := range patterns {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			err = fmt.Errorf("pattern (%d) (%q): %w", i, pattern, err)
+			messages = append(messages, err.Error())
+			continue
+		}
+		regexps = append(regexps, re)
+	}
+	if len(messages) != 0 {
+		return []*regexp.Regexp{}, fmt.Errorf("%s", strings.Join(messages, "\n"))
+	}
+	return regexps, nil
+}
+
+func IndexFromMessage(request data.Index) (Index, error) {
+	scopeFilter, err := regexp.Compile(request.ScopeFilter)
+	if err != nil {
+		return Index{}, fmt.Errorf("failed to parse scopeFilter", err)
+	}
+	nameFilters, err := parseRegexps(request.NameFilters)
+	if err != nil {
+		return Index{}, fmt.Errorf("failed to parse nameFilters", err)
+	}
+
+	scopes := make(map[uint32]data.Scope, len(request.Scopes))
+	for k, v := range request.Scopes {
+		if v != nil {
+			scopes[k] = *v
+		}
+	}
+	names := make(map[uint32]data.Name, len(request.Names))
+	for k, v := range request.Names {
+		if v != nil {
+			names[k] = *v
+		}
+	}
+	return Index{
+		scopeFilter: scopeFilter,
+		nameFilters: nameFilters,
+		scopes:      scopes,
+		names:       names,
+		fileOffset:  request.FileOffset,
+	}, nil
+}
+
+func IndexFromFilters(scopeFilter string, nameFilters []string) (Index, error) {
+	scopeFilterRx, err := regexp.Compile(scopeFilter)
+	if err != nil {
+		return Index{}, fmt.Errorf("failed to parse scopeFilter regexp", err)
+	}
+	nameFiltersRx, err := parseRegexps(nameFilters)
+	if err != nil {
+		return Index{}, fmt.Errorf("failed to parse nameFilters", err)
+	}
+	return Index{
+		scopeFilter: scopeFilterRx,
+		nameFilters: nameFiltersRx,
+		scopes:      map[uint32]data.Scope{},
+		names:       map[uint32]data.Name{},
+		fileOffset:  0,
+	}, nil
+}
+
+func (idx *Index) EntryList() []data.DataEntry {
+	entries := make([]data.DataEntry, 0, len(idx.entries))
+	for _, entry := range idx.entries {
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func (idx *Index) ConfigEntryList() []data.ConfigEntry {
+	entries := make([]data.ConfigEntry, 0, len(idx.configEntries))
+	for _, entry := range idx.configEntries {
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func (idx *Index) ScopeList() []string {
+	scopeNames := make(map[string]struct{}, 0)
+	for scopeId, scopeMsg := range idx.scopes {
+		for _, name := range idx.names {
+			if name.ScopeId == scopeId {
+				scopeNames[scopeMsg.Scope] = struct{}{}
+				break
+			}
+		}
+	}
+	scopeList := make([]string, 0, len(scopeNames))
+	for scopeName := range scopeNames {
+		scopeList = append(scopeList, scopeName)
+	}
+	return scopeList
+}
+
+func (idx *Index) NameList() []string {
+	names := make(map[string]struct{}, 0)
+	for _, nameMsg := range idx.names {
+		names[nameMsg.Name] = struct{}{}
+	}
+	nameList := make([]string, 0, len(names))
+	for name := range names {
+		nameList = append(nameList, name)
+	}
+	return nameList
+}
+
+type DataKey struct {
+	scopeId uint32
+	scope   string
+	nameId  uint32
+	name    string
+	index   uint32
+}
+
+func (idx *Index) getKey(data data.Data) DataKey {
+	name := idx.names[data.NameId]
+	scope := idx.scopes[name.ScopeId]
+	return DataKey{
+		scopeId: scope.ScopeId,
+		scope:   scope.Scope,
+		nameId:  name.NameId,
+		name:    name.Name,
+		index:   data.Index,
+	}
+}
+
+func (idx *Index) getName(data data.Data) data.Name {
+	return idx.names[data.NameId]
+}
+
+func (idx *Index) filter(scope *string, name *string) bool {
+	if scope != nil && !idx.scopeFilter.MatchString(*scope) {
+		return false
+	}
+	if name != nil {
+		for _, nameRx := range idx.nameFilters {
+			if nameRx.MatchString(*name) {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (idx *Index) updateWithItem(item Item) {
+	switch kj
+}
