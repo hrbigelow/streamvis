@@ -38,7 +38,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RecordServiceClient interface {
-	QueryRecords(ctx context.Context, in *Index, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
+	QueryRecords(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
 	Scopes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
 	Names(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
 	Configs(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
@@ -57,13 +57,13 @@ func NewRecordServiceClient(cc grpc.ClientConnInterface) RecordServiceClient {
 	return &recordServiceClient{cc}
 }
 
-func (c *recordServiceClient) QueryRecords(ctx context.Context, in *Index, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
+func (c *recordServiceClient) QueryRecords(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &RecordService_ServiceDesc.Streams[0], RecordService_QueryRecords_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[Index, StreamedRecord]{ClientStream: stream}
+	x := &grpc.GenericClientStream[RecordRequest, StreamedRecord]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (c *recordServiceClient) WriteData(ctx context.Context, in *WriteDataReques
 // All implementations must embed UnimplementedRecordServiceServer
 // for forward compatibility.
 type RecordServiceServer interface {
-	QueryRecords(*Index, grpc.ServerStreamingServer[StreamedRecord]) error
+	QueryRecords(*RecordRequest, grpc.ServerStreamingServer[StreamedRecord]) error
 	Scopes(*emptypb.Empty, grpc.ServerStreamingServer[StreamedRecord]) error
 	Names(*ScopeRequest, grpc.ServerStreamingServer[StreamedRecord]) error
 	Configs(*ScopeRequest, grpc.ServerStreamingServer[StreamedRecord]) error
@@ -215,7 +215,7 @@ type RecordServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedRecordServiceServer struct{}
 
-func (UnimplementedRecordServiceServer) QueryRecords(*Index, grpc.ServerStreamingServer[StreamedRecord]) error {
+func (UnimplementedRecordServiceServer) QueryRecords(*RecordRequest, grpc.ServerStreamingServer[StreamedRecord]) error {
 	return status.Errorf(codes.Unimplemented, "method QueryRecords not implemented")
 }
 func (UnimplementedRecordServiceServer) Scopes(*emptypb.Empty, grpc.ServerStreamingServer[StreamedRecord]) error {
@@ -264,11 +264,11 @@ func RegisterRecordServiceServer(s grpc.ServiceRegistrar, srv RecordServiceServe
 }
 
 func _RecordService_QueryRecords_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Index)
+	m := new(RecordRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(RecordServiceServer).QueryRecords(m, &grpc.GenericServerStream[Index, StreamedRecord]{ServerStream: stream})
+	return srv.(RecordServiceServer).QueryRecords(m, &grpc.GenericServerStream[RecordRequest, StreamedRecord]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.

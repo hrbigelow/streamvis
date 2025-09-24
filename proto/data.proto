@@ -100,14 +100,31 @@ message Config {
   uint32 scope_id = 3; // not stored on disk
 }
 
-message Index {
-  string scope_filter = 1;
-  repeated string name_filters = 2;
-  map<uint32, Scope> scopes = 3;
-  map<uint32, Name> names = 4;
-  uint64 file_offset = 5;
+
+message Stored {
+  oneof value {
+    Scope scope = 1;
+    Name name = 2;
+    Control control = 3;
+    DataEntry data_entry = 4;
+    ConfigEntry config_entry = 5;
+    Data data = 6;
+    Config config = 7;
+  }
 }
 
+
+message RecordRequest {
+  string scope_pattern = 1;
+  string name_pattern = 2;
+  uint64 file_offset = 3;
+}
+
+message RecordResult {
+  map<uint32, Scope> scopes = 1;
+  map<uint32, Name> names = 2;
+  uint64 file_offset = 3;
+}
 
 message ScopeRequest {
   string scope = 1;
@@ -127,13 +144,12 @@ enum StoredType {
 
 
 message StreamedRecord {
-  StoredType type = 1;
   oneof record {
-    Index index = 2;
-    Data data = 3;
-    Name name = 4;
-    Config config = 5;
-    string value = 6;
+    RecordResult index = 1;
+    Data data = 2;
+    Name name = 3;
+    Config config = 4;
+    string value = 5;
   }
 }
 
@@ -168,7 +184,7 @@ message WriteDataRequest {
 
 
 service RecordService {
-  rpc QueryRecords (Index) returns (stream StreamedRecord);
+  rpc QueryRecords (RecordRequest) returns (stream StreamedRecord);
   rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
   rpc Names (ScopeRequest) returns (stream StreamedRecord);
   rpc Configs (ScopeRequest) returns (stream StreamedRecord);

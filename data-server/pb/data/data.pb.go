@@ -873,31 +873,36 @@ func (x *Config) GetScopeId() uint32 {
 	return 0
 }
 
-type Index struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ScopeFilter   string                 `protobuf:"bytes,1,opt,name=scope_filter,json=scopeFilter,proto3" json:"scope_filter,omitempty"`
-	NameFilters   []string               `protobuf:"bytes,2,rep,name=name_filters,json=nameFilters,proto3" json:"name_filters,omitempty"`
-	Scopes        map[uint32]*Scope      `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Names         map[uint32]*Name       `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	FileOffset    uint64                 `protobuf:"varint,5,opt,name=file_offset,json=fileOffset,proto3" json:"file_offset,omitempty"`
+type Stored struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*Stored_Scope
+	//	*Stored_Name
+	//	*Stored_Control
+	//	*Stored_DataEntry
+	//	*Stored_ConfigEntry
+	//	*Stored_Data
+	//	*Stored_Config
+	Value         isStored_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Index) Reset() {
-	*x = Index{}
+func (x *Stored) Reset() {
+	*x = Stored{}
 	mi := &file_data_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Index) String() string {
+func (x *Stored) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Index) ProtoMessage() {}
+func (*Stored) ProtoMessage() {}
 
-func (x *Index) ProtoReflect() protoreflect.Message {
+func (x *Stored) ProtoReflect() protoreflect.Message {
 	mi := &file_data_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -909,40 +914,241 @@ func (x *Index) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Index.ProtoReflect.Descriptor instead.
-func (*Index) Descriptor() ([]byte, []int) {
+// Deprecated: Use Stored.ProtoReflect.Descriptor instead.
+func (*Stored) Descriptor() ([]byte, []int) {
 	return file_data_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *Index) GetScopeFilter() string {
+func (x *Stored) GetValue() isStored_Value {
 	if x != nil {
-		return x.ScopeFilter
-	}
-	return ""
-}
-
-func (x *Index) GetNameFilters() []string {
-	if x != nil {
-		return x.NameFilters
+		return x.Value
 	}
 	return nil
 }
 
-func (x *Index) GetScopes() map[uint32]*Scope {
+func (x *Stored) GetScope() *Scope {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_Scope); ok {
+			return x.Scope
+		}
+	}
+	return nil
+}
+
+func (x *Stored) GetName() *Name {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_Name); ok {
+			return x.Name
+		}
+	}
+	return nil
+}
+
+func (x *Stored) GetControl() *Control {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_Control); ok {
+			return x.Control
+		}
+	}
+	return nil
+}
+
+func (x *Stored) GetDataEntry() *DataEntry {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_DataEntry); ok {
+			return x.DataEntry
+		}
+	}
+	return nil
+}
+
+func (x *Stored) GetConfigEntry() *ConfigEntry {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_ConfigEntry); ok {
+			return x.ConfigEntry
+		}
+	}
+	return nil
+}
+
+func (x *Stored) GetData() *Data {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_Data); ok {
+			return x.Data
+		}
+	}
+	return nil
+}
+
+func (x *Stored) GetConfig() *Config {
+	if x != nil {
+		if x, ok := x.Value.(*Stored_Config); ok {
+			return x.Config
+		}
+	}
+	return nil
+}
+
+type isStored_Value interface {
+	isStored_Value()
+}
+
+type Stored_Scope struct {
+	Scope *Scope `protobuf:"bytes,1,opt,name=scope,proto3,oneof"`
+}
+
+type Stored_Name struct {
+	Name *Name `protobuf:"bytes,2,opt,name=name,proto3,oneof"`
+}
+
+type Stored_Control struct {
+	Control *Control `protobuf:"bytes,3,opt,name=control,proto3,oneof"`
+}
+
+type Stored_DataEntry struct {
+	DataEntry *DataEntry `protobuf:"bytes,4,opt,name=data_entry,json=dataEntry,proto3,oneof"`
+}
+
+type Stored_ConfigEntry struct {
+	ConfigEntry *ConfigEntry `protobuf:"bytes,5,opt,name=config_entry,json=configEntry,proto3,oneof"`
+}
+
+type Stored_Data struct {
+	Data *Data `protobuf:"bytes,6,opt,name=data,proto3,oneof"`
+}
+
+type Stored_Config struct {
+	Config *Config `protobuf:"bytes,7,opt,name=config,proto3,oneof"`
+}
+
+func (*Stored_Scope) isStored_Value() {}
+
+func (*Stored_Name) isStored_Value() {}
+
+func (*Stored_Control) isStored_Value() {}
+
+func (*Stored_DataEntry) isStored_Value() {}
+
+func (*Stored_ConfigEntry) isStored_Value() {}
+
+func (*Stored_Data) isStored_Value() {}
+
+func (*Stored_Config) isStored_Value() {}
+
+type RecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ScopePattern  string                 `protobuf:"bytes,1,opt,name=scope_pattern,json=scopePattern,proto3" json:"scope_pattern,omitempty"`
+	NamePattern   string                 `protobuf:"bytes,2,opt,name=name_pattern,json=namePattern,proto3" json:"name_pattern,omitempty"`
+	FileOffset    uint64                 `protobuf:"varint,3,opt,name=file_offset,json=fileOffset,proto3" json:"file_offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordRequest) Reset() {
+	*x = RecordRequest{}
+	mi := &file_data_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordRequest) ProtoMessage() {}
+
+func (x *RecordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_data_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordRequest.ProtoReflect.Descriptor instead.
+func (*RecordRequest) Descriptor() ([]byte, []int) {
+	return file_data_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *RecordRequest) GetScopePattern() string {
+	if x != nil {
+		return x.ScopePattern
+	}
+	return ""
+}
+
+func (x *RecordRequest) GetNamePattern() string {
+	if x != nil {
+		return x.NamePattern
+	}
+	return ""
+}
+
+func (x *RecordRequest) GetFileOffset() uint64 {
+	if x != nil {
+		return x.FileOffset
+	}
+	return 0
+}
+
+type RecordResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Scopes        map[uint32]*Scope      `protobuf:"bytes,1,rep,name=scopes,proto3" json:"scopes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Names         map[uint32]*Name       `protobuf:"bytes,2,rep,name=names,proto3" json:"names,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	FileOffset    uint64                 `protobuf:"varint,3,opt,name=file_offset,json=fileOffset,proto3" json:"file_offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordResult) Reset() {
+	*x = RecordResult{}
+	mi := &file_data_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordResult) ProtoMessage() {}
+
+func (x *RecordResult) ProtoReflect() protoreflect.Message {
+	mi := &file_data_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordResult.ProtoReflect.Descriptor instead.
+func (*RecordResult) Descriptor() ([]byte, []int) {
+	return file_data_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RecordResult) GetScopes() map[uint32]*Scope {
 	if x != nil {
 		return x.Scopes
 	}
 	return nil
 }
 
-func (x *Index) GetNames() map[uint32]*Name {
+func (x *RecordResult) GetNames() map[uint32]*Name {
 	if x != nil {
 		return x.Names
 	}
 	return nil
 }
 
-func (x *Index) GetFileOffset() uint64 {
+func (x *RecordResult) GetFileOffset() uint64 {
 	if x != nil {
 		return x.FileOffset
 	}
@@ -958,7 +1164,7 @@ type ScopeRequest struct {
 
 func (x *ScopeRequest) Reset() {
 	*x = ScopeRequest{}
-	mi := &file_data_proto_msgTypes[12]
+	mi := &file_data_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -970,7 +1176,7 @@ func (x *ScopeRequest) String() string {
 func (*ScopeRequest) ProtoMessage() {}
 
 func (x *ScopeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[12]
+	mi := &file_data_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -983,7 +1189,7 @@ func (x *ScopeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopeRequest.ProtoReflect.Descriptor instead.
 func (*ScopeRequest) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{12}
+	return file_data_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ScopeRequest) GetScope() string {
@@ -995,7 +1201,6 @@ func (x *ScopeRequest) GetScope() string {
 
 type StreamedRecord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Type  StoredType             `protobuf:"varint,1,opt,name=type,proto3,enum=StoredType" json:"type,omitempty"`
 	// Types that are valid to be assigned to Record:
 	//
 	//	*StreamedRecord_Index
@@ -1010,7 +1215,7 @@ type StreamedRecord struct {
 
 func (x *StreamedRecord) Reset() {
 	*x = StreamedRecord{}
-	mi := &file_data_proto_msgTypes[13]
+	mi := &file_data_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1022,7 +1227,7 @@ func (x *StreamedRecord) String() string {
 func (*StreamedRecord) ProtoMessage() {}
 
 func (x *StreamedRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[13]
+	mi := &file_data_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1035,14 +1240,7 @@ func (x *StreamedRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamedRecord.ProtoReflect.Descriptor instead.
 func (*StreamedRecord) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *StreamedRecord) GetType() StoredType {
-	if x != nil {
-		return x.Type
-	}
-	return StoredType_SCOPE
+	return file_data_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *StreamedRecord) GetRecord() isStreamedRecord_Record {
@@ -1052,7 +1250,7 @@ func (x *StreamedRecord) GetRecord() isStreamedRecord_Record {
 	return nil
 }
 
-func (x *StreamedRecord) GetIndex() *Index {
+func (x *StreamedRecord) GetIndex() *RecordResult {
 	if x != nil {
 		if x, ok := x.Record.(*StreamedRecord_Index); ok {
 			return x.Index
@@ -1102,23 +1300,23 @@ type isStreamedRecord_Record interface {
 }
 
 type StreamedRecord_Index struct {
-	Index *Index `protobuf:"bytes,2,opt,name=index,proto3,oneof"`
+	Index *RecordResult `protobuf:"bytes,1,opt,name=index,proto3,oneof"`
 }
 
 type StreamedRecord_Data struct {
-	Data *Data `protobuf:"bytes,3,opt,name=data,proto3,oneof"`
+	Data *Data `protobuf:"bytes,2,opt,name=data,proto3,oneof"`
 }
 
 type StreamedRecord_Name struct {
-	Name *Name `protobuf:"bytes,4,opt,name=name,proto3,oneof"`
+	Name *Name `protobuf:"bytes,3,opt,name=name,proto3,oneof"`
 }
 
 type StreamedRecord_Config struct {
-	Config *Config `protobuf:"bytes,5,opt,name=config,proto3,oneof"`
+	Config *Config `protobuf:"bytes,4,opt,name=config,proto3,oneof"`
 }
 
 type StreamedRecord_Value struct {
-	Value string `protobuf:"bytes,6,opt,name=value,proto3,oneof"`
+	Value string `protobuf:"bytes,5,opt,name=value,proto3,oneof"`
 }
 
 func (*StreamedRecord_Index) isStreamedRecord_Record() {}
@@ -1141,7 +1339,7 @@ type WriteConfigRequest struct {
 
 func (x *WriteConfigRequest) Reset() {
 	*x = WriteConfigRequest{}
-	mi := &file_data_proto_msgTypes[14]
+	mi := &file_data_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1153,7 +1351,7 @@ func (x *WriteConfigRequest) String() string {
 func (*WriteConfigRequest) ProtoMessage() {}
 
 func (x *WriteConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[14]
+	mi := &file_data_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1166,7 +1364,7 @@ func (x *WriteConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteConfigRequest.ProtoReflect.Descriptor instead.
 func (*WriteConfigRequest) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{14}
+	return file_data_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *WriteConfigRequest) GetScopeId() uint32 {
@@ -1192,7 +1390,7 @@ type WriteScopeRequest struct {
 
 func (x *WriteScopeRequest) Reset() {
 	*x = WriteScopeRequest{}
-	mi := &file_data_proto_msgTypes[15]
+	mi := &file_data_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1204,7 +1402,7 @@ func (x *WriteScopeRequest) String() string {
 func (*WriteScopeRequest) ProtoMessage() {}
 
 func (x *WriteScopeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[15]
+	mi := &file_data_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1217,7 +1415,7 @@ func (x *WriteScopeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteScopeRequest.ProtoReflect.Descriptor instead.
 func (*WriteScopeRequest) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{15}
+	return file_data_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *WriteScopeRequest) GetScope() string {
@@ -1236,7 +1434,7 @@ type IntegerResponse struct {
 
 func (x *IntegerResponse) Reset() {
 	*x = IntegerResponse{}
-	mi := &file_data_proto_msgTypes[16]
+	mi := &file_data_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1248,7 +1446,7 @@ func (x *IntegerResponse) String() string {
 func (*IntegerResponse) ProtoMessage() {}
 
 func (x *IntegerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[16]
+	mi := &file_data_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1261,7 +1459,7 @@ func (x *IntegerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IntegerResponse.ProtoReflect.Descriptor instead.
 func (*IntegerResponse) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{16}
+	return file_data_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *IntegerResponse) GetValue() uint32 {
@@ -1280,7 +1478,7 @@ type WriteNameRequest struct {
 
 func (x *WriteNameRequest) Reset() {
 	*x = WriteNameRequest{}
-	mi := &file_data_proto_msgTypes[17]
+	mi := &file_data_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1292,7 +1490,7 @@ func (x *WriteNameRequest) String() string {
 func (*WriteNameRequest) ProtoMessage() {}
 
 func (x *WriteNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[17]
+	mi := &file_data_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1305,7 +1503,7 @@ func (x *WriteNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteNameRequest.ProtoReflect.Descriptor instead.
 func (*WriteNameRequest) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{17}
+	return file_data_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *WriteNameRequest) GetNames() []*Name {
@@ -1325,7 +1523,7 @@ type ScopeNameRequest struct {
 
 func (x *ScopeNameRequest) Reset() {
 	*x = ScopeNameRequest{}
-	mi := &file_data_proto_msgTypes[18]
+	mi := &file_data_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1337,7 +1535,7 @@ func (x *ScopeNameRequest) String() string {
 func (*ScopeNameRequest) ProtoMessage() {}
 
 func (x *ScopeNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[18]
+	mi := &file_data_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1350,7 +1548,7 @@ func (x *ScopeNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopeNameRequest.ProtoReflect.Descriptor instead.
 func (*ScopeNameRequest) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{18}
+	return file_data_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ScopeNameRequest) GetScope() string {
@@ -1376,7 +1574,7 @@ type WriteDataRequest struct {
 
 func (x *WriteDataRequest) Reset() {
 	*x = WriteDataRequest{}
-	mi := &file_data_proto_msgTypes[19]
+	mi := &file_data_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1388,7 +1586,7 @@ func (x *WriteDataRequest) String() string {
 func (*WriteDataRequest) ProtoMessage() {}
 
 func (x *WriteDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_data_proto_msgTypes[19]
+	mi := &file_data_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1401,7 +1599,7 @@ func (x *WriteDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteDataRequest.ProtoReflect.Descriptor instead.
 func (*WriteDataRequest) Descriptor() ([]byte, []int) {
-	return file_data_proto_rawDescGZIP(), []int{19}
+	return file_data_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *WriteDataRequest) GetDatas() []*Data {
@@ -1467,13 +1665,27 @@ const file_data_proto_rawDesc = "" +
 	"\n" +
 	"attributes\x18\x02 \x01(\v2\x17.google.protobuf.StructR\n" +
 	"attributes\x12\x19\n" +
-	"\bscope_id\x18\x03 \x01(\rR\ascopeId\"\xc7\x02\n" +
-	"\x05Index\x12!\n" +
-	"\fscope_filter\x18\x01 \x01(\tR\vscopeFilter\x12!\n" +
-	"\fname_filters\x18\x02 \x03(\tR\vnameFilters\x12*\n" +
-	"\x06scopes\x18\x03 \x03(\v2\x12.Index.ScopesEntryR\x06scopes\x12'\n" +
-	"\x05names\x18\x04 \x03(\v2\x11.Index.NamesEntryR\x05names\x12\x1f\n" +
-	"\vfile_offset\x18\x05 \x01(\x04R\n" +
+	"\bscope_id\x18\x03 \x01(\rR\ascopeId\"\x94\x02\n" +
+	"\x06Stored\x12\x1e\n" +
+	"\x05scope\x18\x01 \x01(\v2\x06.ScopeH\x00R\x05scope\x12\x1b\n" +
+	"\x04name\x18\x02 \x01(\v2\x05.NameH\x00R\x04name\x12$\n" +
+	"\acontrol\x18\x03 \x01(\v2\b.ControlH\x00R\acontrol\x12+\n" +
+	"\n" +
+	"data_entry\x18\x04 \x01(\v2\n" +
+	".DataEntryH\x00R\tdataEntry\x121\n" +
+	"\fconfig_entry\x18\x05 \x01(\v2\f.ConfigEntryH\x00R\vconfigEntry\x12\x1b\n" +
+	"\x04data\x18\x06 \x01(\v2\x05.DataH\x00R\x04data\x12!\n" +
+	"\x06config\x18\a \x01(\v2\a.ConfigH\x00R\x06configB\a\n" +
+	"\x05value\"x\n" +
+	"\rRecordRequest\x12#\n" +
+	"\rscope_pattern\x18\x01 \x01(\tR\fscopePattern\x12!\n" +
+	"\fname_pattern\x18\x02 \x01(\tR\vnamePattern\x12\x1f\n" +
+	"\vfile_offset\x18\x03 \x01(\x04R\n" +
+	"fileOffset\"\x96\x02\n" +
+	"\fRecordResult\x121\n" +
+	"\x06scopes\x18\x01 \x03(\v2\x19.RecordResult.ScopesEntryR\x06scopes\x12.\n" +
+	"\x05names\x18\x02 \x03(\v2\x18.RecordResult.NamesEntryR\x05names\x12\x1f\n" +
+	"\vfile_offset\x18\x03 \x01(\x04R\n" +
 	"fileOffset\x1aA\n" +
 	"\vScopesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x12\x1c\n" +
@@ -1483,14 +1695,13 @@ const file_data_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x12\x1b\n" +
 	"\x05value\x18\x02 \x01(\v2\x05.NameR\x05value:\x028\x01\"$\n" +
 	"\fScopeRequest\x12\x14\n" +
-	"\x05scope\x18\x01 \x01(\tR\x05scope\"\xd0\x01\n" +
-	"\x0eStreamedRecord\x12\x1f\n" +
-	"\x04type\x18\x01 \x01(\x0e2\v.StoredTypeR\x04type\x12\x1e\n" +
-	"\x05index\x18\x02 \x01(\v2\x06.IndexH\x00R\x05index\x12\x1b\n" +
-	"\x04data\x18\x03 \x01(\v2\x05.DataH\x00R\x04data\x12\x1b\n" +
-	"\x04name\x18\x04 \x01(\v2\x05.NameH\x00R\x04name\x12!\n" +
-	"\x06config\x18\x05 \x01(\v2\a.ConfigH\x00R\x06config\x12\x16\n" +
-	"\x05value\x18\x06 \x01(\tH\x00R\x05valueB\b\n" +
+	"\x05scope\x18\x01 \x01(\tR\x05scope\"\xb6\x01\n" +
+	"\x0eStreamedRecord\x12%\n" +
+	"\x05index\x18\x01 \x01(\v2\r.RecordResultH\x00R\x05index\x12\x1b\n" +
+	"\x04data\x18\x02 \x01(\v2\x05.DataH\x00R\x04data\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\v2\x05.NameH\x00R\x04name\x12!\n" +
+	"\x06config\x18\x04 \x01(\v2\a.ConfigH\x00R\x06config\x12\x16\n" +
+	"\x05value\x18\x05 \x01(\tH\x00R\x05valueB\b\n" +
 	"\x06record\"h\n" +
 	"\x12WriteConfigRequest\x12\x19\n" +
 	"\bscope_id\x18\x01 \x01(\rR\ascopeId\x127\n" +
@@ -1527,9 +1738,9 @@ const file_data_proto_rawDesc = "" +
 	"\aCONTROL\x10\x06\x12\t\n" +
 	"\x05INDEX\x10\a\x12\n" +
 	"\n" +
-	"\x06STRING\x10\b2\xe2\x03\n" +
-	"\rRecordService\x12)\n" +
-	"\fQueryRecords\x12\x06.Index\x1a\x0f.StreamedRecord0\x01\x123\n" +
+	"\x06STRING\x10\b2\xea\x03\n" +
+	"\rRecordService\x121\n" +
+	"\fQueryRecords\x12\x0e.RecordRequest\x1a\x0f.StreamedRecord0\x01\x123\n" +
 	"\x06Scopes\x12\x16.google.protobuf.Empty\x1a\x0f.StreamedRecord0\x01\x12)\n" +
 	"\x05Names\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x12+\n" +
 	"\aConfigs\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x122\n" +
@@ -1554,7 +1765,7 @@ func file_data_proto_rawDescGZIP() []byte {
 }
 
 var file_data_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_data_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_data_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_data_proto_goTypes = []any{
 	(FieldType)(0),                // 0: FieldType
 	(Action)(0),                   // 1: Action
@@ -1570,65 +1781,73 @@ var file_data_proto_goTypes = []any{
 	(*ConfigEntry)(nil),           // 11: ConfigEntry
 	(*Data)(nil),                  // 12: Data
 	(*Config)(nil),                // 13: Config
-	(*Index)(nil),                 // 14: Index
-	(*ScopeRequest)(nil),          // 15: ScopeRequest
-	(*StreamedRecord)(nil),        // 16: StreamedRecord
-	(*WriteConfigRequest)(nil),    // 17: WriteConfigRequest
-	(*WriteScopeRequest)(nil),     // 18: WriteScopeRequest
-	(*IntegerResponse)(nil),       // 19: IntegerResponse
-	(*WriteNameRequest)(nil),      // 20: WriteNameRequest
-	(*ScopeNameRequest)(nil),      // 21: ScopeNameRequest
-	(*WriteDataRequest)(nil),      // 22: WriteDataRequest
-	nil,                           // 23: Index.ScopesEntry
-	nil,                           // 24: Index.NamesEntry
-	(*timestamppb.Timestamp)(nil), // 25: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),       // 26: google.protobuf.Struct
-	(*emptypb.Empty)(nil),         // 27: google.protobuf.Empty
+	(*Stored)(nil),                // 14: Stored
+	(*RecordRequest)(nil),         // 15: RecordRequest
+	(*RecordResult)(nil),          // 16: RecordResult
+	(*ScopeRequest)(nil),          // 17: ScopeRequest
+	(*StreamedRecord)(nil),        // 18: StreamedRecord
+	(*WriteConfigRequest)(nil),    // 19: WriteConfigRequest
+	(*WriteScopeRequest)(nil),     // 20: WriteScopeRequest
+	(*IntegerResponse)(nil),       // 21: IntegerResponse
+	(*WriteNameRequest)(nil),      // 22: WriteNameRequest
+	(*ScopeNameRequest)(nil),      // 23: ScopeNameRequest
+	(*WriteDataRequest)(nil),      // 24: WriteDataRequest
+	nil,                           // 25: RecordResult.ScopesEntry
+	nil,                           // 26: RecordResult.NamesEntry
+	(*timestamppb.Timestamp)(nil), // 27: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 28: google.protobuf.Struct
+	(*emptypb.Empty)(nil),         // 29: google.protobuf.Empty
 }
 var file_data_proto_depIdxs = []int32{
 	0,  // 0: Field.type:type_name -> FieldType
 	4,  // 1: Values.floats:type_name -> FloatList
 	5,  // 2: Values.ints:type_name -> IntList
-	25, // 3: Scope.time:type_name -> google.protobuf.Timestamp
+	27, // 3: Scope.time:type_name -> google.protobuf.Timestamp
 	3,  // 4: Name.fields:type_name -> Field
 	1,  // 5: Control.action:type_name -> Action
 	6,  // 6: Data.axes:type_name -> Values
-	26, // 7: Config.attributes:type_name -> google.protobuf.Struct
-	23, // 8: Index.scopes:type_name -> Index.ScopesEntry
-	24, // 9: Index.names:type_name -> Index.NamesEntry
-	2,  // 10: StreamedRecord.type:type_name -> StoredType
-	14, // 11: StreamedRecord.index:type_name -> Index
-	12, // 12: StreamedRecord.data:type_name -> Data
-	8,  // 13: StreamedRecord.name:type_name -> Name
-	13, // 14: StreamedRecord.config:type_name -> Config
-	26, // 15: WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
-	8,  // 16: WriteNameRequest.names:type_name -> Name
-	12, // 17: WriteDataRequest.datas:type_name -> Data
-	7,  // 18: Index.ScopesEntry.value:type_name -> Scope
-	8,  // 19: Index.NamesEntry.value:type_name -> Name
-	14, // 20: RecordService.QueryRecords:input_type -> Index
-	27, // 21: RecordService.Scopes:input_type -> google.protobuf.Empty
-	15, // 22: RecordService.Names:input_type -> ScopeRequest
-	15, // 23: RecordService.Configs:input_type -> ScopeRequest
-	18, // 24: RecordService.WriteScope:input_type -> WriteScopeRequest
-	17, // 25: RecordService.WriteConfig:input_type -> WriteConfigRequest
-	20, // 26: RecordService.WriteNames:input_type -> WriteNameRequest
-	21, // 27: RecordService.DeleteScopeNames:input_type -> ScopeNameRequest
-	22, // 28: RecordService.WriteData:input_type -> WriteDataRequest
-	16, // 29: RecordService.QueryRecords:output_type -> StreamedRecord
-	16, // 30: RecordService.Scopes:output_type -> StreamedRecord
-	16, // 31: RecordService.Names:output_type -> StreamedRecord
-	16, // 32: RecordService.Configs:output_type -> StreamedRecord
-	19, // 33: RecordService.WriteScope:output_type -> IntegerResponse
-	27, // 34: RecordService.WriteConfig:output_type -> google.protobuf.Empty
-	16, // 35: RecordService.WriteNames:output_type -> StreamedRecord
-	27, // 36: RecordService.DeleteScopeNames:output_type -> google.protobuf.Empty
-	27, // 37: RecordService.WriteData:output_type -> google.protobuf.Empty
-	29, // [29:38] is the sub-list for method output_type
-	20, // [20:29] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	28, // 7: Config.attributes:type_name -> google.protobuf.Struct
+	7,  // 8: Stored.scope:type_name -> Scope
+	8,  // 9: Stored.name:type_name -> Name
+	9,  // 10: Stored.control:type_name -> Control
+	10, // 11: Stored.data_entry:type_name -> DataEntry
+	11, // 12: Stored.config_entry:type_name -> ConfigEntry
+	12, // 13: Stored.data:type_name -> Data
+	13, // 14: Stored.config:type_name -> Config
+	25, // 15: RecordResult.scopes:type_name -> RecordResult.ScopesEntry
+	26, // 16: RecordResult.names:type_name -> RecordResult.NamesEntry
+	16, // 17: StreamedRecord.index:type_name -> RecordResult
+	12, // 18: StreamedRecord.data:type_name -> Data
+	8,  // 19: StreamedRecord.name:type_name -> Name
+	13, // 20: StreamedRecord.config:type_name -> Config
+	28, // 21: WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
+	8,  // 22: WriteNameRequest.names:type_name -> Name
+	12, // 23: WriteDataRequest.datas:type_name -> Data
+	7,  // 24: RecordResult.ScopesEntry.value:type_name -> Scope
+	8,  // 25: RecordResult.NamesEntry.value:type_name -> Name
+	15, // 26: RecordService.QueryRecords:input_type -> RecordRequest
+	29, // 27: RecordService.Scopes:input_type -> google.protobuf.Empty
+	17, // 28: RecordService.Names:input_type -> ScopeRequest
+	17, // 29: RecordService.Configs:input_type -> ScopeRequest
+	20, // 30: RecordService.WriteScope:input_type -> WriteScopeRequest
+	19, // 31: RecordService.WriteConfig:input_type -> WriteConfigRequest
+	22, // 32: RecordService.WriteNames:input_type -> WriteNameRequest
+	23, // 33: RecordService.DeleteScopeNames:input_type -> ScopeNameRequest
+	24, // 34: RecordService.WriteData:input_type -> WriteDataRequest
+	18, // 35: RecordService.QueryRecords:output_type -> StreamedRecord
+	18, // 36: RecordService.Scopes:output_type -> StreamedRecord
+	18, // 37: RecordService.Names:output_type -> StreamedRecord
+	18, // 38: RecordService.Configs:output_type -> StreamedRecord
+	21, // 39: RecordService.WriteScope:output_type -> IntegerResponse
+	29, // 40: RecordService.WriteConfig:output_type -> google.protobuf.Empty
+	18, // 41: RecordService.WriteNames:output_type -> StreamedRecord
+	29, // 42: RecordService.DeleteScopeNames:output_type -> google.protobuf.Empty
+	29, // 43: RecordService.WriteData:output_type -> google.protobuf.Empty
+	35, // [35:44] is the sub-list for method output_type
+	26, // [26:35] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_data_proto_init() }
@@ -1640,7 +1859,16 @@ func file_data_proto_init() {
 		(*Values_Floats)(nil),
 		(*Values_Ints)(nil),
 	}
-	file_data_proto_msgTypes[13].OneofWrappers = []any{
+	file_data_proto_msgTypes[11].OneofWrappers = []any{
+		(*Stored_Scope)(nil),
+		(*Stored_Name)(nil),
+		(*Stored_Control)(nil),
+		(*Stored_DataEntry)(nil),
+		(*Stored_ConfigEntry)(nil),
+		(*Stored_Data)(nil),
+		(*Stored_Config)(nil),
+	}
+	file_data_proto_msgTypes[15].OneofWrappers = []any{
 		(*StreamedRecord_Index)(nil),
 		(*StreamedRecord_Data)(nil),
 		(*StreamedRecord_Name)(nil),
@@ -1653,7 +1881,7 @@ func file_data_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_data_proto_rawDesc), len(file_data_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -37,7 +37,7 @@ class RecordServiceStub(object):
         """
         self.QueryRecords = channel.unary_stream(
                 '/RecordService/QueryRecords',
-                request_serializer=data__pb2.Index.SerializeToString,
+                request_serializer=data__pb2.RecordRequest.SerializeToString,
                 response_deserializer=data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Scopes = channel.unary_stream(
@@ -144,7 +144,7 @@ def add_RecordServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'QueryRecords': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRecords,
-                    request_deserializer=data__pb2.Index.FromString,
+                    request_deserializer=data__pb2.RecordRequest.FromString,
                     response_serializer=data__pb2.StreamedRecord.SerializeToString,
             ),
             'Scopes': grpc.unary_stream_rpc_method_handler(
@@ -213,7 +213,7 @@ class RecordService(object):
             request,
             target,
             '/RecordService/QueryRecords',
-            data__pb2.Index.SerializeToString,
+            data__pb2.RecordRequest.SerializeToString,
             data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,

@@ -423,7 +423,7 @@ def load_data(
 
     return content_map 
 
-
+# used only in client
 def get_new_data(
     index: Index, 
     stub: pb_grpc.RecordServiceStub,
@@ -440,7 +440,7 @@ def get_new_data(
     cds_map = data_to_cds(index, datas)
     return index, cds_map
 
-
+# client only
 def _concatenate(nums_list: list[Iterable], dtype: np.dtype) -> np.ndarray:
     total_length = sum(len(nums) for nums in nums_list)
     out = np.empty(total_length, dtype=dtype)
@@ -452,6 +452,7 @@ def _concatenate(nums_list: list[Iterable], dtype: np.dtype) -> np.ndarray:
     return out
 
 
+# client only
 def _data_to_cds(
     index: Index, datas: list[pb.Data], flatten: bool
 ) -> dict[Union[DataKey, tuple], 'cds_data']:
@@ -483,13 +484,16 @@ def _data_to_cds(
 
     return collate
 
+# client only
 def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']:
     return _data_to_cds(index, datas, flatten=False)
 
+# client only
 def data_to_cds_flat(index: Index, datas: list[pb.Data]) -> dict[tuple, 'cds_data']:
     return _data_to_cds(index, datas, flatten=True)
 
 
+# client only
 def _struct_to_dict(struct: Struct) -> dict:
     def convert_value(value):
         kind = value.WhichOneof("kind")
@@ -502,7 +506,7 @@ def _struct_to_dict(struct: Struct) -> dict:
                 return getattr(value, kind)
     return {k: convert_value(v) for k, v in struct.fields.items()}
 
-
+# client only
 def export_configs(index: Index, configs: list[pb.Config]) -> dict[str, Any]:
     """Convert the pb.Config object to a python dictionary."""
     res = {}
@@ -530,7 +534,7 @@ def safe_write(fh, content: bytes) -> int:
     finally:
         fcntl.flock(fh, fcntl.LOCK_UN)
 
-
+# client only
 def fill_defaults(defaults: dict, settings: dict):
     """Update the possibly nested `settings` dict with any defaults.
 
