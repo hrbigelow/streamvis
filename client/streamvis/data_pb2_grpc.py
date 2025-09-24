@@ -6,7 +6,7 @@ import warnings
 import data_pb2 as data__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
-GRPC_GENERATED_VERSION = '1.73.1'
+GRPC_GENERATED_VERSION = '1.71.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -26,7 +26,7 @@ if _version_not_supported:
     )
 
 
-class RecordServiceStub(object):
+class ServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -36,53 +36,53 @@ class RecordServiceStub(object):
             channel: A grpc.Channel.
         """
         self.QueryRecords = channel.unary_stream(
-                '/RecordService/QueryRecords',
+                '/Service/QueryRecords',
                 request_serializer=data__pb2.RecordRequest.SerializeToString,
                 response_deserializer=data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Scopes = channel.unary_stream(
-                '/RecordService/Scopes',
+                '/Service/Scopes',
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
                 response_deserializer=data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Names = channel.unary_stream(
-                '/RecordService/Names',
+                '/Service/Names',
                 request_serializer=data__pb2.ScopeRequest.SerializeToString,
                 response_deserializer=data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Configs = channel.unary_stream(
-                '/RecordService/Configs',
+                '/Service/Configs',
                 request_serializer=data__pb2.ScopeRequest.SerializeToString,
                 response_deserializer=data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.WriteScope = channel.unary_unary(
-                '/RecordService/WriteScope',
+                '/Service/WriteScope',
                 request_serializer=data__pb2.WriteScopeRequest.SerializeToString,
                 response_deserializer=data__pb2.IntegerResponse.FromString,
                 _registered_method=True)
         self.WriteConfig = channel.unary_unary(
-                '/RecordService/WriteConfig',
+                '/Service/WriteConfig',
                 request_serializer=data__pb2.WriteConfigRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
         self.WriteNames = channel.unary_stream(
-                '/RecordService/WriteNames',
+                '/Service/WriteNames',
                 request_serializer=data__pb2.WriteNameRequest.SerializeToString,
                 response_deserializer=data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.DeleteScopeNames = channel.unary_unary(
-                '/RecordService/DeleteScopeNames',
+                '/Service/DeleteScopeNames',
                 request_serializer=data__pb2.ScopeNameRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
         self.WriteData = channel.unary_unary(
-                '/RecordService/WriteData',
+                '/Service/WriteData',
                 request_serializer=data__pb2.WriteDataRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
 
 
-class RecordServiceServicer(object):
+class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def QueryRecords(self, request, context):
@@ -140,7 +140,7 @@ class RecordServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_RecordServiceServicer_to_server(servicer, server):
+def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'QueryRecords': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRecords,
@@ -189,13 +189,13 @@ def add_RecordServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'RecordService', rpc_method_handlers)
+            'Service', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('RecordService', rpc_method_handlers)
+    server.add_registered_method_handlers('Service', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class RecordService(object):
+class Service(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -212,7 +212,7 @@ class RecordService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/RecordService/QueryRecords',
+            '/Service/QueryRecords',
             data__pb2.RecordRequest.SerializeToString,
             data__pb2.StreamedRecord.FromString,
             options,
@@ -239,7 +239,7 @@ class RecordService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/RecordService/Scopes',
+            '/Service/Scopes',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             data__pb2.StreamedRecord.FromString,
             options,
@@ -266,7 +266,7 @@ class RecordService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/RecordService/Names',
+            '/Service/Names',
             data__pb2.ScopeRequest.SerializeToString,
             data__pb2.StreamedRecord.FromString,
             options,
@@ -293,7 +293,7 @@ class RecordService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/RecordService/Configs',
+            '/Service/Configs',
             data__pb2.ScopeRequest.SerializeToString,
             data__pb2.StreamedRecord.FromString,
             options,
@@ -320,7 +320,7 @@ class RecordService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/RecordService/WriteScope',
+            '/Service/WriteScope',
             data__pb2.WriteScopeRequest.SerializeToString,
             data__pb2.IntegerResponse.FromString,
             options,
@@ -347,7 +347,7 @@ class RecordService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/RecordService/WriteConfig',
+            '/Service/WriteConfig',
             data__pb2.WriteConfigRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
@@ -374,7 +374,7 @@ class RecordService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/RecordService/WriteNames',
+            '/Service/WriteNames',
             data__pb2.WriteNameRequest.SerializeToString,
             data__pb2.StreamedRecord.FromString,
             options,
@@ -401,7 +401,7 @@ class RecordService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/RecordService/DeleteScopeNames',
+            '/Service/DeleteScopeNames',
             data__pb2.ScopeNameRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
@@ -428,7 +428,7 @@ class RecordService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/RecordService/WriteData',
+            '/Service/WriteData',
             data__pb2.WriteDataRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,

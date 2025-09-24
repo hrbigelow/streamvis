@@ -99,73 +99,73 @@ func SafeWrite(f *os.File, buf *bytes.Buffer) (int64, error) {
 func PackScope(scopeId uint32, scope string, buf *bytes.Buffer) error {
 	timestamp := timestamppb.Now()
 	msg := &pb.Stored{
-        Value: &pb.Stored_Scope{
-            Scope: &pb.Scope{ScopeId: scopeId, Scope: scope, Time: timestamp},
-        },
-    }
-    return WriteDelimited(buf, msg)
+		Value: &pb.Stored_Scope{
+			Scope: &pb.Scope{ScopeId: scopeId, Scope: scope, Time: timestamp},
+		},
+	}
+	return WriteDelimited(buf, msg)
 }
 
 func PackDeleteScope(scope string, buf *bytes.Buffer) error {
-    msg := &pb.Stored{
-        Value: &pb.Stored_Control{
-            Control: &pb.Control{Scope: scope, Name: "", Action: pb.Action_DELETE_SCOPE},
-        },
-    }
+	msg := &pb.Stored{
+		Value: &pb.Stored_Control{
+			Control: &pb.Control{Scope: scope, Name: "", Action: pb.Action_DELETE_SCOPE},
+		},
+	}
 	return WriteDelimited(buf, msg)
 }
 
 func PackDeleteName(scope string, name string, buf *bytes.Buffer) error {
-    msg := &pb.Stored{
-        Value: &pb.Stored_Control{
-            Control: &pb.Control{Scope: scope, Name: name, Action: pb.Action_DELETE_NAME},
-        },
-    }
+	msg := &pb.Stored{
+		Value: &pb.Stored_Control{
+			Control: &pb.Control{Scope: scope, Name: name, Action: pb.Action_DELETE_NAME},
+		},
+	}
 	return WriteDelimited(buf, msg)
 }
 
 func PackConfigEntry(entryId uint32, scopeId uint32, begOffset uint64, endOffset uint64, buf *bytes.Buffer) error {
-    msg := &pb.Stored{
-        Value: &pb.Stored_ConfigEntry{
-            ConfigEntry: &pb.ConfigEntry{
-                EntryId:   entryId,
-                ScopeId:   scopeId,
-                BegOffset: begOffset,
-                EndOffset: endOffset,
-            },
-        },
-    }
+	msg := &pb.Stored{
+		Value: &pb.Stored_ConfigEntry{
+			ConfigEntry: &pb.ConfigEntry{
+				EntryId:   entryId,
+				ScopeId:   scopeId,
+				BegOffset: begOffset,
+				EndOffset: endOffset,
+			},
+		},
+	}
 	return WriteDelimited(buf, msg)
 }
 
 type Unpacker struct {
-    reader *bufio.Reader
-	err  error
-    cur  *pb.Stored
+	reader *bufio.Reader
+	err    error
+	cur    *pb.Stored
 }
 
 func NewUnpacker(file *os.File) *Unpacker {
-    reader := bufio.NewReader(file)
-    return &Unpacker{reader: reader}
+	reader := bufio.NewReader(file)
+	return &Unpacker{reader: reader}
 }
 
 func (u *Unpacker) Scan() bool {
 	if u.err != nil {
 		return false
 	}
-    ok, err := ReadDelimited(u.reader, u.cur, 0)
-    if err != nil {
-        u.err = err
-        return false
-    }
-    if !ok {
-        return false
-    }
+	ok, err := ReadDelimited(u.reader, u.cur, 0)
+	if err != nil {
+		u.err = err
+		return false
+	}
+	if !ok {
+		return false
+	}
 	return true
 }
 
 func (u *Unpacker) Item() *pb.Stored { return u.cur }
-func (u *Unpacker) Err() error         { return u.err }
+func (u *Unpacker) Err() error       { return u.err }
 
 /*
 Foreign Keys:
@@ -174,7 +174,7 @@ Scope               -> nil
 Name.ScopeId        -> Scope
 DataEntry.NameId    -> Name
 Data.EntryId        -> DataEntry
-ConfigEntry.ScopeId -> Scope 
+ConfigEntry.ScopeId -> Scope
 Config.EntryId      -> ConfigEntry
 
 */
@@ -187,49 +187,50 @@ type Index struct {
 	tagToNames     map[[2]string][]uint32
 	nameToEntries  map[uint32][]uint32
 	scopeToConfigs map[string][]uint32
-    fileOffset     uint64
+	fileOffset     uint64
 }
 
-func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) []pb.DataEntry { 
-    entries := make([]pb.DataEntry, 0)
+func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) []pb.DataEntry {
+	entries := make([]pb.DataEntry, 0)
 	for _, entry := range idx.entries {
-        if entry.EndOffset <= minOffset {
-            continue
-        }
-        name := idx.names[entry.EntryId]
-        if !namePat.MatchString(name.Name) {
-            continue
-        }
-        scope := idx.scopes[name.ScopeId]
-        if !scopePat.MatchString(scope.Scope) {
-            continue
-        }
+		if entry.EndOffset <= minOffset {
+			continue
+		}
+		name := idx.names[entry.EntryId]
+		if !namePat.MatchString(name.Name) {
+			continue
+		}
+		scope := idx.scopes[name.ScopeId]
+		if !scopePat.MatchString(scope.Scope) {
+			continue
+		}
 		entries = append(entries, entry)
 	}
 	return entries
 }
 
-func (idx *Index) ConfigEntryList(scopePat regexp.Regexp, minOffset uint64) []pb.ConfigEntry {
+func (idx *Index) ConfigEntryList(scopePat *regexp.Regexp, minOffset uint64) []pb.ConfigEntry {
 	entries := make([]pb.ConfigEntry, 0)
 	for _, entry := range idx.configEntries {
-        if entry.EndOffset <= minOffset {
-            continue
-        }
-        scope := idx.scopes[entry.ScopeId]
-        if !scopePat.MatchString(scope.Scope) {
-            continue
-        }
+		if entry.EndOffset <= minOffset {
+			continue
+		}
+		scope := idx.scopes[entry.ScopeId]
+		if !scopePat.MatchString(scope.Scope) {
+			continue
+		}
 		entries = append(entries, entry)
 	}
 	return entries
 }
 
 func (idx *Index) ScopeList(scopePat regexp.Regexp) []string {
+	// return a list of scope names that match scopePat and have content
 	scopeNames := make(map[string]struct{}, 0)
 	for scopeId, scope := range idx.scopes {
-        if !scopePat.MatchString(scope.Scope) {
-            continue
-        }
+		if !scopePat.MatchString(scope.Scope) {
+			continue
+		}
 		for _, name := range idx.names {
 			if name.ScopeId == scopeId {
 				scopeNames[scope.Scope] = struct{}{}
@@ -237,28 +238,27 @@ func (idx *Index) ScopeList(scopePat regexp.Regexp) []string {
 			}
 		}
 	}
-    return slices.Collect(maps.Keys(scopeNames))
+	return slices.Collect(maps.Keys(scopeNames))
 }
 
 func (idx *Index) NameList(scopePat regexp.Regexp, namePat regexp.Regexp) [][2]string {
-	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name) 
+	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name)
 	for scopeId, scope := range idx.scopes {
-        if !scopePat.MatchString(scope.Scope) {
-            continue
-        }
-        for _, name := range idx.names {
-            if name.ScopeId != scopeId {
-                continue
-            }
-            if !namePat.MatchString(name.Name) {
-                continue
-            }
-            tags[[2]string{scope.Scope, name.Name}] = struct{}{}
-        }
-    }
-    return slices.Collect(maps.Keys(tags))
+		if !scopePat.MatchString(scope.Scope) {
+			continue
+		}
+		for _, name := range idx.names {
+			if name.ScopeId != scopeId {
+				continue
+			}
+			if !namePat.MatchString(name.Name) {
+				continue
+			}
+			tags[[2]string{scope.Scope, name.Name}] = struct{}{}
+		}
+	}
+	return slices.Collect(maps.Keys(tags))
 }
-
 
 type DataKey struct {
 	scopeId uint32
@@ -284,91 +284,89 @@ func (idx *Index) getName(data pb.Data) pb.Name {
 	return idx.names[data.NameId]
 }
 
-
 func (idx *Index) updateWithItem(item *pb.Stored) {
 	switch v := item.GetValue().(type) {
 	case *pb.Stored_Scope:
-        m := v.Scope
-        if _, ok := idx.scopes[m.ScopeId]; ok {
-            panic(fmt.Sprintf("Duplicate scopeId %s in index", m.ScopeId))
-        }
-        idx.scopes[m.ScopeId] = *m
-    case *pb.Stored_Name:
-        m := v.Name
-        if _, ok1 := idx.scopes[m.ScopeId]; ok1 {
-            if _, ok2 := idx.names[m.NameId]; ok2 {
-                panic(fmt.Sprintf("Duplicate nameId %s in index", m.NameId))
-            }
-            scope := idx.scopes[m.ScopeId].Scope
-            tag := [2]string{scope, m.Name}
-            names := idx.tagToNames[tag]
-            if names == nil {
-                names := make([]uint32, 0)
-                idx.tagToNames[tag] = names
-            }
-            idx.tagToNames[tag] = append(idx.tagToNames[tag], m.NameId)
-        }
-    case *pb.Stored_Control:
-        m := v.Control
-        if m.Action == pb.Action_DELETE_NAME {
-            tag := [2]string{m.Scope, m.Name}
-            names := idx.tagToNames[tag]
-            if names == nil {
-                names := make([]uint32, 0)
-                idx.tagToNames[tag] = names
-            }
-            for _, nameId := range names {
-                delete(idx.names, nameId)
-                // TODO: check for nil
-                for _, entryId := range idx.nameToEntries[nameId] {
-                    delete(idx.entries, entryId)
-                }
-                delete(idx.nameToEntries, nameId)
-            }
-            delete(idx.tagToNames, tag)
-        }
-    case *pb.Stored_DataEntry:
-        m := v.DataEntry
-        if _, ok := idx.names[m.NameId]; ok {
-            idx.entries[m.NameId] = *m
-            entries := idx.nameToEntries[m.NameId]
-            if entries == nil {
-                entries := make([]uint32, 0)
-                idx.nameToEntries[m.NameId] = entries
-            }
-            idx.nameToEntries[m.NameId] = append(idx.nameToEntries[m.NameId], m.EntryId)
-        }
+		m := v.Scope
+		if _, ok := idx.scopes[m.ScopeId]; ok {
+			panic(fmt.Sprintf("Duplicate scopeId %s in index", m.ScopeId))
+		}
+		idx.scopes[m.ScopeId] = *m
+	case *pb.Stored_Name:
+		m := v.Name
+		if _, ok1 := idx.scopes[m.ScopeId]; ok1 {
+			if _, ok2 := idx.names[m.NameId]; ok2 {
+				panic(fmt.Sprintf("Duplicate nameId %s in index", m.NameId))
+			}
+			scope := idx.scopes[m.ScopeId].Scope
+			tag := [2]string{scope, m.Name}
+			names := idx.tagToNames[tag]
+			if names == nil {
+				names := make([]uint32, 0)
+				idx.tagToNames[tag] = names
+			}
+			idx.tagToNames[tag] = append(idx.tagToNames[tag], m.NameId)
+		}
+	case *pb.Stored_Control:
+		m := v.Control
+		if m.Action == pb.Action_DELETE_NAME {
+			tag := [2]string{m.Scope, m.Name}
+			names := idx.tagToNames[tag]
+			if names == nil {
+				names := make([]uint32, 0)
+				idx.tagToNames[tag] = names
+			}
+			for _, nameId := range names {
+				delete(idx.names, nameId)
+				// TODO: check for nil
+				for _, entryId := range idx.nameToEntries[nameId] {
+					delete(idx.entries, entryId)
+				}
+				delete(idx.nameToEntries, nameId)
+			}
+			delete(idx.tagToNames, tag)
+		}
+	case *pb.Stored_DataEntry:
+		m := v.DataEntry
+		if _, ok := idx.names[m.NameId]; ok {
+			idx.entries[m.NameId] = *m
+			entries := idx.nameToEntries[m.NameId]
+			if entries == nil {
+				entries := make([]uint32, 0)
+				idx.nameToEntries[m.NameId] = entries
+			}
+			idx.nameToEntries[m.NameId] = append(idx.nameToEntries[m.NameId], m.EntryId)
+		}
 
-    case *pb.Stored_ConfigEntry:
-        m := v.ConfigEntry
-        if scopeMsg, ok := idx.scopes[m.ScopeId]; ok {
-            scope := scopeMsg.Scope
-            idx.configEntries[m.EntryId] = *m
-            configIds := idx.scopeToConfigs[scope]
-            if configIds == nil {
-                configIds = make([]uint32, 0)
-                idx.scopeToConfigs[scope] = configIds
-            }
-            idx.scopeToConfigs[scope] = append(idx.scopeToConfigs[scope], m.EntryId)
-        }
-    }
+	case *pb.Stored_ConfigEntry:
+		m := v.ConfigEntry
+		if scopeMsg, ok := idx.scopes[m.ScopeId]; ok {
+			scope := scopeMsg.Scope
+			idx.configEntries[m.EntryId] = *m
+			configIds := idx.scopeToConfigs[scope]
+			if configIds == nil {
+				configIds = make([]uint32, 0)
+				idx.scopeToConfigs[scope] = configIds
+			}
+			idx.scopeToConfigs[scope] = append(idx.scopeToConfigs[scope], m.EntryId)
+		}
+	}
 }
 
-
 func (idx *Index) Load(indexPath string) error {
-    fh, err := os.Open(indexPath)
-    defer fh.Close()
-    if err != nil {
-        return fmt.Errorf("Error opening index file: %w", err) 
+	fh, err := os.Open(indexPath)
+	defer fh.Close()
+	if err != nil {
+		return fmt.Errorf("Error opening index file: %w", err)
 	}
 	unpacker := NewUnpacker(fh)
 	for unpacker.Scan() {
 		idx.updateWithItem(unpacker.Item())
 	}
 	if err := unpacker.Err(); err != nil {
-        return fmt.Errorf("Error unpacking index file: %w", err)
+		return fmt.Errorf("Error unpacking index file: %w", err)
 	}
-    return nil
+	return nil
 }
 
 func (idx *Index) toMessage() pb.RecordResult {
@@ -382,10 +380,10 @@ func (idx *Index) toMessage() pb.RecordResult {
 		namesMap[k] = &v
 	}
 
-	return pb.RecordResult {
-		Scopes:      scopesMap,
-		Names:       namesMap,
-        FileOffset:  idx.fileOffset,
+	return pb.RecordResult{
+		Scopes:     scopesMap,
+		Names:      namesMap,
+		FileOffset: idx.fileOffset,
 	}
 }
 
@@ -416,55 +414,58 @@ func (idx *Index) MaxId() uint32 {
 	return maxId
 }
 
-
-func LoadData(
-    fh *os.File, 
-    entries []pb.DataEntry, 
-    ctx context.Context,
-) (<-chan *pb.Data, <-chan error) {
-    slices.SortFunc(entries, func(a, b pb.DataEntry) int { 
-        return cmp.Compare(a.BegOffset, b.BegOffset)
-    })
-    out := make(chan *pb.Data, 64) 
-    errc := make(chan error, 1)
-    var data pb.Data
-    go func() {
-        defer close(out)
-        defer close(errc)
-        for _, e := range entries {
-            select {
-            case <-ctx.Done():
-                errc <- ctx.Err()
-                return
-            default:
-            }
-
-            if _, err := fh.Seek(int64(e.BegOffset), os.SEEK_SET); err != nil {
-                errc <- fmt.Errorf("Error seeking data file: %w", err)
-                return
-            }
-            buf := make([]byte, int64(e.EndOffset) - int64(e.BegOffset))
-            n, err := fh.Read(buf)
-            if n != len(buf) {
-                errc <- fmt.Errorf("Couldn't read full record")
-                return
-            }
-            if err != nil {
-                errc <- fmt.Errorf("Error reading data file: %w", err)
-                return
-            }
-            if err := proto.Unmarshal(buf, &data); err != nil {
-                errc <- fmt.Errorf("unmarshal: %w", err)
-                return
-            }
-            select {
-            case out <- &data:
-            case <-ctx.Done():
-                errc <- ctx.Err()
-                return
-            }
-        }
-    }()
-    return out, errc
+type offsets interface {
+	GetBegOffset() uint64
+	GetEndOffset() uint64
 }
 
+func LoadMessages[E offsets, M proto.Message](
+	fh *os.File,
+	entries []E,
+	ctx context.Context,
+	newMsg func() M,
+) (<-chan M, <-chan error) {
+	slices.SortFunc(entries, func(a, b E) int {
+		return cmp.Compare(a.GetBegOffset(), b.GetBegOffset())
+	})
+	out := make(chan M, 64)
+	errc := make(chan error, 1)
+	go func() {
+		defer close(out)
+		defer close(errc)
+		for _, e := range entries {
+			select {
+			case <-ctx.Done():
+				errc <- ctx.Err()
+				return
+			default:
+			}
+
+			beg, end := e.GetBegOffset(), e.GetEndOffset()
+			if end < beg {
+				errc <- fmt.Errorf("bad offsets: beg=%d end=%d", beg, end)
+				return
+			}
+			length := end - beg
+			buf := make([]byte, int(length))
+
+			if _, err := fh.ReadAt(buf, int64(beg)); err != nil {
+				errc <- fmt.Errorf("readAt failed at %d (%d bytes): %w", beg, length, err)
+				return
+			}
+			msg := newMsg()
+
+			if err := proto.Unmarshal(buf, msg); err != nil {
+				errc <- fmt.Errorf("unmarshal: %w", err)
+				return
+			}
+			select {
+			case out <- msg:
+			case <-ctx.Done():
+				errc <- ctx.Err()
+				return
+			}
+		}
+	}()
+	return out, errc
+}

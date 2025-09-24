@@ -142,6 +142,11 @@ enum StoredType {
   STRING = 8;
 }
 
+message Tag {
+  string scope = 1;
+  string name = 2;
+}
+
 
 message StreamedRecord {
   oneof record {
@@ -150,6 +155,7 @@ message StreamedRecord {
     Name name = 3;
     Config config = 4;
     string value = 5;
+    Tag tag = 6;
   }
 }
 
@@ -183,7 +189,7 @@ message WriteDataRequest {
 }
 
 
-service RecordService {
+service Service {
   rpc QueryRecords (RecordRequest) returns (stream StreamedRecord);
   rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
   rpc Names (ScopeRequest) returns (stream StreamedRecord);
