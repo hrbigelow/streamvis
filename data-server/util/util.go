@@ -39,6 +39,7 @@ func DataFile(path string) string {
 }
 
 func WriteDelimited(buf *bytes.Buffer, m *pb.Stored) error {
+	// populate buf with m, prepending it with length of message
 	b, err := proto.Marshal(m)
 	if err != nil {
 		return err
@@ -55,6 +56,7 @@ func WriteDelimited(buf *bytes.Buffer, m *pb.Stored) error {
 }
 
 func ReadDelimited(r *bufio.Reader, m *pb.Stored, max int) (bool, error) {
+	// populate message m from buffer r
 	n, err := binary.ReadUvarint(r)
 	if err == io.EOF {
 		return false, nil

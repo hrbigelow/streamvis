@@ -5,6 +5,8 @@ import (
 	"regexp"
 
 	pb "data-server/pb/data"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type Store interface {
@@ -25,4 +27,10 @@ type Store interface {
 		minOffset uint64,
 		ctx context.Context,
 	) (<-chan *pb.Config, <-chan error)
+
+	Add(msg proto.Message)
+
+	AddNames(names []pb.Name)
+
+	AddDatas(datas []pb.Data)
 }

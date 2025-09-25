@@ -1,5 +1,8 @@
 package index
 
+/* Implements the Store interface using a file-backed index
+ */
+
 import (
 	"context"
 	"log"
@@ -9,6 +12,8 @@ import (
 	pb "data-server/pb/data"
 	"data-server/service"
 	"data-server/util"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type IndexStore struct {
@@ -69,6 +74,16 @@ func (s *IndexStore) GetConfigs(
 	return util.LoadMessages[*pb.ConfigEntry, *pb.Config](
 		s.readDataFh, ptrs, ctx, getConfig,
 	)
+}
+
+func (s *IndexStore) Add(msg proto.Message) {
+	// adds a message to the index store
+}
+
+func (s *IndexStore) AddNames(names []pb.Name) {
+}
+
+func (s *IndexStore) AddData(datas []pb.Data) {
 }
 
 func (s *IndexStore) GetMaxId() uint32 {

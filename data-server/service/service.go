@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Service struct {
@@ -166,17 +167,45 @@ func (s *Service) WriteScope(
 	ctx context.Context,
 	req *pb.WriteScopeRequest,
 ) (*pb.IntegerResponse, error) {
-	return &pb.IntegerResponse{}, nil
+	msg := &pb.Scope{
+		ScopeId: s.IssueId(),
+		Scope:   req.WriteScopeRequest.GetScope(),
+		Time:    timestamppb.Now(),
+	}
+	s.store.Add(msg)
+	return &pb.IntegerResponse{Value: msg.GetScopeId()}, nil
 }
 
 func (s *Service) WriteConfig(
 	ctx context.Context,
 	req *pb.WriteConfigRequest,
 ) (*emptypb.Empty, error) {
+	msg := &pb.Config{
+		EntryId:    s.IssueId(),
+		Attributes: req.Attributes,
+	}
+	s.store.Add(msg)
 	return &emptypb.Empty{}, nil
 }
 
 func (s *Service) WriteNames(req *pb.WriteNameRequest, stream pb.Service_WriteNamesServer) error {
+	// assigns new NameId to each Name message, stores and returns them
+	ptrs := make([]*pb.Name, len(req.Names))
+	for i := range req.Names {
+		req.Names[i].NameId = s.IssueId()
+		ptrs[i] = &req.Names[i]
+	}
+	s.store.AddNames(req.Names)
+	for i := range req.Names {
+		msg := &pb.StreamedRecord{
+			Name: &pb.StreamedRecord_Name{
+				Name: ptrs[i],
+			},
+		}
+		if err := stream.Send(msg); err != nil {
+			return status.Errorf(codes.Unavailable, "send failed: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -184,6 +213,12 @@ func (s *Service) DeleteScopeNames(
 	ctx context.Context,
 	req *pb.ScopeNameRequest,
 ) (*emptypb.Empty, error) {
+	msg := &pb.Control{
+		Scope:  req.Scope,
+		Name:   req.Name,
+		Action: pb.Action_DELETE_NAME,
+	}
+	s.store.Add(msg)
 	return &emptypb.Empty{}, nil
 }
 
@@ -191,5 +226,9 @@ func (s *Service) WriteData(
 	ctx context.Context,
 	req *pb.WriteDataRequest,
 ) (*emptypb.Empty, error) {
+	for i := range req.Datas {
+		req.Datas[i].EntryId = s.IssueId()
+	}
+	s.store.AddData(req.Datas)
 	return &emptypb.Empty{}, nil
 }
