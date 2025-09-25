@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"regexp"
 
 	pb "data-server/pb/data"
@@ -14,7 +15,7 @@ import (
 )
 
 type Service struct {
-	pb           pb.UnimplementedServiceServer
+	pb.UnimplementedServiceServer
 	store        Store
 	lastIssuedId uint32
 }
@@ -113,7 +114,7 @@ func (s *Service) Configs(
 	return streamRecords[*pb.Config, pb.StreamedRecord](stream, dataCh, errCh, wrapConfig)
 }
 
-func (s *Service) Scopes(req emptypb.Empty, stream pb.Service_ScopesServer) error {
+func (s *Service) Scopes(req *emptypb.Empty, stream pb.Service_ScopesServer) error {
 	ctx := stream.Context()
 	scopePat, _ := regexp.Compile(".*")
 	scopes := s.store.GetScopes(scopePat)
@@ -159,4 +160,36 @@ func (s *Service) Names(req *pb.ScopeRequest, stream pb.Service_NamesServer) err
 		}
 	}
 	return nil
+}
+
+func (s *Service) WriteScope(
+	ctx context.Context,
+	req *pb.WriteScopeRequest,
+) (*pb.IntegerResponse, error) {
+	return &pb.IntegerResponse{}, nil
+}
+
+func (s *Service) WriteConfig(
+	ctx context.Context,
+	req *pb.WriteConfigRequest,
+) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) WriteNames(req *pb.WriteNameRequest, stream pb.Service_WriteNamesServer) error {
+	return nil
+}
+
+func (s *Service) DeleteScopeNames(
+	ctx context.Context,
+	req *pb.ScopeNameRequest,
+) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) WriteData(
+	ctx context.Context,
+	req *pb.WriteDataRequest,
+) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
 }

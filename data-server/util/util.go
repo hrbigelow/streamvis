@@ -224,7 +224,7 @@ func (idx *Index) ConfigEntryList(scopePat *regexp.Regexp, minOffset uint64) []p
 	return entries
 }
 
-func (idx *Index) ScopeList(scopePat regexp.Regexp) []string {
+func (idx *Index) ScopeList(scopePat *regexp.Regexp) []string {
 	// return a list of scope names that match scopePat and have content
 	scopeNames := make(map[string]struct{}, 0)
 	for scopeId, scope := range idx.scopes {
@@ -241,7 +241,7 @@ func (idx *Index) ScopeList(scopePat regexp.Regexp) []string {
 	return slices.Collect(maps.Keys(scopeNames))
 }
 
-func (idx *Index) NameList(scopePat regexp.Regexp, namePat regexp.Regexp) [][2]string {
+func (idx *Index) NameList(scopePat, namePat *regexp.Regexp) [][2]string {
 	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name)
 	for scopeId, scope := range idx.scopes {
 		if !scopePat.MatchString(scope.Scope) {
@@ -421,7 +421,7 @@ type offsets interface {
 
 func LoadMessages[E offsets, M proto.Message](
 	fh *os.File,
-	entries []E,
+	entries []E, // E is pointer type
 	ctx context.Context,
 	newMsg func() M,
 ) (<-chan M, <-chan error) {

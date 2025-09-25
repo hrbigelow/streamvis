@@ -45,9 +45,14 @@ func (s *IndexStore) GetData(
 	ctx context.Context,
 ) (<-chan *pb.Data, <-chan error) {
 	entries := s.index.EntryList(scopePat, namePat, minOffset)
+	ptrs := make([]*pb.DataEntry, len(entries))
+	for i := range entries {
+		ptrs[i] = &entries[i]
+	}
+	newMsg := func() *pb.Data { return &pb.Data{} }
 	return util.LoadMessages[*pb.DataEntry, *pb.Data](
-        s.readDataFh, entries, ctx, func() *pb.Data { return &pb.Data{} }
-    )
+		s.readDataFh, ptrs, ctx, newMsg,
+	)
 }
 
 func (s *IndexStore) GetConfigs(
@@ -56,12 +61,15 @@ func (s *IndexStore) GetConfigs(
 	ctx context.Context,
 ) (<-chan *pb.Config, <-chan error) {
 	entries := s.index.ConfigEntryList(scopePat, minOffset)
-    getConfig := func() *pb.Config { return &pb.Config{} }
-    return util.LoadMessages[*pb.ConfigEntry, *pb.Config](
-        s.readDataFh, entries, ctx, getConfig 
-    )
+	ptrs := make([]*pb.ConfigEntry, len(entries))
+	for i := range entries {
+		ptrs[i] = &entries[i]
+	}
+	getConfig := func() *pb.Config { return &pb.Config{} }
+	return util.LoadMessages[*pb.ConfigEntry, *pb.Config](
+		s.readDataFh, ptrs, ctx, getConfig,
+	)
 }
-
 
 func (s *IndexStore) GetMaxId() uint32 {
 	return s.index.MaxId()

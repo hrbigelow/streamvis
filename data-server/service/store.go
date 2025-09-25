@@ -20,5 +20,9 @@ type Store interface {
 
 	GetNames(scopePat, namePat *regexp.Regexp) [][2]string
 
-	GetConfigs(scopePat *regexp.Regexp, minOffset uint64) (<-chan *pb.Config, <-chan error)
+	GetConfigs(
+		scopePat *regexp.Regexp,
+		minOffset uint64,
+		ctx context.Context,
+	) (<-chan *pb.Config, <-chan error)
 }
