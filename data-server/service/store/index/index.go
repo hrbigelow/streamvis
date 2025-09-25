@@ -5,6 +5,7 @@ package index
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -80,7 +81,32 @@ func (s *IndexStore) Add(msg proto.Message) {
 	// adds a message to the index store
 }
 
-func (s *IndexStore) AddNames(names []pb.Name) {
+func (s *IndexStore) AddNames(names []pb.Name) error {
+	// adds the list of names to the index store
+    size := int64(0)
+    stored := make([]*pb.Stored, len(names))
+    idx := 0
+	for _, name := range names {
+		s.index.names[name.NameId] = name
+		msg, err := util.WrapStored(&name)
+		if err != nil {
+			return fmt.Errorf("Couldn't wrap name: %v", err)
+		}
+        stored[idx] = msg
+        size += len(msg)
+        idx += 1
+    }
+    buf := make([]byte, size)
+    bbuf := bytes.NewBuffer(buf)
+    for i, msg := range stored {
+		if err := util.WriteDelimited(bbuf, msg); err != nil {
+			return fmt.Errorf("Couldn't write name: %v", err)
+		}
+	}
+    if _, err := util.SafeWrite(s.appendIndexFh, buf) {
+        return fmt.Errorf("Couldn't SafeWrite: %v", err)
+    }
+    return nil
 }
 
 func (s *IndexStore) AddData(datas []pb.Data) {

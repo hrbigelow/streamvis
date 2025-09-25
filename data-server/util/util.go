@@ -98,6 +98,27 @@ func SafeWrite(f *os.File, buf *bytes.Buffer) (int64, error) {
 	return off, nil
 }
 
+func WrapStored(v proto.Message) (*pb.Stored, error) {
+	switch x := v.(type) {
+	case *pb.Scope:
+		return &pb.Stored{Value: &pb.Stored_Scope{Scope: x}}, nil
+	case *pb.Name:
+		return &pb.Stored{Value: &pb.Stored_Name{Name: x}}, nil
+	case *pb.Control:
+		return &pb.Stored{Value: &pb.Stored_Control{Control: x}}, nil
+	case *pb.DataEntry:
+		return &pb.Stored{Value: &pb.Stored_DataEntry{DataEntry: x}}, nil
+	case *pb.ConfigEntry:
+		return &pb.Stored{Value: &pb.Stored_ConfigEntry{ConfigEntry: x}}, nil
+	case *pb.Data:
+		return &pb.Stored{Value: &pb.Stored_Data{Data: x}}, nil
+	case *pb.Config:
+		return &pb.Stored{Value: &pb.Stored_Config{Config: x}}, nil
+	default:
+		return nil, fmt.Errorf("WrapStored: unsupported type: %T", v)
+	}
+}
+
 func PackScope(scopeId uint32, scope string, buf *bytes.Buffer) error {
 	timestamp := timestamppb.Now()
 	msg := &pb.Stored{
