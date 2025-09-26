@@ -63,7 +63,7 @@ class BaseLogger:
         self.deleted_names = set() # name: str
         self.uri = grpc_uri
         self.chan = grpc.insecure_channel(grpc_uri) 
-        self.stub = pb_grpc.RecordServiceStub(self.chan)
+        self.stub = pb_grpc.ServiceStub(self.chan)
         self.flush_every = flush_every
         match tensor_type:
             case "jax":

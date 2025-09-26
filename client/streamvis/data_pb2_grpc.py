@@ -3,8 +3,8 @@
 import grpc
 import warnings
 
-import data_pb2 as data__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
+from streamvis import data_pb2 as streamvis_dot_data__pb2
 
 GRPC_GENERATED_VERSION = '1.75.1'
 GRPC_VERSION = grpc.__version__
@@ -19,7 +19,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in data_pb2_grpc.py depends on'
+        + f' but the generated code in streamvis/data_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,47 +37,47 @@ class ServiceStub(object):
         """
         self.QueryRecords = channel.unary_stream(
                 '/Service/QueryRecords',
-                request_serializer=data__pb2.RecordRequest.SerializeToString,
-                response_deserializer=data__pb2.StreamedRecord.FromString,
+                request_serializer=streamvis_dot_data__pb2.RecordRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Scopes = channel.unary_stream(
                 '/Service/Scopes',
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-                response_deserializer=data__pb2.StreamedRecord.FromString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Names = channel.unary_stream(
                 '/Service/Names',
-                request_serializer=data__pb2.ScopeRequest.SerializeToString,
-                response_deserializer=data__pb2.StreamedRecord.FromString,
+                request_serializer=streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.Configs = channel.unary_stream(
                 '/Service/Configs',
-                request_serializer=data__pb2.ScopeRequest.SerializeToString,
-                response_deserializer=data__pb2.StreamedRecord.FromString,
+                request_serializer=streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.WriteScope = channel.unary_unary(
                 '/Service/WriteScope',
-                request_serializer=data__pb2.WriteScopeRequest.SerializeToString,
-                response_deserializer=data__pb2.IntegerResponse.FromString,
+                request_serializer=streamvis_dot_data__pb2.WriteScopeRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.IntegerResponse.FromString,
                 _registered_method=True)
         self.WriteConfig = channel.unary_unary(
                 '/Service/WriteConfig',
-                request_serializer=data__pb2.WriteConfigRequest.SerializeToString,
+                request_serializer=streamvis_dot_data__pb2.WriteConfigRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
         self.WriteNames = channel.unary_stream(
                 '/Service/WriteNames',
-                request_serializer=data__pb2.WriteNameRequest.SerializeToString,
-                response_deserializer=data__pb2.StreamedRecord.FromString,
+                request_serializer=streamvis_dot_data__pb2.WriteNameRequest.SerializeToString,
+                response_deserializer=streamvis_dot_data__pb2.StreamedRecord.FromString,
                 _registered_method=True)
         self.DeleteScopeNames = channel.unary_unary(
                 '/Service/DeleteScopeNames',
-                request_serializer=data__pb2.ScopeNameRequest.SerializeToString,
+                request_serializer=streamvis_dot_data__pb2.ScopeNameRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
         self.WriteData = channel.unary_unary(
                 '/Service/WriteData',
-                request_serializer=data__pb2.WriteDataRequest.SerializeToString,
+                request_serializer=streamvis_dot_data__pb2.WriteDataRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
 
@@ -144,47 +144,47 @@ def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'QueryRecords': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRecords,
-                    request_deserializer=data__pb2.RecordRequest.FromString,
-                    response_serializer=data__pb2.StreamedRecord.SerializeToString,
+                    request_deserializer=streamvis_dot_data__pb2.RecordRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
             ),
             'Scopes': grpc.unary_stream_rpc_method_handler(
                     servicer.Scopes,
                     request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                    response_serializer=data__pb2.StreamedRecord.SerializeToString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
             ),
             'Names': grpc.unary_stream_rpc_method_handler(
                     servicer.Names,
-                    request_deserializer=data__pb2.ScopeRequest.FromString,
-                    response_serializer=data__pb2.StreamedRecord.SerializeToString,
+                    request_deserializer=streamvis_dot_data__pb2.ScopeRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
             ),
             'Configs': grpc.unary_stream_rpc_method_handler(
                     servicer.Configs,
-                    request_deserializer=data__pb2.ScopeRequest.FromString,
-                    response_serializer=data__pb2.StreamedRecord.SerializeToString,
+                    request_deserializer=streamvis_dot_data__pb2.ScopeRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
             ),
             'WriteScope': grpc.unary_unary_rpc_method_handler(
                     servicer.WriteScope,
-                    request_deserializer=data__pb2.WriteScopeRequest.FromString,
-                    response_serializer=data__pb2.IntegerResponse.SerializeToString,
+                    request_deserializer=streamvis_dot_data__pb2.WriteScopeRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.IntegerResponse.SerializeToString,
             ),
             'WriteConfig': grpc.unary_unary_rpc_method_handler(
                     servicer.WriteConfig,
-                    request_deserializer=data__pb2.WriteConfigRequest.FromString,
+                    request_deserializer=streamvis_dot_data__pb2.WriteConfigRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'WriteNames': grpc.unary_stream_rpc_method_handler(
                     servicer.WriteNames,
-                    request_deserializer=data__pb2.WriteNameRequest.FromString,
-                    response_serializer=data__pb2.StreamedRecord.SerializeToString,
+                    request_deserializer=streamvis_dot_data__pb2.WriteNameRequest.FromString,
+                    response_serializer=streamvis_dot_data__pb2.StreamedRecord.SerializeToString,
             ),
             'DeleteScopeNames': grpc.unary_unary_rpc_method_handler(
                     servicer.DeleteScopeNames,
-                    request_deserializer=data__pb2.ScopeNameRequest.FromString,
+                    request_deserializer=streamvis_dot_data__pb2.ScopeNameRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'WriteData': grpc.unary_unary_rpc_method_handler(
                     servicer.WriteData,
-                    request_deserializer=data__pb2.WriteDataRequest.FromString,
+                    request_deserializer=streamvis_dot_data__pb2.WriteDataRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
@@ -213,8 +213,8 @@ class Service(object):
             request,
             target,
             '/Service/QueryRecords',
-            data__pb2.RecordRequest.SerializeToString,
-            data__pb2.StreamedRecord.FromString,
+            streamvis_dot_data__pb2.RecordRequest.SerializeToString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,
             insecure,
@@ -241,7 +241,7 @@ class Service(object):
             target,
             '/Service/Scopes',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            data__pb2.StreamedRecord.FromString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,
             insecure,
@@ -267,8 +267,8 @@ class Service(object):
             request,
             target,
             '/Service/Names',
-            data__pb2.ScopeRequest.SerializeToString,
-            data__pb2.StreamedRecord.FromString,
+            streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,
             insecure,
@@ -294,8 +294,8 @@ class Service(object):
             request,
             target,
             '/Service/Configs',
-            data__pb2.ScopeRequest.SerializeToString,
-            data__pb2.StreamedRecord.FromString,
+            streamvis_dot_data__pb2.ScopeRequest.SerializeToString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,
             insecure,
@@ -321,8 +321,8 @@ class Service(object):
             request,
             target,
             '/Service/WriteScope',
-            data__pb2.WriteScopeRequest.SerializeToString,
-            data__pb2.IntegerResponse.FromString,
+            streamvis_dot_data__pb2.WriteScopeRequest.SerializeToString,
+            streamvis_dot_data__pb2.IntegerResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -348,7 +348,7 @@ class Service(object):
             request,
             target,
             '/Service/WriteConfig',
-            data__pb2.WriteConfigRequest.SerializeToString,
+            streamvis_dot_data__pb2.WriteConfigRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,
@@ -375,8 +375,8 @@ class Service(object):
             request,
             target,
             '/Service/WriteNames',
-            data__pb2.WriteNameRequest.SerializeToString,
-            data__pb2.StreamedRecord.FromString,
+            streamvis_dot_data__pb2.WriteNameRequest.SerializeToString,
+            streamvis_dot_data__pb2.StreamedRecord.FromString,
             options,
             channel_credentials,
             insecure,
@@ -402,7 +402,7 @@ class Service(object):
             request,
             target,
             '/Service/DeleteScopeNames',
-            data__pb2.ScopeNameRequest.SerializeToString,
+            streamvis_dot_data__pb2.ScopeNameRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,
@@ -429,7 +429,7 @@ class Service(object):
             request,
             target,
             '/Service/WriteData',
-            data__pb2.WriteDataRequest.SerializeToString,
+            streamvis_dot_data__pb2.WriteDataRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,

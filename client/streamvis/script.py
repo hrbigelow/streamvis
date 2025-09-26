@@ -33,49 +33,40 @@ def demo_async_fn(
 async def gfetch(uri: str, scope: str=None, name: str=None):
     raise NotImplementedError
 # async with aio.insecure_channel(uri) as chan:
-        # stub = pb_grpc.RecordServiceStub(chan)
+        # stub = pb_grpc.ServiceStub(chan)
         # query = pb.QueryRequest(scope=scope, name=name) 
         # async for record in stub.QueryRecords(query):
             # pass
 
 def fetch(uri: str, scope: str=None, name: str=None):
-    channel = grpc.insecure_channel(uri)
-    stub = pb_grpc.RecordServiceStub(channel)
-    index = util.Index.from_scope_name(scope, name)
-    pb_index = index.to_message()
-    datas = []
-    i = 0
-    for record in stub.QueryRecords(pb_index):
-        match record.type:
-            case pb.INDEX:
-                index = util.Index.from_message(record.index)
-            case pb.DATA:
-                datas.append(record.data)
-    return util.data_to_cds_flat(index, datas)
+    return fetch_with_patterns(uri=uri, scope_pattern=f"^{scope}$", name_pattern=f"^{name}$")
 
-def fetch_with_filters(
-    uri: str,
-    scope_filter: str=None,
-    name_filters: tuple[str]=None
-):
+def fetch_with_patterns(uri: str, scope_pattern: str, name_pattern: str):
     channel = grpc.insecure_channel(uri)
-    stub = pb_grpc.RecordServiceStub(channel)
-    index = util.Index.from_filters(scope_filter, name_filters)
-    pb_index = index.to_message()
+    stub = pb_grpc.ServiceStub(channel)
+    req = pb.RecordRequest(
+        scope_pattern=scope_pattern,
+        name_pattern=name_pattern,
+        file_offset=0
+    )
     datas = []
     i = 0
-    for record in stub.QueryRecords(pb_index):
-        match record.type:
-            case pb.INDEX:
-                index = util.Index.from_message(record.index)
-            case pb.DATA:
-                datas.append(record.data)
+    for msg in stub.QueryRecords(req):
+        match msg.WhichOneOf("record"):
+            case "index":
+                index = util.Index.from_record_result(msg.index)
+            case "data":
+                datas.append(msg.data)
+            case other:
+                raise ValueError(
+                    "QueryRecords should only return index or data.  Returned {other}")
+
     return util.data_to_cds_flat(index, datas)
 
 
 def scopes(uri: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
-    stub = pb_grpc.RecordServiceStub(channel)
+    stub = pb_grpc.ServiceStub(channel)
     scopes = []
     for record in stub.Scopes(Empty()):
         match record.type:
@@ -86,7 +77,7 @@ def scopes(uri: str) -> list[str]:
 
 def names(uri: str, scope: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
-    stub = pb_grpc.RecordServiceStub(channel)
+    stub = pb_grpc.ServiceStub(channel)
     request = pb.ScopeRequest(scope=scope)
     names = []
     for record in stub.Names(request):
@@ -98,15 +89,15 @@ def names(uri: str, scope: str) -> list[str]:
 
 def config(uri: str, scope: str) -> dict[str, Any]:
     channel = grpc.insecure_channel(uri)
-    stub = pb_grpc.RecordServiceStub(channel)
-    request = pb.ScopeRequest(scope=scope)
+    stub = pb_grpc.ServiceStub(channel)
+    req = pb.ScopeRequest(scope=scope)
     configs = []
-    for record in stub.Configs(request):
-        match record.type:
-            case pb.INDEX:
-                index = util.Index.from_message(record.index)
-            case pb.CONFIG:
-                configs.append(record.config)
+    for msg in stub.Configs(req):
+        match msg.WhichOneOf("record"):
+            case "index":
+                index = util.Index.from_record_result(msg.index)
+            case "config":
+                configs.append(msg.config)
     return util.export_configs(index, configs)
 
 

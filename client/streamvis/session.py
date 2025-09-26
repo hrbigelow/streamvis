@@ -299,7 +299,7 @@ class Session:
     index: util.Index
     schema: dict
     chan: grpc.Channel
-    stub: pb_grpc.RecordServiceStub 
+    stub: pb_grpc.ServiceStub 
     uri: str
     plots: list[Plot] 
     scope_filter: re.Pattern        # global pattern for all plots on the page
@@ -317,7 +317,7 @@ class Session:
         self.refresh_seconds = refresh_seconds
         self.index = util.Index.from_filters(scope_filter, name_filters)
         self.chan = grpc.insecure_channel(grpc_uri)
-        self.stub = pb_grpc.RecordServiceStub(self.chan)
+        self.stub = pb_grpc.ServiceStub(self.chan)
         self.plots = []
         self.session_context = session_context
         self.scope_filter = re.compile(scope_filter)

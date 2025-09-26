@@ -196,8 +196,6 @@ class DataKey:
 
 
 class Index:
-    scope_filter: re.Pattern 
-    name_filters: tuple[re.Pattern] 
     scopes:          dict[int, pb.Scope]    # scope_id => Scope
     names:           dict[int, pb.Name]      # name_id => Name
     entries:         dict[int, pb.DataEntry]  # entry_id => DataEntry
@@ -207,9 +205,7 @@ class Index:
     _scope_to_configs:dict[str, list[pb.ConfigEntry]] # scope => list[pb.ConfigEntry]
     file_offset: int
 
-    def __init__(self, scope_filter, name_filters, scopes, names, file_offset):
-        self.scope_filter = scope_filter
-        self.name_filters = name_filters
+    def __init__(self, scopes, names, file_offset):
         self.scopes = scopes
         self.names = names
         self.entries = {} 
@@ -220,45 +216,15 @@ class Index:
         self.file_offset = file_offset
 
     @classmethod
-    def from_message(cls, request: pb.Index):
+    def from_record_result(cls, result: pb.RecordResult):
         return cls(
-            scope_filter=re.compile(request.scope_filter),
-            name_filters=tuple(re.compile(nf) for nf in request.name_filters),
-            scopes=dict(request.scopes),
-            names=dict(request.names),
-            file_offset=request.file_offset
+            scopes=dict(result.scopes),
+            names=dict(result.names),
+            file_offset=result.file_offset
         )
-
-    @classmethod
-    def from_filters(cls, scope_filter: str=None, name_filters: tuple[str]=None):
-        if scope_filter is None:
-            scope_filter = ".*"
-        if name_filters is None:
-            name_filters = (".*",)
-        assert isinstance(scope_filter, str), "scope_filter must be a string"
-        assert isinstance(name_filters, Iterable), "name_filters must be an iterable"
-        scope_filter = re.compile(scope_filter)
-        name_filters = tuple(re.compile(n) for n in name_filters)
-        return cls(
-            scope_filter=scope_filter, 
-            name_filters=name_filters, 
-            scopes={}, 
-            names={}, 
-            file_offset=0
-        )
-
-    # only used in script.py
-    @classmethod
-    def from_scope_name(cls, scope: str=None, name: str=None):
-        scope_filter = ".*" if scope is None else f"^{scope}$"
-        name_filters = (".*",) if name is None else (f"^{name}$",)
-        return cls.from_filters(scope_filter, name_filters) 
-
 
     def __repr__(self):
-        return (f"Index(scope_filter={self.scope_filter!r}, "
-                f"name_filters={self.name_filters!r}, "
-                f"scopes: {len(self.scopes)}, "
+        return (f"scopes: {len(self.scopes)}, "
                 f"names: {len(self.names)}, "
                 f"entries: {len(self.entries)}, "
                 f"config_entries: {len(self.config_entries)}, "
@@ -306,8 +272,7 @@ class Index:
         match item:
             case pb.Scope(scope_id=scope_id, scope=scope):
                 assert scope_id not in self.scopes, "Duplicate scope_id in index"
-                if self._filter(scope=scope):
-                    self.scopes[scope_id] = item 
+                self.scopes[scope_id] = item 
 
             case pb.Name(name_id=name_id, scope_id=scope_id, name=name):
                 if self._filter(name=name) and scope_id in self.scopes:
@@ -363,19 +328,6 @@ class Index:
                 break
             self._update_with_item(item)
 
-    def to_message(self) -> pb.Index:
-        """Converts index into protobuf Message object.
-        
-        Content of entries and config_entries are discarded, but file_offset is retained
-        """
-        msg = pb.Index(
-            scope_filter=self.scope_filter.pattern,
-            name_filters=tuple(n.pattern for n in self.name_filters),
-            scopes=self.scopes, 
-            names=self.names,
-            file_offset=self.file_offset)
-        return msg
-
     def to_bytes(self) -> bytes:
         """Serialize the index to protobuf message bytes."""
         packs = []
@@ -425,18 +377,27 @@ def load_data(
 
 # used only in client
 def get_new_data(
-    index: Index, 
-    stub: pb_grpc.RecordServiceStub,
+    scope_pattern: str,
+    name_pattern: str,
+    file_offset: int,
+    stub: pb_grpc.ServiceStub,
 ) -> tuple[Index, dict[DataKey, 'cds_data']]:
     """Given current state of index, get new data and return updated index."""
-    pb_index = index.to_message()
+    req = pb.RecordRequest(
+        scope_pattern=scope_pattern,
+        name_pattern=name_pattern,
+        file_offset=file_offset
+    )
     datas = []
-    for record in stub.QueryRecords(pb_index):
-        match record.type:
-            case pb.INDEX:
-                index = Index.from_message(record.index)
-            case pb.DATA:
-                datas.append(record.data)
+    for msg in stub.QueryRecords(req):
+        match msg.WhichOneOf("record"):
+            case "index":
+                index = Index.from_record_result(msg.index)
+            case "data":
+                datas.append(msg.data)
+            case other:
+                raise ValueError(
+                    "QueryRecords should only return index or data.  Returned {other}")
     cds_map = data_to_cds(index, datas)
     return index, cds_map
 
