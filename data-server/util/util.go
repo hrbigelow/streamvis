@@ -19,7 +19,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func GetLogHandle(path string, mode int) *os.File {
@@ -52,7 +51,7 @@ func WriteDelimited(buf *bytes.Buffer, m *pb.Stored) (int, error) {
 		return 0, err
 	}
 
-	nbytes, _ = buf.Write(b)
+	nbytes, _ := buf.Write(b)
 	return nbytes, nil
 }
 
@@ -120,22 +119,23 @@ func WrapStored(v proto.Message) (*pb.Stored, error) {
 	}
 }
 
-func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int64, error) {
-	size := int64(0)
-	stored := make([]*pb.Stored, len(names))
+func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int, error) {
+	size := int(0)
+	stored := make([]*pb.Stored, len(msgs))
 	idx := 0
-	for m := range msgs {
+	for _, m := range msgs {
 		s, err := WrapStored(m)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Couldn't wrap message: %v", err)
+			return nil, 0, fmt.Errorf("Couldn't wrap message: %v", err)
 		}
 		stored[idx] = s
-		size += len(s)
+		size += proto.Size(s)
 		idx += 1
 	}
 	return stored, size, nil
 }
 
+/*
 func PackScope(scopeId uint32, scope string, buf *bytes.Buffer) error {
 	timestamp := timestamppb.Now()
 	msg := &pb.Stored{
@@ -177,6 +177,7 @@ func PackConfigEntry(entryId uint32, scopeId uint32, begOffset uint64, endOffset
 	}
 	return WriteDelimited(buf, msg)
 }
+*/
 
 type Unpacker struct {
 	reader *bufio.Reader

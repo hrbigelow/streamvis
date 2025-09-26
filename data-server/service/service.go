@@ -234,6 +234,6 @@ func (s *Service) WriteData(
 	for i := range req.Datas {
 		req.Datas[i].EntryId = s.IssueId()
 	}
-	s.store.AddData(req.Datas)
+	s.store.AddDatas(req.Datas)
 	return &emptypb.Empty{}, nil
 }

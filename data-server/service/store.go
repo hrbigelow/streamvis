@@ -30,7 +30,7 @@ type Store interface {
 
 	Add(msg proto.Message)
 
-	AddNames(names []*pb.Name)
+	AddNames(names []*pb.Name) error
 
-	AddDatas(datas []*pb.Data)
+	AddDatas(datas []*pb.Data) error
 }
