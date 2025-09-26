@@ -38,21 +38,22 @@ func DataFile(path string) string {
 	return fmt.Sprintf("%s.log", path)
 }
 
-func WriteDelimited(buf *bytes.Buffer, m *pb.Stored) error {
+func WriteDelimited(buf *bytes.Buffer, m *pb.Stored) (int, error) {
 	// populate buf with m, prepending it with length of message
+	// return number of bytes written
 	b, err := proto.Marshal(m)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	var lb [10]byte
 	n := binary.PutUvarint(lb[:], uint64(len(b)))
 	if _, err := buf.Write(lb[:n]); err != nil {
-		return err
+		return 0, err
 	}
 
-	_, err = buf.Write(b)
-	return err
+	nbytes, _ = buf.Write(b)
+	return nbytes, nil
 }
 
 func ReadDelimited(r *bufio.Reader, m *pb.Stored, max int) (bool, error) {
@@ -117,6 +118,22 @@ func WrapStored(v proto.Message) (*pb.Stored, error) {
 	default:
 		return nil, fmt.Errorf("WrapStored: unsupported type: %T", v)
 	}
+}
+
+func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int64, error) {
+	size := int64(0)
+	stored := make([]*pb.Stored, len(names))
+	idx := 0
+	for m := range msgs {
+		s, err := WrapStored(m)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Couldn't wrap message: %v", err)
+		}
+		stored[idx] = s
+		size += len(s)
+		idx += 1
+	}
+	return stored, size, nil
 }
 
 func PackScope(scopeId uint32, scope string, buf *bytes.Buffer) error {

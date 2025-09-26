@@ -169,7 +169,7 @@ func (s *Service) WriteScope(
 ) (*pb.IntegerResponse, error) {
 	msg := &pb.Scope{
 		ScopeId: s.IssueId(),
-		Scope:   req.WriteScopeRequest.GetScope(),
+		Scope:   req.GetScope(),
 		Time:    timestamppb.Now(),
 	}
 	s.store.Add(msg)
@@ -193,12 +193,12 @@ func (s *Service) WriteNames(req *pb.WriteNameRequest, stream pb.Service_WriteNa
 	ptrs := make([]*pb.Name, len(req.Names))
 	for i := range req.Names {
 		req.Names[i].NameId = s.IssueId()
-		ptrs[i] = &req.Names[i]
+		ptrs[i] = req.Names[i]
 	}
 	s.store.AddNames(req.Names)
 	for i := range req.Names {
 		msg := &pb.StreamedRecord{
-			Name: &pb.StreamedRecord_Name{
+			Record: &pb.StreamedRecord_Name{
 				Name: ptrs[i],
 			},
 		}
@@ -213,12 +213,17 @@ func (s *Service) DeleteScopeNames(
 	ctx context.Context,
 	req *pb.ScopeNameRequest,
 ) (*emptypb.Empty, error) {
-	msg := &pb.Control{
-		Scope:  req.Scope,
-		Name:   req.Name,
-		Action: pb.Action_DELETE_NAME,
+	msgs := make([]*pb.Control, len(req.Names))
+	for i, name := range req.Names {
+		msg := &pb.Control{
+			Scope:  req.Scope,
+			Name:   name,
+			Action: pb.Action_DELETE_NAME,
+		}
+		msgs[i] = msg
 	}
-	s.store.Add(msg)
+	// TODO: need to actually update the in-memory index here
+	//s.store.Add(msg)
 	return &emptypb.Empty{}, nil
 }
 
