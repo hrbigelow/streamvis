@@ -69,8 +69,8 @@ type Index struct {
 	fileOffset     uint64
 }
 
-func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) []pb.DataEntry {
-	entries := make([]pb.DataEntry, 0)
+func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) []*pb.DataEntry {
+	entries := make([]*pb.DataEntry, 0, 10)
 	for _, entry := range idx.entries {
 		if entry.EndOffset <= minOffset {
 			continue
@@ -83,13 +83,15 @@ func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) 
 		if !scopePat.MatchString(scope.Scope) {
 			continue
 		}
-		entries = append(entries, entry)
+		ptr := new(pb.DataEntry)
+		*ptr = entry
+		entries = append(entries, ptr)
 	}
 	return entries
 }
 
-func (idx *Index) ConfigEntryList(scopePat *regexp.Regexp, minOffset uint64) []pb.ConfigEntry {
-	entries := make([]pb.ConfigEntry, 0)
+func (idx *Index) ConfigEntryList(scopePat *regexp.Regexp, minOffset uint64) []*pb.ConfigEntry {
+	entries := make([]*pb.ConfigEntry, 0, 10)
 	for _, entry := range idx.configEntries {
 		if entry.EndOffset <= minOffset {
 			continue
@@ -98,7 +100,9 @@ func (idx *Index) ConfigEntryList(scopePat *regexp.Regexp, minOffset uint64) []p
 		if !scopePat.MatchString(scope.Scope) {
 			continue
 		}
-		entries = append(entries, entry)
+		ptr := new(pb.ConfigEntry)
+		*ptr = entry
+		entries = append(entries, ptr)
 	}
 	return entries
 }
@@ -246,24 +250,6 @@ func (idx *Index) Load(indexPath string) error {
 		return fmt.Errorf("Error unpacking index file: %w", err)
 	}
 	return nil
-}
-
-func (idx *Index) toMessage() pb.RecordResult {
-	scopesMap := make(map[uint32]*pb.Scope, len(idx.scopes))
-	namesMap := make(map[uint32]*pb.Name, len(idx.names))
-
-	for k, v := range idx.scopes {
-		scopesMap[k] = &v
-	}
-	for k, v := range idx.names {
-		namesMap[k] = &v
-	}
-
-	return pb.RecordResult{
-		Scopes:     scopesMap,
-		Names:      namesMap,
-		FileOffset: idx.fileOffset,
-	}
 }
 
 func maxSeq[T cmp.Ordered](s iter.Seq[T]) (T, bool) {

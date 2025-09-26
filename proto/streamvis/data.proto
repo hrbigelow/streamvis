@@ -149,13 +149,13 @@ message Tag {
 }
 
 
-message StreamedRecord {
-  oneof record {
+message Streamed {
+  oneof value {
     RecordResult index = 1;
     Data data = 2;
     Name name = 3;
     Config config = 4;
-    string value = 5;
+    string scope = 5; // TODO: what do I use this for?
     Tag tag = 6;
   }
 }
@@ -191,13 +191,13 @@ message WriteDataRequest {
 
 
 service Service {
-  rpc QueryRecords (RecordRequest) returns (stream StreamedRecord);
-  rpc Scopes (google.protobuf.Empty) returns (stream StreamedRecord);
-  rpc Names (ScopeRequest) returns (stream StreamedRecord);
-  rpc Configs (ScopeRequest) returns (stream StreamedRecord);
+  rpc QueryRecords (RecordRequest) returns (stream Streamed);
+  rpc Scopes (google.protobuf.Empty) returns (stream Streamed);
+  rpc Names (ScopeRequest) returns (stream Streamed);
+  rpc Configs (ScopeRequest) returns (stream Streamed);
   rpc WriteScope (WriteScopeRequest) returns (IntegerResponse);
   rpc WriteConfig (WriteConfigRequest) returns (google.protobuf.Empty);
-  rpc WriteNames (WriteNameRequest) returns (stream StreamedRecord);
+  rpc WriteNames (WriteNameRequest) returns (stream Streamed);
   rpc DeleteScopeNames (ScopeNameRequest) returns (google.protobuf.Empty); 
   rpc WriteData (WriteDataRequest) returns (google.protobuf.Empty);
 }

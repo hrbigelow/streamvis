@@ -113,6 +113,25 @@ func WrapStored(v proto.Message) (*pb.Stored, error) {
 	}
 }
 
+func WrapStreamed(v proto.Message) (*pb.Streamed, error) {
+	switch x := v.(type) {
+	case *pb.RecordResult:
+		return &pb.Streamed{Value: &pb.Streamed_RecordResult{RecordResult: x}}, nil
+	case *pb.Data:
+		return &pb.Streamed{Value: &pb.Streamed_Data{Data: x}}, nil
+	case *pb.Name:
+		return &pb.Streamed{Value: &pb.Streamed_Name{Name: x}}, nil
+	case *Config:
+		return &pb.Streamed{Value: &pb.Streamed_Config{Config: x}}, nil
+	case *string:
+		return &pb.Streamed{Value: &pb.Streamed_Value{Value: x}}, nil
+	case *pb.Tag:
+		return &pb.Streamed{Value: &pb.Streamed_Tag{Tag: x}}, nil
+	default:
+		return nil, fmt.Errorf("WrapStreamed: unsupported type: %T", v)
+	}
+}
+
 func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int, error) {
 	size := int(0)
 	stored := make([]*pb.Stored, len(msgs))

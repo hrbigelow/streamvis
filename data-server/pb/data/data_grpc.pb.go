@@ -38,13 +38,13 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
-	QueryRecords(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
-	Scopes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
-	Names(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
-	Configs(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
+	QueryRecords(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error)
+	Scopes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error)
+	Names(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error)
+	Configs(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error)
 	WriteScope(ctx context.Context, in *WriteScopeRequest, opts ...grpc.CallOption) (*IntegerResponse, error)
 	WriteConfig(ctx context.Context, in *WriteConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	WriteNames(ctx context.Context, in *WriteNameRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error)
+	WriteNames(ctx context.Context, in *WriteNameRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error)
 	DeleteScopeNames(ctx context.Context, in *ScopeNameRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	WriteData(ctx context.Context, in *WriteDataRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -57,13 +57,13 @@ func NewServiceClient(cc grpc.ClientConnInterface) ServiceClient {
 	return &serviceClient{cc}
 }
 
-func (c *serviceClient) QueryRecords(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
+func (c *serviceClient) QueryRecords(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[0], Service_QueryRecords_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[RecordRequest, StreamedRecord]{ClientStream: stream}
+	x := &grpc.GenericClientStream[RecordRequest, Streamed]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -74,15 +74,15 @@ func (c *serviceClient) QueryRecords(ctx context.Context, in *RecordRequest, opt
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_QueryRecordsClient = grpc.ServerStreamingClient[StreamedRecord]
+type Service_QueryRecordsClient = grpc.ServerStreamingClient[Streamed]
 
-func (c *serviceClient) Scopes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
+func (c *serviceClient) Scopes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[1], Service_Scopes_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[emptypb.Empty, StreamedRecord]{ClientStream: stream}
+	x := &grpc.GenericClientStream[emptypb.Empty, Streamed]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -93,15 +93,15 @@ func (c *serviceClient) Scopes(ctx context.Context, in *emptypb.Empty, opts ...g
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_ScopesClient = grpc.ServerStreamingClient[StreamedRecord]
+type Service_ScopesClient = grpc.ServerStreamingClient[Streamed]
 
-func (c *serviceClient) Names(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
+func (c *serviceClient) Names(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[2], Service_Names_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ScopeRequest, StreamedRecord]{ClientStream: stream}
+	x := &grpc.GenericClientStream[ScopeRequest, Streamed]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -112,15 +112,15 @@ func (c *serviceClient) Names(ctx context.Context, in *ScopeRequest, opts ...grp
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_NamesClient = grpc.ServerStreamingClient[StreamedRecord]
+type Service_NamesClient = grpc.ServerStreamingClient[Streamed]
 
-func (c *serviceClient) Configs(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
+func (c *serviceClient) Configs(ctx context.Context, in *ScopeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[3], Service_Configs_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ScopeRequest, StreamedRecord]{ClientStream: stream}
+	x := &grpc.GenericClientStream[ScopeRequest, Streamed]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (c *serviceClient) Configs(ctx context.Context, in *ScopeRequest, opts ...g
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_ConfigsClient = grpc.ServerStreamingClient[StreamedRecord]
+type Service_ConfigsClient = grpc.ServerStreamingClient[Streamed]
 
 func (c *serviceClient) WriteScope(ctx context.Context, in *WriteScopeRequest, opts ...grpc.CallOption) (*IntegerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -153,13 +153,13 @@ func (c *serviceClient) WriteConfig(ctx context.Context, in *WriteConfigRequest,
 	return out, nil
 }
 
-func (c *serviceClient) WriteNames(ctx context.Context, in *WriteNameRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamedRecord], error) {
+func (c *serviceClient) WriteNames(ctx context.Context, in *WriteNameRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Streamed], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[4], Service_WriteNames_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[WriteNameRequest, StreamedRecord]{ClientStream: stream}
+	x := &grpc.GenericClientStream[WriteNameRequest, Streamed]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (c *serviceClient) WriteNames(ctx context.Context, in *WriteNameRequest, op
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_WriteNamesClient = grpc.ServerStreamingClient[StreamedRecord]
+type Service_WriteNamesClient = grpc.ServerStreamingClient[Streamed]
 
 func (c *serviceClient) DeleteScopeNames(ctx context.Context, in *ScopeNameRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -196,13 +196,13 @@ func (c *serviceClient) WriteData(ctx context.Context, in *WriteDataRequest, opt
 // All implementations must embed UnimplementedServiceServer
 // for forward compatibility.
 type ServiceServer interface {
-	QueryRecords(*RecordRequest, grpc.ServerStreamingServer[StreamedRecord]) error
-	Scopes(*emptypb.Empty, grpc.ServerStreamingServer[StreamedRecord]) error
-	Names(*ScopeRequest, grpc.ServerStreamingServer[StreamedRecord]) error
-	Configs(*ScopeRequest, grpc.ServerStreamingServer[StreamedRecord]) error
+	QueryRecords(*RecordRequest, grpc.ServerStreamingServer[Streamed]) error
+	Scopes(*emptypb.Empty, grpc.ServerStreamingServer[Streamed]) error
+	Names(*ScopeRequest, grpc.ServerStreamingServer[Streamed]) error
+	Configs(*ScopeRequest, grpc.ServerStreamingServer[Streamed]) error
 	WriteScope(context.Context, *WriteScopeRequest) (*IntegerResponse, error)
 	WriteConfig(context.Context, *WriteConfigRequest) (*emptypb.Empty, error)
-	WriteNames(*WriteNameRequest, grpc.ServerStreamingServer[StreamedRecord]) error
+	WriteNames(*WriteNameRequest, grpc.ServerStreamingServer[Streamed]) error
 	DeleteScopeNames(context.Context, *ScopeNameRequest) (*emptypb.Empty, error)
 	WriteData(context.Context, *WriteDataRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedServiceServer()
@@ -215,16 +215,16 @@ type ServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedServiceServer struct{}
 
-func (UnimplementedServiceServer) QueryRecords(*RecordRequest, grpc.ServerStreamingServer[StreamedRecord]) error {
+func (UnimplementedServiceServer) QueryRecords(*RecordRequest, grpc.ServerStreamingServer[Streamed]) error {
 	return status.Errorf(codes.Unimplemented, "method QueryRecords not implemented")
 }
-func (UnimplementedServiceServer) Scopes(*emptypb.Empty, grpc.ServerStreamingServer[StreamedRecord]) error {
+func (UnimplementedServiceServer) Scopes(*emptypb.Empty, grpc.ServerStreamingServer[Streamed]) error {
 	return status.Errorf(codes.Unimplemented, "method Scopes not implemented")
 }
-func (UnimplementedServiceServer) Names(*ScopeRequest, grpc.ServerStreamingServer[StreamedRecord]) error {
+func (UnimplementedServiceServer) Names(*ScopeRequest, grpc.ServerStreamingServer[Streamed]) error {
 	return status.Errorf(codes.Unimplemented, "method Names not implemented")
 }
-func (UnimplementedServiceServer) Configs(*ScopeRequest, grpc.ServerStreamingServer[StreamedRecord]) error {
+func (UnimplementedServiceServer) Configs(*ScopeRequest, grpc.ServerStreamingServer[Streamed]) error {
 	return status.Errorf(codes.Unimplemented, "method Configs not implemented")
 }
 func (UnimplementedServiceServer) WriteScope(context.Context, *WriteScopeRequest) (*IntegerResponse, error) {
@@ -233,7 +233,7 @@ func (UnimplementedServiceServer) WriteScope(context.Context, *WriteScopeRequest
 func (UnimplementedServiceServer) WriteConfig(context.Context, *WriteConfigRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteConfig not implemented")
 }
-func (UnimplementedServiceServer) WriteNames(*WriteNameRequest, grpc.ServerStreamingServer[StreamedRecord]) error {
+func (UnimplementedServiceServer) WriteNames(*WriteNameRequest, grpc.ServerStreamingServer[Streamed]) error {
 	return status.Errorf(codes.Unimplemented, "method WriteNames not implemented")
 }
 func (UnimplementedServiceServer) DeleteScopeNames(context.Context, *ScopeNameRequest) (*emptypb.Empty, error) {
@@ -268,44 +268,44 @@ func _Service_QueryRecords_Handler(srv interface{}, stream grpc.ServerStream) er
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ServiceServer).QueryRecords(m, &grpc.GenericServerStream[RecordRequest, StreamedRecord]{ServerStream: stream})
+	return srv.(ServiceServer).QueryRecords(m, &grpc.GenericServerStream[RecordRequest, Streamed]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_QueryRecordsServer = grpc.ServerStreamingServer[StreamedRecord]
+type Service_QueryRecordsServer = grpc.ServerStreamingServer[Streamed]
 
 func _Service_Scopes_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(emptypb.Empty)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ServiceServer).Scopes(m, &grpc.GenericServerStream[emptypb.Empty, StreamedRecord]{ServerStream: stream})
+	return srv.(ServiceServer).Scopes(m, &grpc.GenericServerStream[emptypb.Empty, Streamed]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_ScopesServer = grpc.ServerStreamingServer[StreamedRecord]
+type Service_ScopesServer = grpc.ServerStreamingServer[Streamed]
 
 func _Service_Names_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ScopeRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ServiceServer).Names(m, &grpc.GenericServerStream[ScopeRequest, StreamedRecord]{ServerStream: stream})
+	return srv.(ServiceServer).Names(m, &grpc.GenericServerStream[ScopeRequest, Streamed]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_NamesServer = grpc.ServerStreamingServer[StreamedRecord]
+type Service_NamesServer = grpc.ServerStreamingServer[Streamed]
 
 func _Service_Configs_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ScopeRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ServiceServer).Configs(m, &grpc.GenericServerStream[ScopeRequest, StreamedRecord]{ServerStream: stream})
+	return srv.(ServiceServer).Configs(m, &grpc.GenericServerStream[ScopeRequest, Streamed]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_ConfigsServer = grpc.ServerStreamingServer[StreamedRecord]
+type Service_ConfigsServer = grpc.ServerStreamingServer[Streamed]
 
 func _Service_WriteScope_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteScopeRequest)
@@ -348,11 +348,11 @@ func _Service_WriteNames_Handler(srv interface{}, stream grpc.ServerStream) erro
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ServiceServer).WriteNames(m, &grpc.GenericServerStream[WriteNameRequest, StreamedRecord]{ServerStream: stream})
+	return srv.(ServiceServer).WriteNames(m, &grpc.GenericServerStream[WriteNameRequest, Streamed]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Service_WriteNamesServer = grpc.ServerStreamingServer[StreamedRecord]
+type Service_WriteNamesServer = grpc.ServerStreamingServer[Streamed]
 
 func _Service_DeleteScopeNames_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ScopeNameRequest)

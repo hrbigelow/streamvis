@@ -1251,35 +1251,35 @@ func (x *Tag) GetName() string {
 	return ""
 }
 
-type StreamedRecord struct {
+type Streamed struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Record:
+	// Types that are valid to be assigned to Value:
 	//
-	//	*StreamedRecord_Index
-	//	*StreamedRecord_Data
-	//	*StreamedRecord_Name
-	//	*StreamedRecord_Config
-	//	*StreamedRecord_Value
-	//	*StreamedRecord_Tag
-	Record        isStreamedRecord_Record `protobuf_oneof:"record"`
+	//	*Streamed_Index
+	//	*Streamed_Data
+	//	*Streamed_Name
+	//	*Streamed_Config
+	//	*Streamed_Scope
+	//	*Streamed_Tag
+	Value         isStreamed_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *StreamedRecord) Reset() {
-	*x = StreamedRecord{}
+func (x *Streamed) Reset() {
+	*x = Streamed{}
 	mi := &file_streamvis_data_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StreamedRecord) String() string {
+func (x *Streamed) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StreamedRecord) ProtoMessage() {}
+func (*Streamed) ProtoMessage() {}
 
-func (x *StreamedRecord) ProtoReflect() protoreflect.Message {
+func (x *Streamed) ProtoReflect() protoreflect.Message {
 	mi := &file_streamvis_data_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1291,111 +1291,111 @@ func (x *StreamedRecord) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StreamedRecord.ProtoReflect.Descriptor instead.
-func (*StreamedRecord) Descriptor() ([]byte, []int) {
+// Deprecated: Use Streamed.ProtoReflect.Descriptor instead.
+func (*Streamed) Descriptor() ([]byte, []int) {
 	return file_streamvis_data_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *StreamedRecord) GetRecord() isStreamedRecord_Record {
+func (x *Streamed) GetValue() isStreamed_Value {
 	if x != nil {
-		return x.Record
+		return x.Value
 	}
 	return nil
 }
 
-func (x *StreamedRecord) GetIndex() *RecordResult {
+func (x *Streamed) GetIndex() *RecordResult {
 	if x != nil {
-		if x, ok := x.Record.(*StreamedRecord_Index); ok {
+		if x, ok := x.Value.(*Streamed_Index); ok {
 			return x.Index
 		}
 	}
 	return nil
 }
 
-func (x *StreamedRecord) GetData() *Data {
+func (x *Streamed) GetData() *Data {
 	if x != nil {
-		if x, ok := x.Record.(*StreamedRecord_Data); ok {
+		if x, ok := x.Value.(*Streamed_Data); ok {
 			return x.Data
 		}
 	}
 	return nil
 }
 
-func (x *StreamedRecord) GetName() *Name {
+func (x *Streamed) GetName() *Name {
 	if x != nil {
-		if x, ok := x.Record.(*StreamedRecord_Name); ok {
+		if x, ok := x.Value.(*Streamed_Name); ok {
 			return x.Name
 		}
 	}
 	return nil
 }
 
-func (x *StreamedRecord) GetConfig() *Config {
+func (x *Streamed) GetConfig() *Config {
 	if x != nil {
-		if x, ok := x.Record.(*StreamedRecord_Config); ok {
+		if x, ok := x.Value.(*Streamed_Config); ok {
 			return x.Config
 		}
 	}
 	return nil
 }
 
-func (x *StreamedRecord) GetValue() string {
+func (x *Streamed) GetScope() string {
 	if x != nil {
-		if x, ok := x.Record.(*StreamedRecord_Value); ok {
-			return x.Value
+		if x, ok := x.Value.(*Streamed_Scope); ok {
+			return x.Scope
 		}
 	}
 	return ""
 }
 
-func (x *StreamedRecord) GetTag() *Tag {
+func (x *Streamed) GetTag() *Tag {
 	if x != nil {
-		if x, ok := x.Record.(*StreamedRecord_Tag); ok {
+		if x, ok := x.Value.(*Streamed_Tag); ok {
 			return x.Tag
 		}
 	}
 	return nil
 }
 
-type isStreamedRecord_Record interface {
-	isStreamedRecord_Record()
+type isStreamed_Value interface {
+	isStreamed_Value()
 }
 
-type StreamedRecord_Index struct {
+type Streamed_Index struct {
 	Index *RecordResult `protobuf:"bytes,1,opt,name=index,proto3,oneof"`
 }
 
-type StreamedRecord_Data struct {
+type Streamed_Data struct {
 	Data *Data `protobuf:"bytes,2,opt,name=data,proto3,oneof"`
 }
 
-type StreamedRecord_Name struct {
+type Streamed_Name struct {
 	Name *Name `protobuf:"bytes,3,opt,name=name,proto3,oneof"`
 }
 
-type StreamedRecord_Config struct {
+type Streamed_Config struct {
 	Config *Config `protobuf:"bytes,4,opt,name=config,proto3,oneof"`
 }
 
-type StreamedRecord_Value struct {
-	Value string `protobuf:"bytes,5,opt,name=value,proto3,oneof"`
+type Streamed_Scope struct {
+	Scope string `protobuf:"bytes,5,opt,name=scope,proto3,oneof"`
 }
 
-type StreamedRecord_Tag struct {
+type Streamed_Tag struct {
 	Tag *Tag `protobuf:"bytes,6,opt,name=tag,proto3,oneof"`
 }
 
-func (*StreamedRecord_Index) isStreamedRecord_Record() {}
+func (*Streamed_Index) isStreamed_Value() {}
 
-func (*StreamedRecord_Data) isStreamedRecord_Record() {}
+func (*Streamed_Data) isStreamed_Value() {}
 
-func (*StreamedRecord_Name) isStreamedRecord_Record() {}
+func (*Streamed_Name) isStreamed_Value() {}
 
-func (*StreamedRecord_Config) isStreamedRecord_Record() {}
+func (*Streamed_Config) isStreamed_Value() {}
 
-func (*StreamedRecord_Value) isStreamedRecord_Record() {}
+func (*Streamed_Scope) isStreamed_Value() {}
 
-func (*StreamedRecord_Tag) isStreamedRecord_Record() {}
+func (*Streamed_Tag) isStreamed_Value() {}
 
 type WriteConfigRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1765,15 +1765,15 @@ const file_streamvis_data_proto_rawDesc = "" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\"/\n" +
 	"\x03Tag\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xd0\x01\n" +
-	"\x0eStreamedRecord\x12%\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xc9\x01\n" +
+	"\bStreamed\x12%\n" +
 	"\x05index\x18\x01 \x01(\v2\r.RecordResultH\x00R\x05index\x12\x1b\n" +
 	"\x04data\x18\x02 \x01(\v2\x05.DataH\x00R\x04data\x12\x1b\n" +
 	"\x04name\x18\x03 \x01(\v2\x05.NameH\x00R\x04name\x12!\n" +
 	"\x06config\x18\x04 \x01(\v2\a.ConfigH\x00R\x06config\x12\x16\n" +
-	"\x05value\x18\x05 \x01(\tH\x00R\x05value\x12\x18\n" +
-	"\x03tag\x18\x06 \x01(\v2\x04.TagH\x00R\x03tagB\b\n" +
-	"\x06record\"h\n" +
+	"\x05scope\x18\x05 \x01(\tH\x00R\x05scope\x12\x18\n" +
+	"\x03tag\x18\x06 \x01(\v2\x04.TagH\x00R\x03tagB\a\n" +
+	"\x05value\"h\n" +
 	"\x12WriteConfigRequest\x12\x19\n" +
 	"\bscope_id\x18\x01 \x01(\rR\ascopeId\x127\n" +
 	"\n" +
@@ -1809,17 +1809,17 @@ const file_streamvis_data_proto_rawDesc = "" +
 	"\aCONTROL\x10\x06\x12\t\n" +
 	"\x05INDEX\x10\a\x12\n" +
 	"\n" +
-	"\x06STRING\x10\b2\xe4\x03\n" +
-	"\aService\x121\n" +
-	"\fQueryRecords\x12\x0e.RecordRequest\x1a\x0f.StreamedRecord0\x01\x123\n" +
-	"\x06Scopes\x12\x16.google.protobuf.Empty\x1a\x0f.StreamedRecord0\x01\x12)\n" +
-	"\x05Names\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x12+\n" +
-	"\aConfigs\x12\r.ScopeRequest\x1a\x0f.StreamedRecord0\x01\x122\n" +
+	"\x06STRING\x10\b2\xc6\x03\n" +
+	"\aService\x12+\n" +
+	"\fQueryRecords\x12\x0e.RecordRequest\x1a\t.Streamed0\x01\x12-\n" +
+	"\x06Scopes\x12\x16.google.protobuf.Empty\x1a\t.Streamed0\x01\x12#\n" +
+	"\x05Names\x12\r.ScopeRequest\x1a\t.Streamed0\x01\x12%\n" +
+	"\aConfigs\x12\r.ScopeRequest\x1a\t.Streamed0\x01\x122\n" +
 	"\n" +
 	"WriteScope\x12\x12.WriteScopeRequest\x1a\x10.IntegerResponse\x12:\n" +
-	"\vWriteConfig\x12\x13.WriteConfigRequest\x1a\x16.google.protobuf.Empty\x122\n" +
+	"\vWriteConfig\x12\x13.WriteConfigRequest\x1a\x16.google.protobuf.Empty\x12,\n" +
 	"\n" +
-	"WriteNames\x12\x11.WriteNameRequest\x1a\x0f.StreamedRecord0\x01\x12=\n" +
+	"WriteNames\x12\x11.WriteNameRequest\x1a\t.Streamed0\x01\x12=\n" +
 	"\x10DeleteScopeNames\x12\x11.ScopeNameRequest\x1a\x16.google.protobuf.Empty\x126\n" +
 	"\tWriteData\x12\x11.WriteDataRequest\x1a\x16.google.protobuf.EmptyB\bZ\x06./datab\x06proto3"
 
@@ -1857,7 +1857,7 @@ var file_streamvis_data_proto_goTypes = []any{
 	(*RecordResult)(nil),          // 16: RecordResult
 	(*ScopeRequest)(nil),          // 17: ScopeRequest
 	(*Tag)(nil),                   // 18: Tag
-	(*StreamedRecord)(nil),        // 19: StreamedRecord
+	(*Streamed)(nil),              // 19: Streamed
 	(*WriteConfigRequest)(nil),    // 20: WriteConfigRequest
 	(*WriteScopeRequest)(nil),     // 21: WriteScopeRequest
 	(*IntegerResponse)(nil),       // 22: IntegerResponse
@@ -1888,11 +1888,11 @@ var file_streamvis_data_proto_depIdxs = []int32{
 	13, // 14: Stored.config:type_name -> Config
 	26, // 15: RecordResult.scopes:type_name -> RecordResult.ScopesEntry
 	27, // 16: RecordResult.names:type_name -> RecordResult.NamesEntry
-	16, // 17: StreamedRecord.index:type_name -> RecordResult
-	12, // 18: StreamedRecord.data:type_name -> Data
-	8,  // 19: StreamedRecord.name:type_name -> Name
-	13, // 20: StreamedRecord.config:type_name -> Config
-	18, // 21: StreamedRecord.tag:type_name -> Tag
+	16, // 17: Streamed.index:type_name -> RecordResult
+	12, // 18: Streamed.data:type_name -> Data
+	8,  // 19: Streamed.name:type_name -> Name
+	13, // 20: Streamed.config:type_name -> Config
+	18, // 21: Streamed.tag:type_name -> Tag
 	29, // 22: WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
 	8,  // 23: WriteNameRequest.names:type_name -> Name
 	12, // 24: WriteDataRequest.datas:type_name -> Data
@@ -1907,13 +1907,13 @@ var file_streamvis_data_proto_depIdxs = []int32{
 	23, // 33: Service.WriteNames:input_type -> WriteNameRequest
 	24, // 34: Service.DeleteScopeNames:input_type -> ScopeNameRequest
 	25, // 35: Service.WriteData:input_type -> WriteDataRequest
-	19, // 36: Service.QueryRecords:output_type -> StreamedRecord
-	19, // 37: Service.Scopes:output_type -> StreamedRecord
-	19, // 38: Service.Names:output_type -> StreamedRecord
-	19, // 39: Service.Configs:output_type -> StreamedRecord
+	19, // 36: Service.QueryRecords:output_type -> Streamed
+	19, // 37: Service.Scopes:output_type -> Streamed
+	19, // 38: Service.Names:output_type -> Streamed
+	19, // 39: Service.Configs:output_type -> Streamed
 	22, // 40: Service.WriteScope:output_type -> IntegerResponse
 	30, // 41: Service.WriteConfig:output_type -> google.protobuf.Empty
-	19, // 42: Service.WriteNames:output_type -> StreamedRecord
+	19, // 42: Service.WriteNames:output_type -> Streamed
 	30, // 43: Service.DeleteScopeNames:output_type -> google.protobuf.Empty
 	30, // 44: Service.WriteData:output_type -> google.protobuf.Empty
 	36, // [36:45] is the sub-list for method output_type
@@ -1942,12 +1942,12 @@ func file_streamvis_data_proto_init() {
 		(*Stored_Config)(nil),
 	}
 	file_streamvis_data_proto_msgTypes[16].OneofWrappers = []any{
-		(*StreamedRecord_Index)(nil),
-		(*StreamedRecord_Data)(nil),
-		(*StreamedRecord_Name)(nil),
-		(*StreamedRecord_Config)(nil),
-		(*StreamedRecord_Value)(nil),
-		(*StreamedRecord_Tag)(nil),
+		(*Streamed_Index)(nil),
+		(*Streamed_Data)(nil),
+		(*Streamed_Name)(nil),
+		(*Streamed_Config)(nil),
+		(*Streamed_Scope)(nil),
+		(*Streamed_Tag)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

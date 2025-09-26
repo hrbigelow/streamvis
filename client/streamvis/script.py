@@ -30,14 +30,6 @@ def demo_async_fn(
     asyncio.run(demo_log_data_async(grpc_uri, scope, delete_existing_names, num_steps))
 
 
-async def gfetch(uri: str, scope: str=None, name: str=None):
-    raise NotImplementedError
-# async with aio.insecure_channel(uri) as chan:
-        # stub = pb_grpc.ServiceStub(chan)
-        # query = pb.QueryRequest(scope=scope, name=name) 
-        # async for record in stub.QueryRecords(query):
-            # pass
-
 def fetch(uri: str, scope: str=None, name: str=None):
     return fetch_with_patterns(uri=uri, scope_pattern=f"^{scope}$", name_pattern=f"^{name}$")
 
@@ -68,24 +60,30 @@ def scopes(uri: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.ServiceStub(channel)
     scopes = []
-    for record in stub.Scopes(Empty()):
-        match record.type:
-            case pb.STRING:
+    for msg in stub.Scopes(Empty()):
+        match msg.WhichOneOf("record"):
+            case "string"
                 scopes.append(record.value)
+            case other:
+                raise ValueError(
+                    "Scopes() should only return string.  Returned {other}")
+
     return scopes
 
 
 def names(uri: str, scope: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.ServiceStub(channel)
-    request = pb.ScopeRequest(scope=scope)
+    req = pb.ScopeRequest(scope=scope)
     names = []
-    for record in stub.Names(request):
-        match record.type:
-            case pb.STRING:
+    for msg in stub.Names(req):
+        match msg.WhichOneOf("record"):
+            case "string"
                 names.append(record.value)
+            case other:
+                raise ValueError(
+                    "Names() should only return string.  Returned {other}")
     return names 
-
 
 def config(uri: str, scope: str) -> dict[str, Any]:
     channel = grpc.insecure_channel(uri)

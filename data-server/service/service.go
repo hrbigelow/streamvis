@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	pb "data-server/pb/data"
+	"data-server/util"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -83,16 +84,20 @@ func (s *Service) QueryRecords(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "bad name_regex: %v", err)
 	}
-	// TODO: send some RecordResult as well, useful for reconstruction
+	res := s.store.GetRecordResult(scopePat, namePat)
+    streamed, err := util.WrapStreamed(&res); err != nil {
+        return status.Errorf(codes.Internal, "failed to wrap record result: %v", err)
+    }
+	stream.Send(streamed)
 
 	ctx := stream.Context()
 	dataCh, errCh := s.store.GetData(scopePat, namePat, req.GetFileOffset(), ctx)
-	wrapData := func(msg *pb.Data) *pb.StreamedRecord {
-		return &pb.StreamedRecord{
-			Record: &pb.StreamedRecord_Data{Data: msg},
+	wrapData := func(msg *pb.Data) *pb.Streamed {
+		return &pb.Streamed{
+			Value: &pb.Streamed_Data{Data: msg},
 		}
 	}
-	return streamRecords[*pb.Data, pb.StreamedRecord](stream, dataCh, errCh, wrapData)
+	return streamRecords[*pb.Data, pb.Streamed](stream, dataCh, errCh, wrapData)
 }
 
 func (s *Service) Configs(
@@ -107,12 +112,12 @@ func (s *Service) Configs(
 
 	ctx := stream.Context()
 	dataCh, errCh := s.store.GetConfigs(scopePat, 0, ctx)
-	wrapConfig := func(msg *pb.Config) *pb.StreamedRecord {
-		return &pb.StreamedRecord{
-			Record: &pb.StreamedRecord_Config{Config: msg},
+	wrapConfig := func(msg *pb.Config) *pb.Streamed {
+		return &pb.Streamed{
+			Value: &pb.Streamed_Config{Config: msg},
 		}
 	}
-	return streamRecords[*pb.Config, pb.StreamedRecord](stream, dataCh, errCh, wrapConfig)
+	return streamRecords[*pb.Config, pb.Streamed](stream, dataCh, errCh, wrapConfig)
 }
 
 func (s *Service) Scopes(req *emptypb.Empty, stream pb.Service_ScopesServer) error {
@@ -126,8 +131,8 @@ func (s *Service) Scopes(req *emptypb.Empty, stream pb.Service_ScopesServer) err
 		default:
 			// continue
 		}
-		msg := &pb.StreamedRecord{
-			Record: &pb.StreamedRecord_Value{Value: scope},
+		msg := &pb.Streamed{
+			Value: &pb.Streamed_Value{Value: scope},
 		}
 		if err := stream.Send(msg); err != nil {
 			return status.Errorf(codes.Unavailable, "send failed: %v", err)
@@ -151,8 +156,8 @@ func (s *Service) Names(req *pb.ScopeRequest, stream pb.Service_NamesServer) err
 		default:
 			// continue
 		}
-		msg := &pb.StreamedRecord{
-			Record: &pb.StreamedRecord_Tag{
+		msg := &pb.Streamed{
+			Value: &pb.Streamed_Tag{
 				Tag: &pb.Tag{Scope: tag[0], Name: tag[1]},
 			},
 		}
@@ -197,10 +202,8 @@ func (s *Service) WriteNames(req *pb.WriteNameRequest, stream pb.Service_WriteNa
 	}
 	s.store.AddNames(req.Names)
 	for i := range req.Names {
-		msg := &pb.StreamedRecord{
-			Record: &pb.StreamedRecord_Name{
-				Name: ptrs[i],
-			},
+		msg := &pb.Streamed{
+			Value: &pb.Streamed_Name{Name: ptrs[i]},
 		}
 		if err := stream.Send(msg); err != nil {
 			return status.Errorf(codes.Unavailable, "send failed: %v", err)

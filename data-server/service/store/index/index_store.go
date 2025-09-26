@@ -52,14 +52,8 @@ func (s *IndexStore) GetData(
 	ctx context.Context,
 ) (<-chan *pb.Data, <-chan error) {
 	entries := s.index.EntryList(scopePat, namePat, minOffset)
-	ptrs := make([]*pb.DataEntry, len(entries))
-	for i := range entries {
-		ptrs[i] = &entries[i]
-	}
 	newMsg := func() *pb.Data { return &pb.Data{} }
-	return LoadMessages[*pb.DataEntry, *pb.Data](
-		s.readDataFh, ptrs, ctx, newMsg,
-	)
+	return LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, newMsg)
 }
 
 func (s *IndexStore) GetConfigs(
@@ -68,14 +62,24 @@ func (s *IndexStore) GetConfigs(
 	ctx context.Context,
 ) (<-chan *pb.Config, <-chan error) {
 	entries := s.index.ConfigEntryList(scopePat, minOffset)
-	ptrs := make([]*pb.ConfigEntry, len(entries))
-	for i := range entries {
-		ptrs[i] = &entries[i]
-	}
 	getConfig := func() *pb.Config { return &pb.Config{} }
-	return LoadMessages[*pb.ConfigEntry, *pb.Config](
-		s.readDataFh, ptrs, ctx, getConfig,
-	)
+	return LoadMessages[*pb.ConfigEntry, *pb.Config](s.readDataFh, entries, ctx, getConfig)
+}
+
+func (s *IndexStore) GetRecordResult(
+	scopePat, namePat *regexp.Regexp,
+) pb.RecordResult {
+	entries := s.index.EntryList(scopePat, namePat, 0)
+	res := pb.RecordResult{}
+	for _, entry := range entries {
+		if name, ok := res.Names[entry.NameId]; !ok {
+			res.Names[entry.NameId] = s.store.Names[entry.NameId]
+			if _, ok2 := res.Scopes[name.ScopeId]; !ok2 {
+				res.Scopes[name.ScopeId] = s.store.Scopes[name.ScopeId]
+			}
+		}
+	}
+	return res
 }
 
 func (s *IndexStore) Add(msg proto.Message) {
