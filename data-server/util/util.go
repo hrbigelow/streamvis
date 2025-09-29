@@ -92,100 +92,52 @@ func SafeWrite(f *os.File, buf *bytes.Buffer) (int64, error) {
 	return off, nil
 }
 
-func WrapStored(v proto.Message) (*pb.Stored, error) {
+func WrapStored(v proto.Message) *pb.Stored {
 	switch x := v.(type) {
 	case *pb.Scope:
-		return &pb.Stored{Value: &pb.Stored_Scope{Scope: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_Scope{Scope: x}}
 	case *pb.Name:
-		return &pb.Stored{Value: &pb.Stored_Name{Name: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_Name{Name: x}}
 	case *pb.Control:
-		return &pb.Stored{Value: &pb.Stored_Control{Control: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_Control{Control: x}}
 	case *pb.DataEntry:
-		return &pb.Stored{Value: &pb.Stored_DataEntry{DataEntry: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_DataEntry{DataEntry: x}}
 	case *pb.ConfigEntry:
-		return &pb.Stored{Value: &pb.Stored_ConfigEntry{ConfigEntry: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_ConfigEntry{ConfigEntry: x}}
 	case *pb.Data:
-		return &pb.Stored{Value: &pb.Stored_Data{Data: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_Data{Data: x}}
 	case *pb.Config:
-		return &pb.Stored{Value: &pb.Stored_Config{Config: x}}, nil
+		return &pb.Stored{Value: &pb.Stored_Config{Config: x}}
 	default:
-		return nil, fmt.Errorf("WrapStored: unsupported type: %T", v)
+		panic(fmt.Errorf("WrapStored: unsupported type: %T", v))
 	}
 }
 
-func WrapStreamed(v proto.Message) (*pb.Streamed, error) {
+func WrapStreamed(v proto.Message) *pb.Streamed {
 	switch x := v.(type) {
 	case *pb.RecordResult:
-		return &pb.Streamed{Value: &pb.Streamed_Index{Index: x}}, nil
+		return &pb.Streamed{Value: &pb.Streamed_Index{Index: x}}
 	case *pb.Data:
-		return &pb.Streamed{Value: &pb.Streamed_Data{Data: x}}, nil
+		return &pb.Streamed{Value: &pb.Streamed_Data{Data: x}}
 	case *pb.Name:
-		return &pb.Streamed{Value: &pb.Streamed_Name{Name: x}}, nil
+		return &pb.Streamed{Value: &pb.Streamed_Name{Name: x}}
 	case *pb.Config:
-		return &pb.Streamed{Value: &pb.Streamed_Config{Config: x}}, nil
+		return &pb.Streamed{Value: &pb.Streamed_Config{Config: x}}
 	case *pb.Tag:
-		return &pb.Streamed{Value: &pb.Streamed_Tag{Tag: x}}, nil
+		return &pb.Streamed{Value: &pb.Streamed_Tag{Tag: x}}
 	default:
-		return nil, fmt.Errorf("WrapStreamed: unsupported type: %T", v)
+		panic(fmt.Errorf("WrapStreamed: unsupported type: %T", v))
 	}
 }
 
-func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int, error) {
+func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int) {
 	size := int(0)
 	stored := make([]*pb.Stored, len(msgs))
 	idx := 0
 	for _, m := range msgs {
-		s, err := WrapStored(m)
-		if err != nil {
-			return nil, 0, fmt.Errorf("Couldn't wrap message: %v", err)
-		}
-		stored[idx] = s
-		size += proto.Size(s)
+		stored[idx] = WrapStored(m)
+		size += proto.Size(stored[idx])
 		idx += 1
 	}
-	return stored, size, nil
+	return stored, size
 }
-
-/*
-func PackScope(scopeId uint32, scope string, buf *bytes.Buffer) error {
-	timestamp := timestamppb.Now()
-	msg := &pb.Stored{
-		Value: &pb.Stored_Scope{
-			Scope: &pb.Scope{ScopeId: scopeId, Scope: scope, Time: timestamp},
-		},
-	}
-	return WriteDelimited(buf, msg)
-}
-
-func PackDeleteScope(scope string, buf *bytes.Buffer) error {
-	msg := &pb.Stored{
-		Value: &pb.Stored_Control{
-			Control: &pb.Control{Scope: scope, Name: "", Action: pb.Action_DELETE_SCOPE},
-		},
-	}
-	return WriteDelimited(buf, msg)
-}
-
-func PackDeleteName(scope string, name string, buf *bytes.Buffer) error {
-	msg := &pb.Stored{
-		Value: &pb.Stored_Control{
-			Control: &pb.Control{Scope: scope, Name: name, Action: pb.Action_DELETE_NAME},
-		},
-	}
-	return WriteDelimited(buf, msg)
-}
-
-func PackConfigEntry(entryId uint32, scopeId uint32, begOffset uint64, endOffset uint64, buf *bytes.Buffer) error {
-	msg := &pb.Stored{
-		Value: &pb.Stored_ConfigEntry{
-			ConfigEntry: &pb.ConfigEntry{
-				EntryId:   entryId,
-				ScopeId:   scopeId,
-				BegOffset: begOffset,
-				EndOffset: endOffset,
-			},
-		},
-	}
-	return WriteDelimited(buf, msg)
-}
-*/

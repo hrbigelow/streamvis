@@ -45,30 +45,9 @@ func New(path string) IndexStore {
 	}
 }
 
-// write a RecordStore method to return a channel with pb.Data
-func (s *IndexStore) GetData(
+func (s *IndexStore) getEntryRecordResult(
 	entries []*pb.DataEntry,
-	ctx context.Context,
-) (<-chan *pb.Data, <-chan error) {
-	newMsg := func() *pb.Data { return &pb.Data{} }
-	return LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, newMsg)
-}
-
-func (s *IndexStore) GetConfigs(
-	scopePat *regexp.Regexp,
-	minOffset uint64,
-	ctx context.Context,
-) (<-chan *pb.Config, <-chan error) {
-	entries := s.index.ConfigEntryList(scopePat, minOffset)
-	getConfig := func() *pb.Config { return &pb.Config{} }
-	return LoadMessages[*pb.ConfigEntry, *pb.Config](s.readDataFh, entries, ctx, getConfig)
-}
-
-func (s *IndexStore) GetRecordResult(
-	scopePat, namePat *regexp.Regexp,
-	minOffset uint64,
 ) pb.RecordResult {
-	entries := s.index.EntryList(scopePat, namePat, minOffset)
 	res := pb.RecordResult{
 		Scopes: make(map[uint32]*pb.Scope),
 		Names:  make(map[uint32]*pb.Name),
@@ -91,20 +70,59 @@ func (s *IndexStore) GetRecordResult(
 	return res
 }
 
+func (s *IndexStore) GetData(
+	scopePat, namePat *regexp.Regexp,
+	minOffset uint64,
+	ctx context.Context,
+) (pb.RecordResult, <-chan *pb.Data, <-chan error) {
+	newMsg := func() *pb.Data { return &pb.Data{} }
+	entries := s.index.EntryList(scopePat, namePat, minOffset)
+	dataCh, errCh := LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, newMsg)
+	recordResult := s.getEntryRecordResult(entries)
+	return recordResult, dataCh, errCh
+}
+
+// tabulates the RecordResult for the list of ConfigEntry objects.
+// leaves Names and FileOffset uninitialized
+func (s *IndexStore) getConfigEntryRecordResult(
+	configEntries []*pb.ConfigEntry,
+) pb.RecordResult {
+	res := pb.RecordResult{
+		Scopes: make(map[uint32]*pb.Scope),
+	}
+	for _, entry := range configEntries {
+		if _, ok := res.Scopes[entry.ScopeId]; !ok {
+			scope := s.index.scopes[entry.ScopeId]
+			res.Scopes[entry.ScopeId] = &scope
+		}
+	}
+	return res
+}
+
+// Implementation
+func (s *IndexStore) GetConfigs(
+	scopePat *regexp.Regexp,
+	ctx context.Context,
+) (pb.RecordResult, <-chan *pb.Config, <-chan error) {
+	entries := s.index.ConfigEntryList(scopePat, 0)
+	result := s.getConfigEntryRecordResult(entries)
+	getConfig := func() *pb.Config { return &pb.Config{} }
+	dataCh, errCh := LoadMessages[*pb.ConfigEntry, *pb.Config](
+		s.readDataFh, entries, ctx, getConfig,
+	)
+	return result, dataCh, errCh
+}
+
 func (s *IndexStore) Add(msg proto.Message) {
 	// adds a message to the index store
 }
 
 func (s *IndexStore) AddNames(names []*pb.Name) error {
-	// adds the list of names to the index store
 	stored := make([]*pb.Stored, len(names))
 	for _, name := range names {
 		s.index.names[name.NameId] = *name
 	}
-	stored, size, err := util.WrapArray[*pb.Name](names)
-	if err != nil {
-		return fmt.Errorf("Couldn't wrap messages: %v", err)
-	}
+	stored, size := util.WrapArray[*pb.Name](names)
 	bbuf := bytes.NewBuffer(make([]byte, size))
 	for _, msg := range stored {
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {
@@ -118,10 +136,7 @@ func (s *IndexStore) AddNames(names []*pb.Name) error {
 }
 
 func (s *IndexStore) AddDatas(datas []*pb.Data) error {
-	stored, size, err := util.WrapArray[*pb.Data](datas)
-	if err != nil {
-		return fmt.Errorf("Couldn't wrap messages: %v", err)
-	}
+	stored, size := util.WrapArray[*pb.Data](datas)
 	msgSizes := make([]uint64, len(stored))
 	totalSize := int64(0)
 	bbuf := bytes.NewBuffer(make([]byte, size))
@@ -150,10 +165,7 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 		entries[i] = entry
 		pos += msgSizes[i]
 	}
-	storedEntries, storedSize, err := util.WrapArray[*pb.DataEntry](entries)
-	if err != nil {
-		return fmt.Errorf("Couldn't wrap DataEntry messages: %v", err)
-	}
+	storedEntries, storedSize := util.WrapArray[*pb.DataEntry](entries)
 	bbuf = bytes.NewBuffer(make([]byte, storedSize))
 	for _, msg := range storedEntries {
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {

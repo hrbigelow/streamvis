@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 
 	pb "data-server/pb/data"
@@ -90,16 +89,12 @@ func (s *Service) QueryRecords(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "bad name_regex: %v", err)
 	}
-	entries := s.index.EntryList(scopePat, namePat, req.FileOffset)
-	res := s.store.GetRecordResult(entries)
-	streamed, err := util.WrapStreamed(&res)
-	if err != nil {
-		return status.Errorf(codes.Internal, "failed to wrap record result: %v", err)
-	}
-	stream.Send(streamed)
 
 	ctx := stream.Context()
-	dataCh, errCh := s.store.GetData(entries, ctx)
+	res, dataCh, errCh := s.store.GetData(scopePat, namePat, req.FileOffset, ctx)
+	streamed := util.WrapStreamed(&res)
+	stream.Send(streamed)
+
 	wrapData := func(msg *pb.Data) *pb.Streamed {
 		return &pb.Streamed{
 			Value: &pb.Streamed_Data{Data: msg},
@@ -118,11 +113,10 @@ func (s *Service) Configs(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "bad scope name: %v", err)
 	}
-	entries := s.index.ConfigEntryList(scopePat, namePat, 0) //
-	// TODO: send some RecordResult as well, useful for reconstruction
+	res, dataCh, errCh := s.store.GetConfigs(scopePat, stream.Context())
+	streamed := util.WrapStreamed(&res)
+	stream.Send(streamed)
 
-	ctx := stream.Context()
-	dataCh, errCh := s.store.GetConfigs(scopePat, 0, ctx)
 	wrapConfig := func(msg *pb.Config) *pb.Streamed {
 		return &pb.Streamed{
 			Value: &pb.Streamed_Config{Config: msg},
@@ -142,10 +136,7 @@ func (s *Service) Scopes(req *emptypb.Empty, stream pb.Service_ScopesServer) err
 		default:
 			// continue
 		}
-		msg, err := util.WrapStreamed(&pb.Tag{Scope: scope})
-		if err != nil {
-			panic(fmt.Sprintf("WrapStream failed - internal bug: %v", err))
-		}
+		msg := util.WrapStreamed(&pb.Tag{Scope: scope})
 		if err := stream.Send(msg); err != nil {
 			return status.Errorf(codes.Unavailable, "send failed: %v", err)
 		}
@@ -205,7 +196,14 @@ func (s *Service) WriteConfig(
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Service) WriteNames(req *pb.WriteNameRequest, stream pb.Service_WriteNamesServer) error {
+// WriteNames persists req.Names to the store.  Each Name object must
+// be fully populated except for NameId, which is issued automatically by this
+// request.  The Name objects are streamed back to the client with their NameId
+// populated.
+func (s *Service) WriteNames(
+	req *pb.WriteNameRequest,
+	stream pb.Service_WriteNamesServer,
+) error {
 	// assigns new NameId to each Name message, stores and returns them
 	ptrs := make([]*pb.Name, len(req.Names))
 	for i := range req.Names {
@@ -213,10 +211,8 @@ func (s *Service) WriteNames(req *pb.WriteNameRequest, stream pb.Service_WriteNa
 		ptrs[i] = req.Names[i]
 	}
 	s.store.AddNames(req.Names)
-	for i := range req.Names {
-		msg := &pb.Streamed{
-			Value: &pb.Streamed_Name{Name: ptrs[i]},
-		}
+	for _, name := range req.Names {
+		msg := util.WrapStreamed(name)
 		if err := stream.Send(msg); err != nil {
 			return status.Errorf(codes.Unavailable, "send failed: %v", err)
 		}

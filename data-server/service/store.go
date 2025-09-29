@@ -10,29 +10,41 @@ import (
 )
 
 type Store interface {
+	// GetData finds all Data objects in the database whose scope and name match
+	// scopePat and namePat, and whose BegOffset is >= minOffset.
+	// The returned pb.RecordResult holds the owning Scopes and Names and the maximum
+	// endOffset of the Data.  This can then be used as the minOffset for another
+	// GetData request to progressively grab new data as it is written.
 	GetData(
 		scopePat, namePat *regexp.Regexp,
 		minOffset uint64,
 		ctx context.Context,
-	) (<-chan *pb.Data, <-chan error)
+	) (pb.RecordResult, <-chan *pb.Data, <-chan error)
 
+	// GetConfigs retrieves all Config objects in the database whose scope matches
+	// scopePat, and streams them to the returned channel.  Also returns a
+	// RecordResult holding the scopes.  Unlike GetData, GetConfigs does not filter
+	// by offsets.  The returned RecordResult.FileOffset is always zero.
 	GetConfigs(
 		scopePat *regexp.Regexp,
-		minOffset uint64,
 		ctx context.Context,
-	) (<-chan *pb.Config, <-chan error)
+	) (pb.RecordResult, <-chan *pb.Config, <-chan error)
 
-	GetRecordResult(scopePat, namePat *regexp.Regexp) pb.RecordResult
-
+	// GetMaxId retrieves the maximum Id used for any primary key in the store.
 	GetMaxId() uint32
 
+	// GetScopes retrieves the list of all scopes in the store matching scopePat
 	GetScopes(scopePat *regexp.Regexp) []string
 
+	// GetNames retrieves the list of all (scope, name) pairs in the store
+	// matching scopePat and namePat
 	GetNames(scopePat, namePat *regexp.Regexp) [][2]string
 
 	Add(msg proto.Message)
 
+	// AddNames adds the list of Name objects to the store
 	AddNames(names []*pb.Name) error
 
+	// AddDatas adds the list of Data objects to the store
 	AddDatas(datas []*pb.Data) error
 }

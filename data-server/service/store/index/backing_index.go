@@ -25,7 +25,10 @@ type Unpacker struct {
 
 func NewUnpacker(file *os.File) *Unpacker {
 	reader := bufio.NewReader(file)
-	return &Unpacker{reader: reader}
+	return &Unpacker{
+		reader: reader,
+		cur:    &pb.Stored{},
+	}
 }
 
 func (u *Unpacker) Scan() bool {

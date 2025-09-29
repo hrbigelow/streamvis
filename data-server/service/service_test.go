@@ -128,7 +128,7 @@ func TestScopeRelay(t *testing.T) {
 
 }
 
-
+/*
 func testWriteData(t *testing.T) {
 	conn, cleanup := setupTestServer(t)
 	defer cleanup()
@@ -142,3 +142,4 @@ func testWriteData(t *testing.T) {
 	}
 	scopeId := resp.GetValue()
     req := &pb.WriteDataRequest
+*/
