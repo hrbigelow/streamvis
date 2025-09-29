@@ -6,5 +6,6 @@ dist/
 outputs/
 streamvis/outputs/
 data-server/main
+data-server/server
 
 

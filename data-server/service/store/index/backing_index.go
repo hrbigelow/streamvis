@@ -69,6 +69,18 @@ type Index struct {
 	fileOffset     uint64
 }
 
+func NewIndex() Index {
+	return Index{
+		scopes:         make(map[uint32]pb.Scope),
+		names:          make(map[uint32]pb.Name),
+		entries:        make(map[uint32]pb.DataEntry),
+		configEntries:  make(map[uint32]pb.ConfigEntry),
+		tagToNames:     make(map[[2]string][]uint32),
+		nameToEntries:  make(map[uint32][]uint32),
+		scopeToConfigs: make(map[string][]uint32),
+	}
+}
+
 func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) []*pb.DataEntry {
 	entries := make([]*pb.DataEntry, 0, 10)
 	for _, entry := range idx.entries {

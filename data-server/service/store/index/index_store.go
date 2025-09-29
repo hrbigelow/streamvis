@@ -12,7 +12,6 @@ import (
 	"regexp"
 
 	pb "data-server/pb/data"
-	"data-server/service"
 	"data-server/util"
 
 	"google.golang.org/protobuf/proto"
@@ -26,12 +25,13 @@ type IndexStore struct {
 	readIndexFh   *os.File
 }
 
-var _ service.Store = (*IndexStore)(nil)
+// var _ service.Store = (*IndexStore)(nil)
 
 func New(path string) IndexStore {
 	indexPath := util.IndexFile(path)
 	dataPath := util.DataFile(path)
-	index := Index{}
+	index := NewIndex()
+
 	if err := index.Load(indexPath); err != nil {
 		log.Fatal(err)
 	}
@@ -70,12 +70,17 @@ func (s *IndexStore) GetRecordResult(
 	scopePat, namePat *regexp.Regexp,
 ) pb.RecordResult {
 	entries := s.index.EntryList(scopePat, namePat, 0)
-	res := pb.RecordResult{}
+	res := pb.RecordResult{
+		Scopes: make(map[uint32]*pb.Scope),
+		Names:  make(map[uint32]*pb.Name),
+	}
 	for _, entry := range entries {
-		if name, ok := res.Names[entry.NameId]; !ok {
-			res.Names[entry.NameId] = s.store.Names[entry.NameId]
+		if _, ok := res.Names[entry.NameId]; !ok {
+			name := s.index.names[entry.NameId]
+			res.Names[entry.NameId] = &name
 			if _, ok2 := res.Scopes[name.ScopeId]; !ok2 {
-				res.Scopes[name.ScopeId] = s.store.Scopes[name.ScopeId]
+				scope := s.index.scopes[name.ScopeId]
+				res.Scopes[name.ScopeId] = &scope
 			}
 		}
 	}

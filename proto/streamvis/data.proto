@@ -155,8 +155,7 @@ message Streamed {
     Data data = 2;
     Name name = 3;
     Config config = 4;
-    string scope = 5; // TODO: what do I use this for?
-    Tag tag = 6;
+    Tag tag = 5;
   }
 }
 

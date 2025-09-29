@@ -116,15 +116,13 @@ func WrapStored(v proto.Message) (*pb.Stored, error) {
 func WrapStreamed(v proto.Message) (*pb.Streamed, error) {
 	switch x := v.(type) {
 	case *pb.RecordResult:
-		return &pb.Streamed{Value: &pb.Streamed_RecordResult{RecordResult: x}}, nil
+		return &pb.Streamed{Value: &pb.Streamed_Index{Index: x}}, nil
 	case *pb.Data:
 		return &pb.Streamed{Value: &pb.Streamed_Data{Data: x}}, nil
 	case *pb.Name:
 		return &pb.Streamed{Value: &pb.Streamed_Name{Name: x}}, nil
-	case *Config:
+	case *pb.Config:
 		return &pb.Streamed{Value: &pb.Streamed_Config{Config: x}}, nil
-	case *string:
-		return &pb.Streamed{Value: &pb.Streamed_Value{Value: x}}, nil
 	case *pb.Tag:
 		return &pb.Streamed{Value: &pb.Streamed_Tag{Tag: x}}, nil
 	default:

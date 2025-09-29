@@ -62,7 +62,7 @@ def scopes(uri: str) -> list[str]:
     scopes = []
     for msg in stub.Scopes(Empty()):
         match msg.WhichOneOf("record"):
-            case "string"
+            case "string":
                 scopes.append(record.value)
             case other:
                 raise ValueError(
@@ -78,7 +78,7 @@ def names(uri: str, scope: str) -> list[str]:
     names = []
     for msg in stub.Names(req):
         match msg.WhichOneOf("record"):
-            case "string"
+            case "string":
                 names.append(record.value)
             case other:
                 raise ValueError(

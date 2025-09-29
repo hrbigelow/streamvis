@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	pb "data-server/pb/data"
@@ -85,9 +86,10 @@ func (s *Service) QueryRecords(
 		return status.Errorf(codes.InvalidArgument, "bad name_regex: %v", err)
 	}
 	res := s.store.GetRecordResult(scopePat, namePat)
-    streamed, err := util.WrapStreamed(&res); err != nil {
-        return status.Errorf(codes.Internal, "failed to wrap record result: %v", err)
-    }
+	streamed, err := util.WrapStreamed(&res)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to wrap record result: %v", err)
+	}
 	stream.Send(streamed)
 
 	ctx := stream.Context()
@@ -131,8 +133,9 @@ func (s *Service) Scopes(req *emptypb.Empty, stream pb.Service_ScopesServer) err
 		default:
 			// continue
 		}
-		msg := &pb.Streamed{
-			Value: &pb.Streamed_Value{Value: scope},
+		msg, err := util.WrapStreamed(&pb.Tag{Scope: scope})
+		if err != nil {
+			panic(fmt.Sprintf("WrapStream failed - internal bug: %v", err))
 		}
 		if err := stream.Send(msg); err != nil {
 			return status.Errorf(codes.Unavailable, "send failed: %v", err)
