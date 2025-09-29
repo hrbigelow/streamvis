@@ -73,6 +73,11 @@ func streamRecords[M proto.Message, R any](
 	}
 }
 
+// QueryRecords finds and returns all Data items in the database whose scope and name
+// matches req.scope_pattern and req.name_pattern, and which occur at or after
+// req.file_offset in the backing data file.  It returns a pb.RecordResult.  The
+// result file_offset can be then used for the next request to retrieve records
+// incrementally
 func (s *Service) QueryRecords(
 	req *pb.RecordRequest,
 	stream pb.Service_QueryRecordsServer,
@@ -85,7 +90,8 @@ func (s *Service) QueryRecords(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "bad name_regex: %v", err)
 	}
-	res := s.store.GetRecordResult(scopePat, namePat)
+	entries := s.index.EntryList(scopePat, namePat, req.FileOffset)
+	res := s.store.GetRecordResult(entries)
 	streamed, err := util.WrapStreamed(&res)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to wrap record result: %v", err)
@@ -93,7 +99,7 @@ func (s *Service) QueryRecords(
 	stream.Send(streamed)
 
 	ctx := stream.Context()
-	dataCh, errCh := s.store.GetData(scopePat, namePat, req.GetFileOffset(), ctx)
+	dataCh, errCh := s.store.GetData(entries, ctx)
 	wrapData := func(msg *pb.Data) *pb.Streamed {
 		return &pb.Streamed{
 			Value: &pb.Streamed_Data{Data: msg},
@@ -102,6 +108,8 @@ func (s *Service) QueryRecords(
 	return streamRecords[*pb.Data, pb.Streamed](stream, dataCh, errCh, wrapData)
 }
 
+// Configs streams all Config objects matching req.scope, as well as a RecordResult
+// of the Scope objects owning the Config objects
 func (s *Service) Configs(
 	req *pb.ScopeRequest,
 	stream pb.Service_ConfigsServer,
@@ -110,6 +118,7 @@ func (s *Service) Configs(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "bad scope name: %v", err)
 	}
+	entries := s.index.ConfigEntryList(scopePat, namePat, 0) //
 	// TODO: send some RecordResult as well, useful for reconstruction
 
 	ctx := stream.Context()

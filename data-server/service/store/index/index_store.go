@@ -47,11 +47,9 @@ func New(path string) IndexStore {
 
 // write a RecordStore method to return a channel with pb.Data
 func (s *IndexStore) GetData(
-	scopePat, namePat *regexp.Regexp,
-	minOffset uint64,
+	entries []*pb.DataEntry,
 	ctx context.Context,
 ) (<-chan *pb.Data, <-chan error) {
-	entries := s.index.EntryList(scopePat, namePat, minOffset)
 	newMsg := func() *pb.Data { return &pb.Data{} }
 	return LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, newMsg)
 }
@@ -68,13 +66,18 @@ func (s *IndexStore) GetConfigs(
 
 func (s *IndexStore) GetRecordResult(
 	scopePat, namePat *regexp.Regexp,
+	minOffset uint64,
 ) pb.RecordResult {
-	entries := s.index.EntryList(scopePat, namePat, 0)
+	entries := s.index.EntryList(scopePat, namePat, minOffset)
 	res := pb.RecordResult{
 		Scopes: make(map[uint32]*pb.Scope),
 		Names:  make(map[uint32]*pb.Name),
 	}
+	maxEndOffset := uint64(0)
 	for _, entry := range entries {
+		if entry.EndOffset > maxEndOffset {
+			maxEndOffset = entry.EndOffset
+		}
 		if _, ok := res.Names[entry.NameId]; !ok {
 			name := s.index.names[entry.NameId]
 			res.Names[entry.NameId] = &name
@@ -84,6 +87,7 @@ func (s *IndexStore) GetRecordResult(
 			}
 		}
 	}
+	res.FileOffset = maxEndOffset
 	return res
 }
 
