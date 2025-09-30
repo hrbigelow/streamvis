@@ -75,9 +75,9 @@ func (s *IndexStore) GetData(
 	minOffset uint64,
 	ctx context.Context,
 ) (pb.RecordResult, <-chan *pb.Data, <-chan error) {
-	newMsg := func() *pb.Data { return &pb.Data{} }
+	unwrap := func(s *pb.Stored) *pb.Data { return s.Value.(*pb.Stored_Data).Data }
 	entries := s.index.EntryList(scopePat, namePat, minOffset)
-	dataCh, errCh := LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, newMsg)
+	dataCh, errCh := LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, unwrap)
 	recordResult := s.getEntryRecordResult(entries)
 	return recordResult, dataCh, errCh
 }
@@ -106,24 +106,64 @@ func (s *IndexStore) GetConfigs(
 ) (pb.RecordResult, <-chan *pb.Config, <-chan error) {
 	entries := s.index.ConfigEntryList(scopePat, 0)
 	result := s.getConfigEntryRecordResult(entries)
-	getConfig := func() *pb.Config { return &pb.Config{} }
+	unwrap := func(sto *pb.Stored) *pb.Config { return sto.Value.(*pb.Stored_Config).Config }
 	dataCh, errCh := LoadMessages[*pb.ConfigEntry, *pb.Config](
-		s.readDataFh, entries, ctx, getConfig,
+		s.readDataFh, entries, ctx, unwrap,
 	)
 	return result, dataCh, errCh
 }
 
-func (s *IndexStore) Add(msg proto.Message) {
-	// adds a message to the index store
+func (s *IndexStore) AddScope(scope *pb.Scope) error {
+	s.index.scopes[scope.ScopeId] = *scope
+	msg := util.WrapStored(scope)
+	buf := bytes.NewBuffer(make([]byte, 0, proto.Size(msg)+10))
+	if _, err := util.WriteDelimited(buf, msg); err != nil {
+		panic(fmt.Errorf("Couldn't write name: %v", err))
+	}
+	if _, err := util.SafeWrite(s.appendIndexFh, buf); err != nil {
+		return fmt.Errorf("Couldn't SafeWrite to Index file: %v", err)
+	}
+	return nil
+}
+
+func (s *IndexStore) AddConfig(config *pb.Config) error {
+	stored := util.WrapStored(config)
+	buf, err := proto.Marshal(stored)
+	if err != nil {
+		return fmt.Errorf("Couldn't marshal config: %v", err)
+	}
+	off, err2 := util.SafeWrite(s.appendDataFh, bytes.NewBuffer(buf))
+	if err2 != nil {
+		return fmt.Errorf("Couldn't SafeWrite to data file: %v", err)
+	}
+	end := uint64(off)
+	beg := uint64(off - int64(len(buf)))
+	entry := &pb.ConfigEntry{
+		EntryId:   config.EntryId,
+		ScopeId:   config.ScopeId,
+		BegOffset: beg,
+		EndOffset: end,
+	}
+	s.index.configEntries[entry.EntryId] = *entry
+
+	stored2 := util.WrapStored(entry)
+	bbuf := bytes.NewBuffer(make([]byte, 0, proto.Size(stored2)+10))
+	if _, err := util.WriteDelimited(bbuf, stored2); err != nil {
+		return fmt.Errorf("Couldn't write ConfigEntry: %v", err)
+	}
+	if _, err := util.SafeWrite(s.appendIndexFh, bbuf); err != nil {
+		return fmt.Errorf("Couldn't SafeWrite to Index file: %v", err)
+	}
+	return nil
+
 }
 
 func (s *IndexStore) AddNames(names []*pb.Name) error {
-	stored := make([]*pb.Stored, len(names))
 	for _, name := range names {
 		s.index.names[name.NameId] = *name
 	}
 	stored, size := util.WrapArray[*pb.Name](names)
-	bbuf := bytes.NewBuffer(make([]byte, size))
+	bbuf := bytes.NewBuffer(make([]byte, 0, size))
 	for _, msg := range stored {
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {
 			return fmt.Errorf("Couldn't write name: %v", err)
@@ -138,17 +178,18 @@ func (s *IndexStore) AddNames(names []*pb.Name) error {
 func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 	stored, size := util.WrapArray[*pb.Data](datas)
 	msgSizes := make([]uint64, len(stored))
-	totalSize := int64(0)
-	bbuf := bytes.NewBuffer(make([]byte, size))
+	buf := make([]byte, 0, size)
 	for i, msg := range stored {
-		sz, err := util.WriteDelimited(bbuf, msg)
+		msgSize := proto.Size(msg)
+		msgSizes[i] = uint64(msgSize)
+		var err error
+		buf, err = proto.MarshalOptions{}.MarshalAppend(buf, msg)
 		if err != nil {
-			return fmt.Errorf("Couldn't write name: %v", err)
+			return fmt.Errorf("Couldn't marshal: %v", err)
 		}
-		msgSizes[i] = uint64(sz)
-		totalSize += int64(sz)
 	}
-	off, err := util.SafeWrite(s.appendDataFh, bbuf)
+	totalSize := int64(len(buf))
+	off, err := util.SafeWrite(s.appendDataFh, bytes.NewBuffer(buf))
 	if err != nil {
 		return fmt.Errorf("Couldn't SafeWrite to data file: %v", err)
 	}
@@ -166,7 +207,7 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 		pos += msgSizes[i]
 	}
 	storedEntries, storedSize := util.WrapArray[*pb.DataEntry](entries)
-	bbuf = bytes.NewBuffer(make([]byte, storedSize))
+	bbuf := bytes.NewBuffer(make([]byte, 0, storedSize))
 	for _, msg := range storedEntries {
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {
 			return fmt.Errorf("Couldn't write entry: %v", err)

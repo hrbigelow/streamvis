@@ -95,11 +95,7 @@ func (s *Service) QueryRecords(
 	streamed := util.WrapStreamed(&res)
 	stream.Send(streamed)
 
-	wrapData := func(msg *pb.Data) *pb.Streamed {
-		return &pb.Streamed{
-			Value: &pb.Streamed_Data{Data: msg},
-		}
-	}
+	wrapData := func(msg *pb.Data) *pb.Streamed { return util.WrapStreamed(msg) }
 	return streamRecords[*pb.Data, pb.Streamed](stream, dataCh, errCh, wrapData)
 }
 
@@ -116,12 +112,8 @@ func (s *Service) Configs(
 	res, dataCh, errCh := s.store.GetConfigs(scopePat, stream.Context())
 	streamed := util.WrapStreamed(&res)
 	stream.Send(streamed)
+	wrapConfig := func(msg *pb.Config) *pb.Streamed { return util.WrapStreamed(msg) }
 
-	wrapConfig := func(msg *pb.Config) *pb.Streamed {
-		return &pb.Streamed{
-			Value: &pb.Streamed_Config{Config: msg},
-		}
-	}
 	return streamRecords[*pb.Config, pb.Streamed](stream, dataCh, errCh, wrapConfig)
 }
 
@@ -180,7 +172,9 @@ func (s *Service) WriteScope(
 		Scope:   req.GetScope(),
 		Time:    timestamppb.Now(),
 	}
-	s.store.Add(msg)
+	if err := s.store.AddScope(msg); err != nil {
+		return nil, status.Errorf(codes.Unavailable, "WriteScope failed: %v", err)
+	}
 	return &pb.IntegerResponse{Value: msg.GetScopeId()}, nil
 }
 
@@ -190,9 +184,12 @@ func (s *Service) WriteConfig(
 ) (*emptypb.Empty, error) {
 	msg := &pb.Config{
 		EntryId:    s.IssueId(),
-		Attributes: req.Attributes,
+		Attributes: req.GetAttributes(),
+		ScopeId:    req.GetScopeId(),
 	}
-	s.store.Add(msg)
+	if err := s.store.AddConfig(msg); err != nil {
+		return nil, status.Errorf(codes.Unavailable, "WriteConfig failed: %v", err)
+	}
 	return &emptypb.Empty{}, nil
 }
 

@@ -103,10 +103,7 @@ func TestScopeRelay(t *testing.T) {
 	ctx := context.Background()
 
 	req := &pb.WriteScopeRequest{Scope: "test-scope"}
-	resp, err := client.WriteScope(ctx, req)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	resp := client.WriteScope(ctx, req)
 	scopeId := resp.GetValue()
 	nreq := &pb.WriteNameRequest{
 		Names: []*pb.Name{

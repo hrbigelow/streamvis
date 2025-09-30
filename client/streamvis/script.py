@@ -44,14 +44,14 @@ def fetch_with_patterns(uri: str, scope_pattern: str, name_pattern: str):
     datas = []
     i = 0
     for msg in stub.QueryRecords(req):
-        match msg.WhichOneOf("record"):
+        match msg.WhichOneof("value"):
             case "index":
                 index = util.Index.from_record_result(msg.index)
             case "data":
                 datas.append(msg.data)
             case other:
                 raise ValueError(
-                    "QueryRecords should only return index or data.  Returned {other}")
+                    f"QueryRecords should only return index or data.  Returned {other}")
 
     return util.data_to_cds_flat(index, datas)
 
@@ -61,12 +61,12 @@ def scopes(uri: str) -> list[str]:
     stub = pb_grpc.ServiceStub(channel)
     scopes = []
     for msg in stub.Scopes(Empty()):
-        match msg.WhichOneOf("record"):
-            case "string":
-                scopes.append(record.value)
+        match msg.WhichOneof("value"):
+            case "tag":
+                scopes.append(msg.tag.scope)
             case other:
                 raise ValueError(
-                    "Scopes() should only return string.  Returned {other}")
+                    f"Scopes() should only return Tag object.  Returned {other}")
 
     return scopes
 
@@ -77,12 +77,12 @@ def names(uri: str, scope: str) -> list[str]:
     req = pb.ScopeRequest(scope=scope)
     names = []
     for msg in stub.Names(req):
-        match msg.WhichOneOf("record"):
-            case "string":
-                names.append(record.value)
+        match msg.WhichOneof("value"):
+            case "tag":
+                names.append(msg.tag.name)
             case other:
                 raise ValueError(
-                    "Names() should only return string.  Returned {other}")
+                    f"Names() should only return Tag object.  Returned {other}")
     return names 
 
 def config(uri: str, scope: str) -> dict[str, Any]:
@@ -90,8 +90,9 @@ def config(uri: str, scope: str) -> dict[str, Any]:
     stub = pb_grpc.ServiceStub(channel)
     req = pb.ScopeRequest(scope=scope)
     configs = []
+
     for msg in stub.Configs(req):
-        match msg.WhichOneOf("record"):
+        match msg.WhichOneof("value"):
             case "index":
                 index = util.Index.from_record_result(msg.index)
             case "config":

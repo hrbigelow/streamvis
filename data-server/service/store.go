@@ -5,8 +5,6 @@ import (
 	"regexp"
 
 	pb "data-server/pb/data"
-
-	"google.golang.org/protobuf/proto"
 )
 
 type Store interface {
@@ -40,7 +38,11 @@ type Store interface {
 	// matching scopePat and namePat
 	GetNames(scopePat, namePat *regexp.Regexp) [][2]string
 
-	Add(msg proto.Message)
+	// AddScope adds the pb.Scope to the store
+	AddScope(scope *pb.Scope) error
+
+	// AddConfig adds the pb.Config to the store
+	AddConfig(config *pb.Config) error
 
 	// AddNames adds the list of Name objects to the store
 	AddNames(names []*pb.Name) error

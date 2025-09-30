@@ -90,7 +90,7 @@ func (idx *Index) EntryList(scopePat, namePat *regexp.Regexp, minOffset uint64) 
 		if entry.EndOffset <= minOffset {
 			continue
 		}
-		name := idx.names[entry.EntryId]
+		name := idx.names[entry.NameId]
 		if !namePat.MatchString(name.Name) {
 			continue
 		}
@@ -197,6 +197,8 @@ func (idx *Index) updateWithItem(item *pb.Stored) {
 				panic(fmt.Sprintf("Duplicate nameId %s in index", m.NameId))
 			}
 			scope := idx.scopes[m.ScopeId].Scope
+			idx.names[m.NameId] = *m
+
 			tag := [2]string{scope, m.Name}
 			names := idx.tagToNames[tag]
 			if names == nil {
@@ -303,7 +305,7 @@ func LoadMessages[E offsets, M proto.Message](
 	fh *os.File,
 	entries []E, // E is pointer type
 	ctx context.Context,
-	newMsg func() M,
+	unwrap func(*pb.Stored) M,
 ) (<-chan M, <-chan error) {
 	slices.SortFunc(entries, func(a, b E) int {
 		return cmp.Compare(a.GetBegOffset(), b.GetBegOffset())
@@ -333,12 +335,14 @@ func LoadMessages[E offsets, M proto.Message](
 				errc <- fmt.Errorf("readAt failed at %d (%d bytes): %w", beg, length, err)
 				return
 			}
-			msg := newMsg()
+			stored := &pb.Stored{}
 
-			if err := proto.Unmarshal(buf, msg); err != nil {
+			if err := proto.Unmarshal(buf, stored); err != nil {
 				errc <- fmt.Errorf("unmarshal: %w", err)
 				return
 			}
+			msg := unwrap(stored)
+
 			select {
 			case out <- msg:
 			case <-ctx.Done():
