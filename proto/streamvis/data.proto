@@ -131,18 +131,6 @@ message ScopeRequest {
   string scope = 1;
 }
 
-enum StoredType {
-  SCOPE = 0; 
-  NAME = 1;
-  DATA_ENTRY = 2;
-  CONFIG_ENTRY = 3;
-  DATA = 4;
-  CONFIG = 5;
-  CONTROL = 6;
-  INDEX = 7;
-  STRING = 8;
-}
-
 message Tag {
   string scope = 1;
   string name = 2;

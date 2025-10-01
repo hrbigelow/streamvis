@@ -114,8 +114,8 @@ func (s *IndexStore) GetConfigs(
 }
 
 func (s *IndexStore) AddScope(scope *pb.Scope) error {
-	s.index.scopes[scope.ScopeId] = *scope
 	msg := util.WrapStored(scope)
+	s.index.updateWithItem(msg)
 	buf := bytes.NewBuffer(make([]byte, 0, proto.Size(msg)+10))
 	if _, err := util.WriteDelimited(buf, msg); err != nil {
 		panic(fmt.Errorf("Couldn't write name: %v", err))
@@ -144,9 +144,9 @@ func (s *IndexStore) AddConfig(config *pb.Config) error {
 		BegOffset: beg,
 		EndOffset: end,
 	}
-	s.index.configEntries[entry.EntryId] = *entry
-
 	stored2 := util.WrapStored(entry)
+	s.index.updateWithItem(stored2)
+
 	bbuf := bytes.NewBuffer(make([]byte, 0, proto.Size(stored2)+10))
 	if _, err := util.WriteDelimited(bbuf, stored2); err != nil {
 		return fmt.Errorf("Couldn't write ConfigEntry: %v", err)
@@ -159,12 +159,10 @@ func (s *IndexStore) AddConfig(config *pb.Config) error {
 }
 
 func (s *IndexStore) AddNames(names []*pb.Name) error {
-	for _, name := range names {
-		s.index.names[name.NameId] = *name
-	}
 	stored, size := util.WrapArray[*pb.Name](names)
 	bbuf := bytes.NewBuffer(make([]byte, 0, size))
 	for _, msg := range stored {
+		s.index.updateWithItem(msg)
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {
 			return fmt.Errorf("Couldn't write name: %v", err)
 		}
@@ -202,13 +200,13 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 			BegOffset: pos,
 			EndOffset: pos + msgSizes[i],
 		}
-		s.index.entries[entry.EntryId] = *entry
 		entries[i] = entry
 		pos += msgSizes[i]
 	}
 	storedEntries, storedSize := util.WrapArray[*pb.DataEntry](entries)
 	bbuf := bytes.NewBuffer(make([]byte, 0, storedSize))
 	for _, msg := range storedEntries {
+		s.index.updateWithItem(msg)
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {
 			return fmt.Errorf("Couldn't write entry: %v", err)
 		}
@@ -217,6 +215,25 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 		return fmt.Errorf("Couldn't SafeWrite: %v", err)
 	}
 	return nil
+}
+
+func (s *IndexStore) DeleteScopeNames(scope string, names []string) {
+	buf := bytes.NewBuffer(make([]byte, 0, 100))
+	for _, name := range names {
+		ct := &pb.Control{
+			Scope:  scope,
+			Name:   name,
+			Action: pb.Action_DELETE_NAME,
+		}
+		msg := util.WrapStored(ct)
+		s.index.updateWithItem(msg)
+		if _, err := util.WriteDelimited(buf, msg); err != nil {
+			panic(fmt.Errorf("Couldn't write delimited: %v", err))
+		}
+	}
+	if _, err := util.SafeWrite(s.appendIndexFh, buf); err != nil {
+		panic(fmt.Errorf("Couldn't SafeWrite: %v", err))
+	}
 }
 
 func (s *IndexStore) GetMaxId() uint32 {

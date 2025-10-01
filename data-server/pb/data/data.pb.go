@@ -119,73 +119,6 @@ func (Action) EnumDescriptor() ([]byte, []int) {
 	return file_streamvis_data_proto_rawDescGZIP(), []int{1}
 }
 
-type StoredType int32
-
-const (
-	StoredType_SCOPE        StoredType = 0
-	StoredType_NAME         StoredType = 1
-	StoredType_DATA_ENTRY   StoredType = 2
-	StoredType_CONFIG_ENTRY StoredType = 3
-	StoredType_DATA         StoredType = 4
-	StoredType_CONFIG       StoredType = 5
-	StoredType_CONTROL      StoredType = 6
-	StoredType_INDEX        StoredType = 7
-	StoredType_STRING       StoredType = 8
-)
-
-// Enum value maps for StoredType.
-var (
-	StoredType_name = map[int32]string{
-		0: "SCOPE",
-		1: "NAME",
-		2: "DATA_ENTRY",
-		3: "CONFIG_ENTRY",
-		4: "DATA",
-		5: "CONFIG",
-		6: "CONTROL",
-		7: "INDEX",
-		8: "STRING",
-	}
-	StoredType_value = map[string]int32{
-		"SCOPE":        0,
-		"NAME":         1,
-		"DATA_ENTRY":   2,
-		"CONFIG_ENTRY": 3,
-		"DATA":         4,
-		"CONFIG":       5,
-		"CONTROL":      6,
-		"INDEX":        7,
-		"STRING":       8,
-	}
-)
-
-func (x StoredType) Enum() *StoredType {
-	p := new(StoredType)
-	*p = x
-	return p
-}
-
-func (x StoredType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (StoredType) Descriptor() protoreflect.EnumDescriptor {
-	return file_streamvis_data_proto_enumTypes[2].Descriptor()
-}
-
-func (StoredType) Type() protoreflect.EnumType {
-	return &file_streamvis_data_proto_enumTypes[2]
-}
-
-func (x StoredType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use StoredType.Descriptor instead.
-func (StoredType) EnumDescriptor() ([]byte, []int) {
-	return file_streamvis_data_proto_rawDescGZIP(), []int{2}
-}
-
 type Field struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -1778,21 +1711,7 @@ const file_streamvis_data_proto_rawDesc = "" +
 	"\x03INT\x10\x01*+\n" +
 	"\x06Action\x12\x10\n" +
 	"\fDELETE_SCOPE\x10\x00\x12\x0f\n" +
-	"\vDELETE_NAME\x10\x01*}\n" +
-	"\n" +
-	"StoredType\x12\t\n" +
-	"\x05SCOPE\x10\x00\x12\b\n" +
-	"\x04NAME\x10\x01\x12\x0e\n" +
-	"\n" +
-	"DATA_ENTRY\x10\x02\x12\x10\n" +
-	"\fCONFIG_ENTRY\x10\x03\x12\b\n" +
-	"\x04DATA\x10\x04\x12\n" +
-	"\n" +
-	"\x06CONFIG\x10\x05\x12\v\n" +
-	"\aCONTROL\x10\x06\x12\t\n" +
-	"\x05INDEX\x10\a\x12\n" +
-	"\n" +
-	"\x06STRING\x10\b2\xc6\x03\n" +
+	"\vDELETE_NAME\x10\x012\xc6\x03\n" +
 	"\aService\x12+\n" +
 	"\fQueryRecords\x12\x0e.RecordRequest\x1a\t.Streamed0\x01\x12-\n" +
 	"\x06Scopes\x12\x16.google.protobuf.Empty\x1a\t.Streamed0\x01\x12#\n" +
@@ -1818,87 +1737,86 @@ func file_streamvis_data_proto_rawDescGZIP() []byte {
 	return file_streamvis_data_proto_rawDescData
 }
 
-var file_streamvis_data_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_streamvis_data_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_streamvis_data_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_streamvis_data_proto_goTypes = []any{
 	(FieldType)(0),                // 0: FieldType
 	(Action)(0),                   // 1: Action
-	(StoredType)(0),               // 2: StoredType
-	(*Field)(nil),                 // 3: Field
-	(*FloatList)(nil),             // 4: FloatList
-	(*IntList)(nil),               // 5: IntList
-	(*Values)(nil),                // 6: Values
-	(*Scope)(nil),                 // 7: Scope
-	(*Name)(nil),                  // 8: Name
-	(*Control)(nil),               // 9: Control
-	(*DataEntry)(nil),             // 10: DataEntry
-	(*ConfigEntry)(nil),           // 11: ConfigEntry
-	(*Data)(nil),                  // 12: Data
-	(*Config)(nil),                // 13: Config
-	(*Stored)(nil),                // 14: Stored
-	(*RecordRequest)(nil),         // 15: RecordRequest
-	(*RecordResult)(nil),          // 16: RecordResult
-	(*ScopeRequest)(nil),          // 17: ScopeRequest
-	(*Tag)(nil),                   // 18: Tag
-	(*Streamed)(nil),              // 19: Streamed
-	(*WriteConfigRequest)(nil),    // 20: WriteConfigRequest
-	(*WriteScopeRequest)(nil),     // 21: WriteScopeRequest
-	(*IntegerResponse)(nil),       // 22: IntegerResponse
-	(*WriteNameRequest)(nil),      // 23: WriteNameRequest
-	(*ScopeNameRequest)(nil),      // 24: ScopeNameRequest
-	(*WriteDataRequest)(nil),      // 25: WriteDataRequest
-	nil,                           // 26: RecordResult.ScopesEntry
-	nil,                           // 27: RecordResult.NamesEntry
-	(*timestamppb.Timestamp)(nil), // 28: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),       // 29: google.protobuf.Struct
-	(*emptypb.Empty)(nil),         // 30: google.protobuf.Empty
+	(*Field)(nil),                 // 2: Field
+	(*FloatList)(nil),             // 3: FloatList
+	(*IntList)(nil),               // 4: IntList
+	(*Values)(nil),                // 5: Values
+	(*Scope)(nil),                 // 6: Scope
+	(*Name)(nil),                  // 7: Name
+	(*Control)(nil),               // 8: Control
+	(*DataEntry)(nil),             // 9: DataEntry
+	(*ConfigEntry)(nil),           // 10: ConfigEntry
+	(*Data)(nil),                  // 11: Data
+	(*Config)(nil),                // 12: Config
+	(*Stored)(nil),                // 13: Stored
+	(*RecordRequest)(nil),         // 14: RecordRequest
+	(*RecordResult)(nil),          // 15: RecordResult
+	(*ScopeRequest)(nil),          // 16: ScopeRequest
+	(*Tag)(nil),                   // 17: Tag
+	(*Streamed)(nil),              // 18: Streamed
+	(*WriteConfigRequest)(nil),    // 19: WriteConfigRequest
+	(*WriteScopeRequest)(nil),     // 20: WriteScopeRequest
+	(*IntegerResponse)(nil),       // 21: IntegerResponse
+	(*WriteNameRequest)(nil),      // 22: WriteNameRequest
+	(*ScopeNameRequest)(nil),      // 23: ScopeNameRequest
+	(*WriteDataRequest)(nil),      // 24: WriteDataRequest
+	nil,                           // 25: RecordResult.ScopesEntry
+	nil,                           // 26: RecordResult.NamesEntry
+	(*timestamppb.Timestamp)(nil), // 27: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 28: google.protobuf.Struct
+	(*emptypb.Empty)(nil),         // 29: google.protobuf.Empty
 }
 var file_streamvis_data_proto_depIdxs = []int32{
 	0,  // 0: Field.type:type_name -> FieldType
-	4,  // 1: Values.floats:type_name -> FloatList
-	5,  // 2: Values.ints:type_name -> IntList
-	28, // 3: Scope.time:type_name -> google.protobuf.Timestamp
-	3,  // 4: Name.fields:type_name -> Field
+	3,  // 1: Values.floats:type_name -> FloatList
+	4,  // 2: Values.ints:type_name -> IntList
+	27, // 3: Scope.time:type_name -> google.protobuf.Timestamp
+	2,  // 4: Name.fields:type_name -> Field
 	1,  // 5: Control.action:type_name -> Action
-	6,  // 6: Data.axes:type_name -> Values
-	29, // 7: Config.attributes:type_name -> google.protobuf.Struct
-	7,  // 8: Stored.scope:type_name -> Scope
-	8,  // 9: Stored.name:type_name -> Name
-	9,  // 10: Stored.control:type_name -> Control
-	10, // 11: Stored.data_entry:type_name -> DataEntry
-	11, // 12: Stored.config_entry:type_name -> ConfigEntry
-	12, // 13: Stored.data:type_name -> Data
-	13, // 14: Stored.config:type_name -> Config
-	26, // 15: RecordResult.scopes:type_name -> RecordResult.ScopesEntry
-	27, // 16: RecordResult.names:type_name -> RecordResult.NamesEntry
-	16, // 17: Streamed.index:type_name -> RecordResult
-	12, // 18: Streamed.data:type_name -> Data
-	8,  // 19: Streamed.name:type_name -> Name
-	13, // 20: Streamed.config:type_name -> Config
-	18, // 21: Streamed.tag:type_name -> Tag
-	29, // 22: WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
-	8,  // 23: WriteNameRequest.names:type_name -> Name
-	12, // 24: WriteDataRequest.datas:type_name -> Data
-	7,  // 25: RecordResult.ScopesEntry.value:type_name -> Scope
-	8,  // 26: RecordResult.NamesEntry.value:type_name -> Name
-	15, // 27: Service.QueryRecords:input_type -> RecordRequest
-	30, // 28: Service.Scopes:input_type -> google.protobuf.Empty
-	17, // 29: Service.Names:input_type -> ScopeRequest
-	17, // 30: Service.Configs:input_type -> ScopeRequest
-	21, // 31: Service.WriteScope:input_type -> WriteScopeRequest
-	20, // 32: Service.WriteConfig:input_type -> WriteConfigRequest
-	23, // 33: Service.WriteNames:input_type -> WriteNameRequest
-	24, // 34: Service.DeleteScopeNames:input_type -> ScopeNameRequest
-	25, // 35: Service.WriteData:input_type -> WriteDataRequest
-	19, // 36: Service.QueryRecords:output_type -> Streamed
-	19, // 37: Service.Scopes:output_type -> Streamed
-	19, // 38: Service.Names:output_type -> Streamed
-	19, // 39: Service.Configs:output_type -> Streamed
-	22, // 40: Service.WriteScope:output_type -> IntegerResponse
-	30, // 41: Service.WriteConfig:output_type -> google.protobuf.Empty
-	19, // 42: Service.WriteNames:output_type -> Streamed
-	30, // 43: Service.DeleteScopeNames:output_type -> google.protobuf.Empty
-	30, // 44: Service.WriteData:output_type -> google.protobuf.Empty
+	5,  // 6: Data.axes:type_name -> Values
+	28, // 7: Config.attributes:type_name -> google.protobuf.Struct
+	6,  // 8: Stored.scope:type_name -> Scope
+	7,  // 9: Stored.name:type_name -> Name
+	8,  // 10: Stored.control:type_name -> Control
+	9,  // 11: Stored.data_entry:type_name -> DataEntry
+	10, // 12: Stored.config_entry:type_name -> ConfigEntry
+	11, // 13: Stored.data:type_name -> Data
+	12, // 14: Stored.config:type_name -> Config
+	25, // 15: RecordResult.scopes:type_name -> RecordResult.ScopesEntry
+	26, // 16: RecordResult.names:type_name -> RecordResult.NamesEntry
+	15, // 17: Streamed.index:type_name -> RecordResult
+	11, // 18: Streamed.data:type_name -> Data
+	7,  // 19: Streamed.name:type_name -> Name
+	12, // 20: Streamed.config:type_name -> Config
+	17, // 21: Streamed.tag:type_name -> Tag
+	28, // 22: WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
+	7,  // 23: WriteNameRequest.names:type_name -> Name
+	11, // 24: WriteDataRequest.datas:type_name -> Data
+	6,  // 25: RecordResult.ScopesEntry.value:type_name -> Scope
+	7,  // 26: RecordResult.NamesEntry.value:type_name -> Name
+	14, // 27: Service.QueryRecords:input_type -> RecordRequest
+	29, // 28: Service.Scopes:input_type -> google.protobuf.Empty
+	16, // 29: Service.Names:input_type -> ScopeRequest
+	16, // 30: Service.Configs:input_type -> ScopeRequest
+	20, // 31: Service.WriteScope:input_type -> WriteScopeRequest
+	19, // 32: Service.WriteConfig:input_type -> WriteConfigRequest
+	22, // 33: Service.WriteNames:input_type -> WriteNameRequest
+	23, // 34: Service.DeleteScopeNames:input_type -> ScopeNameRequest
+	24, // 35: Service.WriteData:input_type -> WriteDataRequest
+	18, // 36: Service.QueryRecords:output_type -> Streamed
+	18, // 37: Service.Scopes:output_type -> Streamed
+	18, // 38: Service.Names:output_type -> Streamed
+	18, // 39: Service.Configs:output_type -> Streamed
+	21, // 40: Service.WriteScope:output_type -> IntegerResponse
+	29, // 41: Service.WriteConfig:output_type -> google.protobuf.Empty
+	18, // 42: Service.WriteNames:output_type -> Streamed
+	29, // 43: Service.DeleteScopeNames:output_type -> google.protobuf.Empty
+	29, // 44: Service.WriteData:output_type -> google.protobuf.Empty
 	36, // [36:45] is the sub-list for method output_type
 	27, // [27:36] is the sub-list for method input_type
 	27, // [27:27] is the sub-list for extension type_name
@@ -1936,7 +1854,7 @@ func file_streamvis_data_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_streamvis_data_proto_rawDesc), len(file_streamvis_data_proto_rawDesc)),
-			NumEnums:      3,
+			NumEnums:      2,
 			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,

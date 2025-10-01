@@ -49,4 +49,8 @@ type Store interface {
 
 	// AddDatas adds the list of Data objects to the store
 	AddDatas(datas []*pb.Data) error
+
+	// DeleteScopeNames logically deletes each (scope, name) pair from the single
+	// provided scope and list of names
+	DeleteScopeNames(scope string, names []string)
 }

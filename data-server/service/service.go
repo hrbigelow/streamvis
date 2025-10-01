@@ -221,17 +221,7 @@ func (s *Service) DeleteScopeNames(
 	ctx context.Context,
 	req *pb.ScopeNameRequest,
 ) (*emptypb.Empty, error) {
-	msgs := make([]*pb.Control, len(req.Names))
-	for i, name := range req.Names {
-		msg := &pb.Control{
-			Scope:  req.Scope,
-			Name:   name,
-			Action: pb.Action_DELETE_NAME,
-		}
-		msgs[i] = msg
-	}
-	// TODO: need to actually update the in-memory index here
-	//s.store.Add(msg)
+	s.store.DeleteScopeNames(req.Scope, req.Names)
 	return &emptypb.Empty{}, nil
 }
 

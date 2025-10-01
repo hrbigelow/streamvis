@@ -182,35 +182,36 @@ func (idx *Index) getName(data pb.Data) pb.Name {
 	return idx.names[data.NameId]
 }
 
+// updates the index state with the stored item
 func (idx *Index) updateWithItem(item *pb.Stored) {
-	switch v := item.GetValue().(type) {
+	switch m := item.GetValue().(type) {
 	case *pb.Stored_Scope:
-		m := v.Scope
-		if _, ok := idx.scopes[m.ScopeId]; ok {
-			panic(fmt.Sprintf("Duplicate scopeId %s in index", m.ScopeId))
+		sc := m.Scope
+		if _, ok := idx.scopes[sc.ScopeId]; ok {
+			panic(fmt.Sprintf("Duplicate scopeId %s in index", sc.ScopeId))
 		}
-		idx.scopes[m.ScopeId] = *m
+		idx.scopes[sc.ScopeId] = *sc
 	case *pb.Stored_Name:
-		m := v.Name
-		if _, ok1 := idx.scopes[m.ScopeId]; ok1 {
-			if _, ok2 := idx.names[m.NameId]; ok2 {
-				panic(fmt.Sprintf("Duplicate nameId %s in index", m.NameId))
+		nm := m.Name
+		if _, ok1 := idx.scopes[nm.ScopeId]; ok1 {
+			if _, ok2 := idx.names[nm.NameId]; ok2 {
+				panic(fmt.Sprintf("Duplicate nameId %s in index", nm.NameId))
 			}
-			scope := idx.scopes[m.ScopeId].Scope
-			idx.names[m.NameId] = *m
+			scope := idx.scopes[nm.ScopeId].Scope
+			idx.names[nm.NameId] = *nm
 
-			tag := [2]string{scope, m.Name}
+			tag := [2]string{scope, nm.Name}
 			names := idx.tagToNames[tag]
 			if names == nil {
 				names := make([]uint32, 0)
 				idx.tagToNames[tag] = names
 			}
-			idx.tagToNames[tag] = append(idx.tagToNames[tag], m.NameId)
+			idx.tagToNames[tag] = append(idx.tagToNames[tag], nm.NameId)
 		}
 	case *pb.Stored_Control:
-		m := v.Control
-		if m.Action == pb.Action_DELETE_NAME {
-			tag := [2]string{m.Scope, m.Name}
+		ct := m.Control
+		if ct.Action == pb.Action_DELETE_NAME {
+			tag := [2]string{ct.Scope, ct.Name}
 			names := idx.tagToNames[tag]
 			if names == nil {
 				names := make([]uint32, 0)
@@ -218,8 +219,11 @@ func (idx *Index) updateWithItem(item *pb.Stored) {
 			}
 			for _, nameId := range names {
 				delete(idx.names, nameId)
-				// TODO: check for nil
-				for _, entryId := range idx.nameToEntries[nameId] {
+				ne, ok := idx.nameToEntries[nameId]
+				if !ok {
+					panic(fmt.Sprintf("Index is missing nameId %s in nameToEntries", nameId))
+				}
+				for _, entryId := range ne {
 					delete(idx.entries, entryId)
 				}
 				delete(idx.nameToEntries, nameId)
@@ -227,29 +231,32 @@ func (idx *Index) updateWithItem(item *pb.Stored) {
 			delete(idx.tagToNames, tag)
 		}
 	case *pb.Stored_DataEntry:
-		m := v.DataEntry
-		if _, ok := idx.names[m.NameId]; ok {
-			idx.entries[m.NameId] = *m
-			entries := idx.nameToEntries[m.NameId]
+		de := m.DataEntry
+		if _, ok := idx.names[de.NameId]; ok {
+			idx.entries[de.NameId] = *de
+			entries := idx.nameToEntries[de.NameId]
 			if entries == nil {
 				entries := make([]uint32, 0)
-				idx.nameToEntries[m.NameId] = entries
+				idx.nameToEntries[de.NameId] = entries
 			}
-			idx.nameToEntries[m.NameId] = append(idx.nameToEntries[m.NameId], m.EntryId)
+			idx.nameToEntries[de.NameId] = append(idx.nameToEntries[de.NameId], de.EntryId)
 		}
 
 	case *pb.Stored_ConfigEntry:
-		m := v.ConfigEntry
-		if scopeMsg, ok := idx.scopes[m.ScopeId]; ok {
+		ce := m.ConfigEntry
+		if scopeMsg, ok := idx.scopes[ce.ScopeId]; ok {
 			scope := scopeMsg.Scope
-			idx.configEntries[m.EntryId] = *m
+			idx.configEntries[ce.EntryId] = *ce
 			configIds := idx.scopeToConfigs[scope]
 			if configIds == nil {
 				configIds = make([]uint32, 0)
 				idx.scopeToConfigs[scope] = configIds
 			}
-			idx.scopeToConfigs[scope] = append(idx.scopeToConfigs[scope], m.EntryId)
+			idx.scopeToConfigs[scope] = append(idx.scopeToConfigs[scope], ce.EntryId)
 		}
+	default:
+		panic(fmt.Errorf("updateWithItem: unsupported type: %T", item))
+
 	}
 }
 

@@ -30,7 +30,7 @@ def demo_async_fn(
     asyncio.run(demo_log_data_async(grpc_uri, scope, delete_existing_names, num_steps))
 
 
-def fetch(uri: str, scope: str=None, name: str=None):
+def fetch(uri: str, scope: str, name: str):
     return fetch_with_patterns(uri=uri, scope_pattern=f"^{scope}$", name_pattern=f"^{name}$")
 
 def fetch_with_patterns(uri: str, scope_pattern: str, name_pattern: str):
@@ -111,7 +111,7 @@ def grpc_serve(path: str, port: str):
 
 
 def counts(grpc_uri: str, scope: str):
-    res = fetch(grpc_uri, scope)
+    res = fetch_with_patterns(grpc_uri, f"^{scope}$", ".+")
     for (s, n, i), cds in res.items():
         shape_str = " ".join(f"{k}: {v.shape}" for k, v in cds.items())
         print(f"{s}\t{n}\t{i}\t{shape_str}")
