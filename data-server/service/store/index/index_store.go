@@ -11,7 +11,7 @@ import (
 	"os"
 	"regexp"
 
-	pb "data-server/pb/data"
+	pb "data-server/pb/streamvis/v1"
 	"data-server/util"
 
 	"google.golang.org/protobuf/proto"
@@ -223,7 +223,7 @@ func (s *IndexStore) DeleteScopeNames(scope string, names []string) {
 		ct := &pb.Control{
 			Scope:  scope,
 			Name:   name,
-			Action: pb.Action_DELETE_NAME,
+			Action: pb.Action_ACTION_DELETE_NAME,
 		}
 		msg := util.WrapStored(ct)
 		s.index.updateWithItem(msg)

@@ -5,8 +5,8 @@ build/
 dist/
 outputs/
 streamvis/outputs/
-data-server/main
 data-server/server
 data-server/__debug*
+web-client/node_modules
 
 

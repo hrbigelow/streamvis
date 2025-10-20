@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"slices"
 
-	pb "data-server/pb/data"
+	pb "data-server/pb/streamvis/v1"
 	"data-server/util"
 
 	"google.golang.org/protobuf/proto"
@@ -210,7 +210,7 @@ func (idx *Index) updateWithItem(item *pb.Stored) {
 		}
 	case *pb.Stored_Control:
 		ct := m.Control
-		if ct.Action == pb.Action_DELETE_NAME {
+		if ct.Action == pb.Action_ACTION_DELETE_NAME {
 			tag := [2]string{ct.Scope, ct.Name}
 			names := idx.tagToNames[tag]
 			if names == nil {

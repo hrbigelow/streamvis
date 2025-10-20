@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	pb "data-server/pb/data"
+	pb "data-server/pb/streamvis/v1"
 )
 
 type Store interface {

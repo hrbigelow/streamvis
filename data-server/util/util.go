@@ -3,7 +3,7 @@ package util
 import (
 	"bufio"
 	"bytes"
-	pb "data-server/pb/data"
+	pb "data-server/pb/streamvis/v1"
 	"encoding/binary"
 	"fmt"
 	"io"

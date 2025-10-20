@@ -1,0 +1,13 @@
+# For details on buf.yaml configuration, visit https://buf.build/docs/configuration/v2/buf-yaml
+version: v2
+lint:
+  use:
+    - STANDARD
+  ignore_only:
+    RPC_RESPONSE_STANDARD_NAME:
+      - streamvis/v1/data.proto
+    RPC_REQUEST_STANDARD_NAME:
+      - streamvis/v1/data.proto
+breaking:
+  use:
+    - FILE

@@ -1,18 +1,19 @@
 // compile from streamvis dir (repo directory)
 // python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. streamvis/data.proto
 syntax = "proto3";
+package streamvis.v1;
 
-option go_package = "./data";
+option go_package = "data-server/pb/streamvis/v1;streamvis_v1";
 //option python_package = "streamvis";
 
-import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 
 enum FieldType {
-  FLOAT = 0;
-  INT = 1;
+  FIELD_TYPE_UNSPECIFIED = 0;
+  FIELD_TYPE_FLOAT = 1;
+  FIELD_TYPE_INT = 2;
 }
 
 message Field {
@@ -58,8 +59,9 @@ message Name {
 }
 
 enum Action {
-  DELETE_SCOPE = 0;
-  DELETE_NAME = 1;
+  ACTION_UNSPECIFIED = 0;
+  ACTION_DELETE_SCOPE = 1;
+  ACTION_DELETE_NAME = 2;
 }
 
 message Control {
@@ -115,7 +117,7 @@ message Stored {
 }
 
 
-message RecordRequest {
+message DataRequest {
   string scope_pattern = 1;
   string name_pattern = 2;
   uint64 file_offset = 3;
@@ -127,14 +129,35 @@ message RecordResult {
   uint64 file_offset = 3;
 }
 
-message ScopeRequest {
+message ScopeRequest {}
+
+message ScopeResult {
   string scope = 1;
 }
+
+message NamesRequest {
+  string scope = 1;
+}
+
+message ConfigRequest {
+  string scope = 1;
+}
+
+message ConfigResult {
+  oneof value {
+    RecordResult index = 1;
+    Config config = 2;
+  }
+}
+
+
 
 message Tag {
   string scope = 1;
   string name = 2;
 }
+
+
 
 
 message Streamed {
@@ -147,6 +170,14 @@ message Streamed {
   }
 }
 
+message DataResult {
+  oneof value {
+    RecordResult record = 1;
+    Data data = 2;
+  }
+}
+
+
 
 message WriteConfigRequest {
   uint32 scope_id = 1;
@@ -158,35 +189,46 @@ message WriteScopeRequest {
   string scope = 1;
 }
 
-message IntegerResponse {
-  uint32 value = 1;
-}
-
 
 message WriteNameRequest {
   repeated Name names = 1;
 }
 
-message ScopeNameRequest {
+message DeleteTagRequest {
   string scope = 1;
   repeated string names = 2;
 }
+
+message DeleteTagResponse {} 
+
 
 message WriteDataRequest {
   repeated Data datas = 1;
 }
 
+message WriteDataResponse {}
+
+message WriteScopeResponse {
+  uint32 scope_id = 1;
+}
+
+message WriteNameResponse {
+  repeated Name names = 1;
+}
+
+message WriteConfigResponse {}
+
 
 service Service {
-  rpc QueryRecords (RecordRequest) returns (stream Streamed);
-  rpc Scopes (google.protobuf.Empty) returns (stream Streamed);
-  rpc Names (ScopeRequest) returns (stream Streamed);
-  rpc Configs (ScopeRequest) returns (stream Streamed);
-  rpc WriteScope (WriteScopeRequest) returns (IntegerResponse);
-  rpc WriteConfig (WriteConfigRequest) returns (google.protobuf.Empty);
-  rpc WriteNames (WriteNameRequest) returns (stream Streamed);
-  rpc DeleteScopeNames (ScopeNameRequest) returns (google.protobuf.Empty); 
-  rpc WriteData (WriteDataRequest) returns (google.protobuf.Empty);
+  rpc QueryData (DataRequest) returns (stream DataResult);
+  rpc Scopes (ScopeRequest) returns (stream ScopeResult);
+  rpc Names (NamesRequest) returns (stream Tag);
+  rpc Configs (ConfigRequest) returns (stream ConfigResult);
+  rpc WriteScope (WriteScopeRequest) returns (WriteScopeResponse);
+  rpc WriteConfig (WriteConfigRequest) returns (WriteConfigResponse);
+  rpc WriteNames (WriteNameRequest) returns (WriteNameResponse);
+  rpc DeleteScopeNames (DeleteTagRequest) returns (DeleteTagResponse); 
+  rpc WriteData (WriteDataRequest) returns (WriteDataResponse);
 }
 
 
