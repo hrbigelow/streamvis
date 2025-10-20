@@ -12,9 +12,6 @@ plugins:
 
   - local: protoc-gen-es
     out: ../web-client
-    opt: [target=js]
-
-  - local: protoc-gen-connect-es
-    out: ../web-client 
+    include_imports: true
     opt: [target=js]
 
