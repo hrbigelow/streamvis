@@ -1,10 +1,7 @@
-// compile from streamvis dir (repo directory)
-// python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. streamvis/data.proto
 syntax = "proto3";
 package streamvis.v1;
 
 option go_package = "data-server/pb/streamvis/v1;streamvis_v1";
-//option python_package = "streamvis";
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
@@ -25,6 +22,7 @@ message Field {
  * tensorflow/core/example/example.proto
  * tensorflow/core/example/example/feature.proto
 */
+// TODO: send over as bytes, which become javascript Uint8Array 
 message FloatList {
   repeated float value = 1 [packed = true];
 }

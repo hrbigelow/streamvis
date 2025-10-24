@@ -12,8 +12,8 @@ import numpy as np
 import re
 from streamvis import util
 from streamvis.logger import DataLogger
-from streamvis import data_pb2 as pb
-from streamvis import data_pb2_grpc as pb_grpc
+from streamvis.v1 import data_pb2 as pb
+from streamvis.v1 import data_pb2_grpc as pb_grpc
 from .demo_async import demo_log_data_async
 from .demo_sync import demo_log_data
 from google.protobuf.empty_pb2 import Empty

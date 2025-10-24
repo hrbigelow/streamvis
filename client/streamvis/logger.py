@@ -8,8 +8,8 @@ import enum
 import numpy as np
 import asyncio
 import grpc
-from . import data_pb2 as pb
-from . import data_pb2_grpc as pb_grpc
+from .v1 import data_pb2 as pb
+from .v1 import data_pb2_grpc as pb_grpc
 import random
 import time
 import signal
@@ -99,18 +99,16 @@ class BaseLogger:
 
     def _init_scope(self):
         """This must be called before any calls to write."""
-        request = pb.WriteScopeRequest(scope=self.scope)
-        response = self.stub.WriteScope(request)
-        self.scope_id = response.value
+        req = pb.WriteScopeRequest(scope=self.scope)
+        resp = self.stub.WriteScope(req)
+        self.scope_id = resp.scope_id
 
     def delete_scope(self):
         """Call this to delete all data under this scope."""
         request = pb.ScopeRequest(scope=scope)
         names = []
         for record in stub.Names(request):
-            match record.type:
-                case pb.STRING:
-                    names.append(record.value)
+            names.append(record.name)
         request = pb.ScopeNameRequest(scope=scope, names=names)
         self.stub.DeleteScopeNames(request)
 
@@ -183,7 +181,7 @@ class BaseLogger:
         x[point], y[index, point]
         """
         if self.delete_existing_names and name not in self.deleted_names:
-            req = pb.ScopeNameRequest(scope=self.scope, names=(name,))
+            req = pb.DeleteTagRequest(scope=self.scope, names=(name,))
             self.stub.DeleteScopeNames(req)
             self.deleted_names.add(name)
 
@@ -249,9 +247,9 @@ class BaseLogger:
                 pb_name = util.make_name_message(self.scope_id, data_item.name, field_sig)
                 pending_names[data_item.name] = pb_name
 
-        request = pb.WriteNameRequest(names=pending_names.values())
-        for rec in self.stub.WriteNames(request):
-            pb_name = rec.name
+        req = pb.WriteNameRequest(names=pending_names.values())
+        resp = self.stub.WriteNames(req)
+        for pb_name in resp.names:
             self.logged_names[pb_name.name] = pb_name 
 
         requests = []

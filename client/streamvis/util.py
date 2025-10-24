@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import os
 import struct
 import numpy as np
-from . import data_pb2 as pb
-from . import data_pb2_grpc as pb_grpc
+from .v1 import data_pb2 as pb
+from .v1 import data_pb2_grpc as pb_grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.struct_pb2 import Struct
 
@@ -35,36 +35,22 @@ def data_file(path: str) -> str:
     return f"{path}.log"
 
 
-KIND_CODES = { 
-    pb.Scope: pb.StoredType.SCOPE,
-    pb.Name: pb.StoredType.NAME,
-    pb.DataEntry: pb.StoredType.DATA_ENTRY,
-    pb.ConfigEntry: pb.StoredType.CONFIG_ENTRY,
-    pb.Data: pb.StoredType.DATA,
-    pb.Config: pb.StoredType.CONFIG,
-    pb.Control: pb.StoredType.CONTROL,
-}
-
-MESSAGE_TYPES = { v: k for k, v in KIND_CODES.items() } 
-
-
 DTYPE_TO_PROTO = { 
-    np.dtype('int32'): pb.FieldType.INT, 
-    np.dtype('float32'): pb.FieldType.FLOAT 
+    np.dtype('int32'): pb.FieldType.FIELD_TYPE_INT, 
+    np.dtype('float32'): pb.FieldType.FIELD_TYPE_FLOAT 
 }
 
 PROTO_TO_DTYPE = {
-    pb.FieldType.INT: np.int32,
-    pb.FieldType.FLOAT: np.float32,
+    pb.FieldType.FIELD_TYPE_INT: np.int32,
+    pb.FieldType.FIELD_TYPE_FLOAT: np.float32,
 }
 
 
 def pack_message(message):
     """Create a delimited protobuf message as bytes."""
-    kind_code = KIND_CODES.get(type(message)).to_bytes(1, "big")
     content = message.SerializeToString()
     length_code = struct.pack('>I', len(content))
-    return kind_code + length_code + content 
+    return length_code + content 
 
 
 def pack_scope(scope_id, scope: str) -> bytes:
@@ -171,17 +157,14 @@ def unpack(packed: bytes):
         if off + 5 > end:
             break
 
-        kind = view[off]
-        length = struct.unpack(">I", view[off+1:off+5])[0]
+        length = struct.unpack(">I", view[off:off+4])[0]
 
-        if off + 5 + length > end:
+        if off + 4 + length > end:
             break
 
-        if kind not in MESSAGE_TYPES:
-            raise RuntimeError(f'Unknown kind {kind}, length {length}')
-        item = MESSAGE_TYPES[kind]()
+        item = pb.Stored()
         item.ParseFromString(bytes(view[off+5:off+5+length]))
-        off += 5 + length
+        off += 4 + length
         yield item
     return len(packed) - off
 
@@ -432,9 +415,9 @@ def _data_to_cds(
         cds = collate[key]
         tmp = tmpdata[key]
         for axis, field in zip(data.axes, name.fields):
-            if field.type == pb.FieldType.FLOAT:
+            if field.type == pb.FieldType.FIELD_TYPE_FLOAT:
                 nums = axis.floats.value
-            elif field.type == pb.FieldType.INT:
+            elif field.type == pb.FieldType.FIELD_TYPE_INT:
                 nums = axis.ints.value
             tmp[field.name].append(nums)
 
