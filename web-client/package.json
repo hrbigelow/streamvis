@@ -12,12 +12,14 @@
   "devDependencies": {
     "@bufbuild/buf": "1.58.0",
     "@bufbuild/protoc-gen-es": "2.9.0",
-    "grpc-web": "^2.0.2"
+    "grpc-web": "^2.0.2",
+    "vite": "^7.1.12"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.9.0",
     "@connectrpc/connect": "2.1.0",
     "@connectrpc/connect-web": "2.1.0",
+    "deck.gl": "^9.2.2",
     "google-protobuf": "^4.0.0"
   }
 }
