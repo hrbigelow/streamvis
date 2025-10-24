@@ -1,10 +1,12 @@
 import fire
+import yaml
 from typing import Any
 import asyncio
 import grpc
 from grpc import aio
 from dataclasses import dataclass
 from functools import partial
+from pprint import pprint
 import sys
 import math
 import time
@@ -109,6 +111,16 @@ def config(uri: str, scope: str) -> dict[str, Any]:
                 configs.append(record.config)
     return util.export_configs(index, configs)
 
+def _print_configs(uri: str, scope: str, top_key: str=None) -> None:
+    cfgs = config(uri, scope)
+    sep = ""
+    for cfg in cfgs[scope]: 
+        if top_key is not None:
+            cfg = cfg.get(top_key, None)
+        if cfg is not None:
+            print(sep, end='')
+            print(cfg, end='')
+        sep = "\n\n"
 
 def serve(web_uri: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
     from streamvis import server
@@ -137,6 +149,7 @@ def main():
         from pprint import pprint
         pprint(out)
 
+
     tasks = { 
             "web-serve": serve,
             "grpc-serve": grpc_serve,
@@ -145,7 +158,7 @@ def main():
             "scopes": partial(print_list, scopes),
             "names": partial(print_list, names),
             "counts": counts,
-            "config": partial(print_dict, config),
+            "config": _print_configs,
             }
     fire.Fire(tasks)
 
