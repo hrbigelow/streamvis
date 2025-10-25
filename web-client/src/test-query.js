@@ -17,7 +17,7 @@ async function main() {
     "file_offset": 0
   }
   for await (const msg of client.queryData(dreq)) {
-    // console.log(msg)
+    console.log(msg)
     if (msg.value.case == "data") {
       const datum = msg.value.value;
       console.log(datum.axes)
