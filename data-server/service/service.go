@@ -31,14 +31,12 @@ func (s *Service) IssueId() uint32 {
 }
 
 func streamRecords[M proto.Message, R any](
-	// stream grpc.ServerStreamingServer[R], // Send(*R)
 	ctx context.Context,
 	stream connect.ServerStream[R], // Send(*R)
 	dataCh <-chan M,
 	errCh <-chan error,
 	wrapToStream func(msg M) *R,
 ) error {
-	// ctx := stream.Context()
 	for {
 		select {
 		case <-ctx.Done():

@@ -36,13 +36,13 @@ def data_file(path: str) -> str:
 
 
 DTYPE_TO_PROTO = { 
-    np.dtype('int32'): pb.FieldType.FIELD_TYPE_INT, 
-    np.dtype('float32'): pb.FieldType.FIELD_TYPE_FLOAT 
+    np.dtype('<i4'): pb.DType.DTYPE_I32, 
+    np.dtype('<f4'): pb.DType.DTYPE_F32 
 }
 
 PROTO_TO_DTYPE = {
-    pb.FieldType.FIELD_TYPE_INT: np.int32,
-    pb.FieldType.FIELD_TYPE_FLOAT: np.float32,
+    pb.DType.DTYPE_I32: np.dtype('<i4'),
+    pb.DType.DTYPE_F32: np.dtype('<f4'),
 }
 
 
@@ -65,7 +65,7 @@ def make_data_messages(
     name_id: int,
     content: dict[str, np.ndarray],
     start_index: int,
-    field_sig: list[tuple[str, pb.FieldType]]
+    field_sig: list[tuple[str, pb.DType]]
 ) -> list[pb.Data]:
     """pack the data into a protobuf message.
 
@@ -73,7 +73,7 @@ def make_data_messages(
     """
     content_types = { k: v.dtype for k, v in content.items() }
     if (len(field_sig) != len(content_types)
-        or any(content_types.get(field.name) != PROTO_TO_DTYPE[field.type] 
+        or any(content_types.get(field.name) != PROTO_TO_DTYPE[field.dtype] 
             for field in field_sig)):
         raise RuntimeError(
             f"content has signature {content_types.items()} which mismatches "
@@ -90,12 +90,14 @@ def make_data_messages(
         for field in field_sig:
             field_data = content.get(field.name)[index]
             vals = data.axes.add()
+            vals.length = field_data.size
             if np.issubdtype(field_data.dtype, np.floating):
-                vals.floats.value.extend(field_data)
+                vals.dtype = pb.DTYPE_F32
             elif np.issubdtype(field_data.dtype, np.integer):
-                vals.ints.value.extend(field_data)
+                vals.dtype = pb.DTYPE_I32
             else:
                 raise RuntimeError(f"field data is an unsupported dtype: {dty}")
+            vals.data = field_data.astype(PROTO_TO_DTYPE[vals.dtype]).tobytes()
         datas.append(data)
     return datas
 
@@ -108,7 +110,7 @@ def make_name_message(
     for field_name, dtype in field_sig:
         field = name.fields.add()
         field.name = field_name
-        field.type = DTYPE_TO_PROTO[dtype] 
+        field.dtype = DTYPE_TO_PROTO[dtype] 
     return name 
 
 
@@ -401,7 +403,7 @@ def _data_to_cds(
     index: Index, datas: list[pb.Data], flatten: bool
 ) -> dict[Union[DataKey, tuple], 'cds_data']:
     collate = {} # DataKey => cds_data
-    tmpdata = {} # DataKey => (str => list[num])
+    tmpdata = {} # DataKey => (str => ndarray)
     for data in datas:
         key = index.get_key(data)
         name = index.get_name(data)
@@ -415,11 +417,16 @@ def _data_to_cds(
         cds = collate[key]
         tmp = tmpdata[key]
         for axis, field in zip(data.axes, name.fields):
-            if field.type == pb.FieldType.FIELD_TYPE_FLOAT:
-                nums = axis.floats.value
-            elif field.type == pb.FieldType.FIELD_TYPE_INT:
-                nums = axis.ints.value
-            tmp[field.name].append(nums)
+            if axis.dtype != field.dtype:
+                raise RuntimeError(
+                        f"Mismatched field dtypes between data and name object"
+                        f"data axis dtype = {axis.dtype}, name field dtype = {field.dtype}"
+                )
+            if axis.dtype == pb.DType.DTYPE_F32:
+                ary = np.frombuffer(axis.data, dtype="<f4")
+            elif axis.dtype == pb.DType.DTYPE_I32:
+                ary = np.frombuffer(axis.data, dtype="<i4")
+            tmp[field.name].append(ary)
 
     for key, tmp in tmpdata.items():
         cds = collate[key]

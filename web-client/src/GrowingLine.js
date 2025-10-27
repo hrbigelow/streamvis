@@ -1,8 +1,10 @@
+import * as THREE from 'three';
 import {
   BufferGeometry,
   LineBasicMaterial,
   Line,
-  Float32BufferAttribute
+  Float32BufferAttribute,
+  DynamicDrawUsage
 } from 'three';
 
 class GrowingLine extends Line {
@@ -14,7 +16,8 @@ class GrowingLine extends Line {
    * @param {number} initialCapacity - the initial capacity (number of logical position items)
    * @param {Material} - material to use for this Line
   */
-  constructor(itemSize, initialCapacity, material = new LineBasicMaterial()) {
+  constructor(itemSize, initialCapacity, material = new LineBasicMaterial({ color: 0xff0000 })) {
+    debugger;
     if (itemSize !== 2 && itemSize !== 3) {
       throw new Error("itemSize must be 2 or 3");
     }
@@ -32,7 +35,7 @@ class GrowingLine extends Line {
   _refreshAttribute() {
     const positions = new Float32Array(this.capacity);
     const positionAttribute = new Float32BufferAttribute(positions, this.itemSize);
-    positionAttribute.setUsage(DynamicDrawUsage);
+    positionAttribute.setUsage(THREE.DynamicDrawUsage);
     this.geometry.setAttribute('position', positionAttribute);
   }
 
@@ -42,18 +45,19 @@ class GrowingLine extends Line {
    * @return {void}
   */
   appendPoints(points) {
+    debugger;
     if (points.length % this.itemSize !== 0) {
       throw new Error(`points.length={points.length} not divisible by itemSize={this.itemSize}`);
     }
     if (this.size + points.length > this.capacity) {
-      oldGeometry = this.geometry;
+      const oldGeometry = this.geometry;
       this.capacity = Math.max(this.capacity + this.increment, this.size + points.length);
       this.increment *= 2;
       this.geometry = new BufferGeometry();
       this._refreshAttribute();
 
       this.geometry.getAttribute('position').array.set(
-        oldGeometry.array.subarray(this.size)
+        oldGeometry.getAttribute('position').array.subarray(this.size)
       );
       oldGeometry.dispose();
     }
@@ -67,6 +71,9 @@ class GrowingLine extends Line {
 
 }
 
+export {
+  GrowingLine
+};
 
 
 

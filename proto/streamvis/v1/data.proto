@@ -7,22 +7,13 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 
+/*
 enum FieldType {
   FIELD_TYPE_UNSPECIFIED = 0;
   FIELD_TYPE_FLOAT = 1;
   FIELD_TYPE_INT = 2;
 }
 
-message Field {
-  string name = 1;
-  FieldType type = 2;
-}
-
-/* Adapted from
- * tensorflow/core/example/example.proto
- * tensorflow/core/example/example/feature.proto
-*/
-// TODO: send over as bytes, which become javascript Uint8Array 
 message FloatList {
   repeated float value = 1 [packed = true];
 }
@@ -37,6 +28,26 @@ message Values {
     FloatList floats = 2;
     IntList ints = 3;
   }
+}
+*/
+
+
+enum DType {
+  D_TYPE_UNSPECIFIED = 0;
+  D_TYPE_F32 = 1;
+  D_TYPE_I32 = 2;
+}
+
+message Axis {
+  DType dtype = 1;
+  uint32 length = 2;
+  bytes data = 3;
+}
+
+message Field {
+  string name = 1;
+  DType dtype = 2;
+  // FieldType type = 2;
 }
 
 // Scope, Name, Control, DataEntry, ConfigEntry stored in .idx file
@@ -91,7 +102,7 @@ message Data {
   // globally unique key is (entry_id, index)
   uint32 entry_id = 1; // foreign key to Entry message
   uint32 index = 2; // 
-  repeated Values axes = 3; // actual data
+  repeated Axis axes = 3;
   uint32 name_id = 4; // not stored on disk - used in join logic for RPC
 }
 

@@ -1,84 +1,73 @@
+import { Service, DType } from '../streamvis/v1/data_pb.js';  
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+
 /**
- * This class periodically queries a gRPC service, using its configured query
- * parameters.  Each query is incremental due to the increasing fileOffset.  It
- * processes any updates or deletes, keeping its local copy in synch, and
- * converting the data into a more specific format for rendering to a scene.
+ * create a gRPC client
+ * @param {string} host - string with host:port for gRPC server
+ */
+export function getServiceClient(url) {
+  const transport = createConnectTransport({
+    baseUrl: url,
+    httpVersion: "1.1"
+  });
+  return createClient(Service, transport);
+}
+
+
+/**
+ * extractData from the data object according to the name schema
+ * @param {streamvis.v1.Name} name - the name object describing the data
+ * @param {streamvis.v1.Data} data - the data object holding the numerical data
+ * @param {list} axes - a list of strings holding the axes to extract
+ * returns: Float32Array with data points flattened [axis1[0], axis2[0], ..., axis1[i], axis2[i], ...] 
 */
-class SceneReplicator {
-  /**
-   * Constructs a new SceneReplicator.
-   *
-   * @param {protobuf-es Client} rpcClient - the connect-go rpc client
-   * @param {string} scopePattern - a regex for filtering scopes
-   * @param {string} namePattern - a regex for filtering names
-   * @param {function} createObjectFn - a nullary function for creating a new Object3D
-   * @param {function} destroyObjectFn - a nullary function for destroying an Object3D
-   * @param {function} addDataFn - a binary function for adding data to an existing object
-  */
-
-  constructor(rpcClient, scopePattern, namePattern, createObjectFn, destroyObjectFn, addDataFn) {
-    this.client = rpcClient
-    this.scopePattern = scopePattern
-    this.namePattern = namePattern
-    this.fileOffset = 0
-    this.createObjectFn = createObjectFn
-    this.destroyObjectFn = destroyObjectFn
-    this.addDataFn = addDataFn
-    this.objects = {} // objectId => Object3D
+export function extractData(name, data, axes) {
+  const isLE = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
+  if (! isLE) {
+    throw new Error(`Only supported on little-endian systems`);
   }
-
-  _makeObjectId(nameId, index) {
-    return `${nameId},${index}`;
-  }
-
-
-  /**
-   * Updates local state from gRPC service
-  */
-  async update() {
-    const request = {
-      scope_pattern: this.scopePattern,
-      name_pattern: this.namePattern,
-      file_offset: this.fileOffset 
-    };
-    let recordResult = null;
-    const dataItems = [];
-    for await (const resp of this.client.queryData(request)) {
-      const { value } = resp;
-      switch (value?.case) {
-        case 'record': {
-          recordResult = value.value;
+  const outIndexes = Object.fromEntries(axes.map((ent, idx) => [ent, idx])); 
+  const sources = new Array(axes.length);
+  for (let [fieldIndex, field] of name.fields.entries()) {
+    if (field.name in outIndexes) {
+      const outIndex = outIndexes[field.name];
+      const axis = data.axes[fieldIndex];
+      switch (axis.dtype) {
+        case DType.UNSPECIFIED: {
+          throw new Error(`Unspecified DType received for axis ${field.name}`);
+        }
+        case DType.F32: {
+          sources[outIndex] = new Float32Array(axis.data.buffer);
           break;
         }
-        case 'data': {
-          dataItems.push(value.value);
+        case DType.I32: {
+          sources[outIndex] = new Int32Array(axis.data.buffer);
           break;
         }
         default: {
-          throw new Error(`Unexpected queryData response type: ${value?.case}`);
+          throw new Error(`Unknown DType for axis ${field.name}`);
         }
       }
     }
-    this.fileOffset = recordResult.fileOffset;
+  }
+  if (sources.some(v => v === undefined)) {
+    throw new Error(`Missing one or more axes in data`);
+  }
+  const lengths = sources.map(ary => ary.length);
+  if (lengths.some(v => v !== lengths[0])) {
+    throw new Error(`Axes have different lengths: ${lengths}`);
+  }
+  const out = new Float32Array(sources.length * lengths[0]);
 
-    // delete any non-represented objects
-    for (const [objectId, obj] of Object.entries(this.objects)) {
-      const nameId = this._getNameId(objectId);
-      if (! (nameId in recordResult.names)) {
-        this.destroyObjectFn(this.objects[objectId]);
-        delete this.objects[objectId];
-      }
+  // TODO: optimize
+  for (let s = 0; s < sources.length; s++) {
+    let source = sources[s];
+    for (let i = 0, j = s; i != source.length; i++, j+= sources.length) {
+      out[j] = source[i];
     }
-
-    // create any new objects
-    for (const data in dataItems) {
-      objectId = this._makeObjectId(data.nameId, data.index);
-      if (! (objectId in this.objects)) {
-        this.objects[objectId] = this.createObjectFn();
-      }
-      const object = this.objects[objectId];
-      this.addDataFn(object, data);
-    }
+  }
+  return out;
 }
 
 

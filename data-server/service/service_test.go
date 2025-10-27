@@ -111,8 +111,8 @@ func TestScopeRelay(t *testing.T) {
 				Name:    "A",
 				ScopeId: scopeId,
 				Fields: []*pb.Field{
-					&pb.Field{Name: "x", Type: pb.FieldType_INT},
-					&pb.Field{Name: "y", Type: pb.FieldType_FLOAT},
+					&pb.Field{Name: "x", DType: pb.DType_I32},
+					&pb.Field{Name: "y", DType: pb.DType_F32},
 				},
 			},
 		},
