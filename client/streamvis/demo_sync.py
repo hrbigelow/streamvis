@@ -19,8 +19,7 @@ def demo_log_data(grpc_uri, scope, delete_existing_names, num_steps):
     logger.start()
     logger.write_config({ "start-time": time.time() })
 
-    for step in range(0, num_steps, 10):
-        time.sleep(0.1)
+    for step in range(0, num_steps):
 
         xs, top_data = sinusoidal.step(step)
         logger.write('sinusoidal', x=xs, y=top_data)

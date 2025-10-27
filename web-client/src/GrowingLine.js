@@ -12,7 +12,6 @@ class GrowingLine extends Line {
   /**
    * Constructs a new GrowingLine
    * Since geometry is appended, always starts empty
-   * @param {number} itemSize - the size of one logical position item (2 or 3)
    * @param {number} initialCapacity - the initial capacity (number of logical position items)
    * @param {Material} - material to use for this Line
   */
@@ -37,13 +36,14 @@ class GrowingLine extends Line {
 
   /**
    * appends points to the geometry
-   * @param {Float32Array} points - The points.
+   * @param {Float32Array} points - interleaved 3D points: [x0, y0, z0, x1, y1, z1, ...]
    * @return {void}
   */
   appendPoints(points) {
-    if (points.length % this.itemSize !== 0) {
-      throw new Error(`points.length={points.length} not divisible by itemSize={this.itemSize}`);
+    if (points.length % 3 !== 0) {
+      throw new Error(`points.length={points.length} not divisible by 3`);
     }
+    debugger;
     const oldSize = this.size;
     const newSize = this.size + points.length;
 
@@ -73,7 +73,8 @@ class GrowingLine extends Line {
     }
 
     this.size = newSize;
-    this.geometry.setDrawRange(0, newSize / this.itemSize);
+    this.geometry.setDrawRange(0, newSize / 3);
+    console.log(`setting Draw Range to (0, ${newSize / 3}`);
 
   }
 

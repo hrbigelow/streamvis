@@ -11,14 +11,17 @@ class LineSceneReplicator extends SceneReplicator {
    * @param {string} namePattern - a regex for filtering names
    * @param {list} fieldNames - 
   */
-  constructor(rpcClient, scopePattern, namePattern, refreshSeconds, xField, yField) {
+  constructor(rpcClient, scopePattern, namePattern, refreshSeconds, xField, yField,
+    material,
+  ) {
     super(rpcClient, scopePattern, namePattern, refreshSeconds);
     this.xField = xField;
     this.yField = yField;
+    this.material = material;
   }
 
   createObject() {
-    return new GrowingLine(100);
+    return new GrowingLine(100, this.material);
   }
 
   destroyObject(object) {

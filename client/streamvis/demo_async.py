@@ -18,8 +18,7 @@ async def demo_log_data_async(grpc_uri, scope, delete_existing_names, num_steps)
     async with logger:
         logger.write_config({ "start-time": time.time() })
 
-        for step in range(0, num_steps, 10):
-            time.sleep(0.1)
+        for step in range(0, num_steps):
             # top_data[group, point], where group is a logical grouping of points that
             # form a line, and point is one of those points
             xs, top_data = sinusoidal.step(step)

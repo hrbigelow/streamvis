@@ -256,7 +256,11 @@ class BaseLogger:
         sizes = []
         for data_item in data_items:
             data_elems = self.total_elems(data_item)
-            assert data_elems <= MAX_ELEMS_PER_REQUEST, "Single element exceeds size"
+            if data_elems > MAX_ELEMS_PER_REQUEST:
+                raise RuntimeError(
+                    f"Single item with {data_elems} elements exceeds max of "
+                    f"${MAX_ELEMS_PER_REQUEST}")
+
             if len(sizes) == 0 or sizes[-1] + data_elems > MAX_ELEMS_PER_REQUEST:
                 request = pb.WriteDataRequest()
                 requests.append(request)
@@ -276,8 +280,6 @@ class BaseLogger:
             for req in requests:
                 self.stub.WriteData(req)
         except grpc.RpcError as ex:
-            import pdb
-            pdb.set_trace()
             raise RuntimeError(f"Could not write request to grpc: {ex}") from ex
 
 

@@ -218,14 +218,15 @@ func (idx *Index) updateWithItem(item *pb.Stored) {
 			}
 			for _, nameId := range names {
 				delete(idx.names, nameId)
-				ne, ok := idx.nameToEntries[nameId]
-				if !ok {
-					panic(fmt.Sprintf("Index is missing nameId %s in nameToEntries", nameId))
+				if ne, ok := idx.nameToEntries[nameId]; ok {
+					for _, entryId := range ne {
+						delete(idx.entries, entryId)
+					}
+					delete(idx.nameToEntries, nameId)
+				} else {
+					// may fail if AddNames was called but not AddDatas (due to
+					// interrupted client)
 				}
-				for _, entryId := range ne {
-					delete(idx.entries, entryId)
-				}
-				delete(idx.nameToEntries, nameId)
 			}
 			delete(idx.tagToNames, tag)
 		}

@@ -114,7 +114,6 @@ class SceneReplicator extends Scene {
 
     // create any new objects and attach to this scene
     for (let data of dataItems) {
-      debugger;
       const objectId = this._makeObjectId(data.nameId, data.index);
       if (! (objectId in this.objects)) {
         this.objects[objectId] = this.createObject();
@@ -134,6 +133,7 @@ class SceneReplicator extends Scene {
     while (true) {
       await this.update();
       console.log('after update');
+      console.dir(this.objects);
       await sleep(this.refreshSeconds * 1000);
     }
   }
