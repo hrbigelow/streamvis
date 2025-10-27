@@ -7,9 +7,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 
 	pb "data-server/pb/streamvis/v1"
 	"data-server/util"
@@ -17,12 +20,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// TODO: race conditions - lock the index
+
 type IndexStore struct {
-	index         Index
-	appendDataFh  *os.File
-	readDataFh    *os.File
-	appendIndexFh *os.File
-	readIndexFh   *os.File
+	index          Index
+	appendDataFh   *os.File
+	readDataFh     *os.File
+	appendIndexFh  *os.File
+	readIndexFh    *os.File
+	dataFileOffset uint64
 }
 
 // var _ service.Store = (*IndexStore)(nil)
@@ -32,42 +38,24 @@ func New(path string) IndexStore {
 	dataPath := util.DataFile(path)
 	index := NewIndex()
 
+	readDataFh := util.GetLogHandle(dataPath, os.O_RDONLY)
+	offset, err := readDataFh.Seek(0, io.SeekEnd)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if err := index.Load(indexPath); err != nil {
 		log.Fatal(err)
 	}
 
 	return IndexStore{
-		index:         index,
-		appendIndexFh: util.GetLogHandle(indexPath, os.O_WRONLY|os.O_APPEND),
-		readIndexFh:   util.GetLogHandle(indexPath, os.O_RDONLY),
-		appendDataFh:  util.GetLogHandle(dataPath, os.O_WRONLY|os.O_APPEND),
-		readDataFh:    util.GetLogHandle(dataPath, os.O_RDONLY),
+		index:          index,
+		appendIndexFh:  util.GetLogHandle(indexPath, os.O_WRONLY|os.O_APPEND),
+		readIndexFh:    util.GetLogHandle(indexPath, os.O_RDONLY),
+		appendDataFh:   util.GetLogHandle(dataPath, os.O_WRONLY|os.O_APPEND),
+		readDataFh:     readDataFh,
+		dataFileOffset: uint64(offset),
 	}
-}
-
-func (s *IndexStore) getEntryRecordResult(
-	entries []*pb.DataEntry,
-) pb.RecordResult {
-	res := pb.RecordResult{
-		Scopes: make(map[uint32]*pb.Scope),
-		Names:  make(map[uint32]*pb.Name),
-	}
-	maxEndOffset := uint64(0)
-	for _, entry := range entries {
-		if entry.EndOffset > maxEndOffset {
-			maxEndOffset = entry.EndOffset
-		}
-		if _, ok := res.Names[entry.NameId]; !ok {
-			name := s.index.names[entry.NameId]
-			res.Names[entry.NameId] = &name
-			if _, ok2 := res.Scopes[name.ScopeId]; !ok2 {
-				scope := s.index.scopes[name.ScopeId]
-				res.Scopes[name.ScopeId] = &scope
-			}
-		}
-	}
-	res.FileOffset = maxEndOffset
-	return res
 }
 
 func (s *IndexStore) GetData(
@@ -78,7 +66,12 @@ func (s *IndexStore) GetData(
 	unwrap := func(s *pb.Stored) *pb.Data { return s.Value.(*pb.Stored_Data).Data }
 	entries := s.index.EntryList(scopePat, namePat, minOffset)
 	dataCh, errCh := LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, unwrap)
-	recordResult := s.getEntryRecordResult(entries)
+
+	recordResult := pb.RecordResult{
+		Scopes:     s.index.GetScopes(scopePat),
+		Names:      s.index.GetNames(scopePat, namePat),
+		FileOffset: s.dataFileOffset,
+	}
 	return recordResult, dataCh, errCh
 }
 
@@ -136,6 +129,8 @@ func (s *IndexStore) AddConfig(config *pb.Config) error {
 	if err2 != nil {
 		return fmt.Errorf("Couldn't SafeWrite to data file: %v", err)
 	}
+	s.dataFileOffset = uint64(off)
+
 	end := uint64(off)
 	beg := uint64(off - int64(len(buf)))
 	entry := &pb.ConfigEntry{
@@ -191,6 +186,8 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 	if err != nil {
 		return fmt.Errorf("Couldn't SafeWrite to data file: %v", err)
 	}
+	s.dataFileOffset = uint64(off)
+
 	pos := uint64(off - totalSize)
 	entries := make([]*pb.DataEntry, len(datas))
 	for i, data := range datas {
@@ -241,9 +238,20 @@ func (s *IndexStore) GetMaxId() uint32 {
 }
 
 func (s *IndexStore) GetScopes(scopePat *regexp.Regexp) []string {
-	return s.index.ScopeList(scopePat)
+	scopes := s.index.GetScopes(scopePat)
+	scopeNames := make(map[string]struct{}, 0)
+	for _, scope := range scopes {
+		scopeNames[scope.Scope] = struct{}{}
+	}
+	return slices.Collect(maps.Keys(scopeNames))
 }
 
 func (s *IndexStore) GetNames(scopePat, namePat *regexp.Regexp) [][2]string {
-	return s.index.NameList(scopePat, namePat)
+	names := s.index.GetNames(scopePat, namePat)
+	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name)
+	for _, name := range names {
+		scope := s.index.scopes[name.ScopeId]
+		tags[[2]string{scope.Scope, name.Name}] = struct{}{}
+	}
+	return slices.Collect(maps.Keys(tags))
 }

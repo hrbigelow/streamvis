@@ -91,6 +91,14 @@ class SceneReplicator extends Scene {
         }
       }
     }
+    console.log('request:');
+    console.dir(request);
+    console.log('result:');
+    console.dir(recordResult);
+
+    if (recordResult === null) {
+      throw new Error(`Got null recordResult from request`);
+    }
     this.fileOffset = recordResult.fileOffset;
     this.names = recordResult.names;
 
@@ -106,6 +114,7 @@ class SceneReplicator extends Scene {
 
     // create any new objects and attach to this scene
     for (let data of dataItems) {
+      debugger;
       const objectId = this._makeObjectId(data.nameId, data.index);
       if (! (objectId in this.objects)) {
         this.objects[objectId] = this.createObject();

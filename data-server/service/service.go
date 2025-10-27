@@ -69,11 +69,15 @@ func streamRecords[M proto.Message, R any](
 	}
 }
 
-// QueryData finds and returns all Data items in the database whose scope and name
-// matches req.scope_pattern and req.name_pattern, and which occur at or after
-// req.file_offset in the backing data file.  It returns a pb.RecordResult.  The
-// result file_offset can be then used for the next request to retrieve records
-// incrementally
+/*
+QueryData finds and returns all Data items in the database whose scope and name
+matches req.scope_pattern and req.name_pattern, and which occur at or after
+req.file_offset in the backing data file.  It returns a pb.RecordResult.  The
+result file_offset can be then used for the next request to retrieve records
+incrementally.  The pb.RecordResult scopes and names maps represent the current
+state of the index up until the file_offset, and consistent with the scope_pattern
+and name_pattern filters
+*/
 func (s *Service) QueryData(
 	ctx context.Context,
 	req *pb.DataRequest,
@@ -90,7 +94,6 @@ func (s *Service) QueryData(
 
 	res, dataCh, errCh := s.store.GetData(scopePat, namePat, req.FileOffset, ctx)
 	dres := &pb.DataResult{Value: &pb.DataResult_Record{Record: &res}}
-	// streamed := util.WrapStreamed(&res)
 	stream.Send(dres)
 
 	wrapData := func(msg *pb.Data) *pb.DataResult {

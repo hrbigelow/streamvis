@@ -28,7 +28,9 @@ export function extractData(name, data, axes) {
     throw new Error(`Only supported on little-endian systems`);
   }
   const outIndexes = Object.fromEntries(axes.map((ent, idx) => [ent, idx])); 
-  const sources = new Array(axes.length);
+  const sources = new Array(3);
+  let itemCount;
+
   for (let [fieldIndex, field] of name.fields.entries()) {
     if (field.name in outIndexes) {
       const outIndex = outIndexes[field.name];
@@ -49,25 +51,29 @@ export function extractData(name, data, axes) {
           throw new Error(`Unknown DType for axis ${field.name}`);
         }
       }
+      if (itemCount === undefined) {
+        itemCount = sources[outIndex].length;
+      } else {
+        if (itemCount != sources[outIndex].length) {
+          throw new Error(`Axes have different lengths: ${itemCount} vs ${sources[outIndex].length}`);
+        }
+      }
     }
   }
-  if (sources.some(v => v === undefined)) {
-    throw new Error(`Missing one or more axes in data`);
-  }
-  const lengths = sources.map(ary => ary.length);
-  if (lengths.some(v => v !== lengths[0])) {
-    throw new Error(`Axes have different lengths: ${lengths}`);
-  }
-  const out = new Float32Array(sources.length * lengths[0]);
 
-  // TODO: optimize
-  for (let s = 0; s < sources.length; s++) {
-    let source = sources[s];
-    for (let i = 0, j = s; i != source.length; i++, j+= sources.length) {
-      out[j] = source[i];
+  for (let s = 0; s != 3; s++) {
+    if (sources[s] === undefined) {
+      sources[s] = new Float32Array(itemCount).fill(0.0);
     }
+  }
+
+  const out = new Float32Array(itemCount * 3);
+
+  for (let i = 0, j = 0; i != itemCount; i++, j+=3) {
+    out[j] = sources[0][i];
+    out[j+1] = sources[1][i];
+    out[j+2] = sources[2][i];
   }
   return out;
 }
-
 

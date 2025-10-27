@@ -18,7 +18,7 @@ class LineSceneReplicator extends SceneReplicator {
   }
 
   createObject() {
-    return new GrowingLine(2, 100);
+    return new GrowingLine(100);
   }
 
   destroyObject(object) {

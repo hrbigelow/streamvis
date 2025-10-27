@@ -6,32 +6,6 @@ option go_package = "data-server/pb/streamvis/v1;streamvis_v1";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
-
-/*
-enum FieldType {
-  FIELD_TYPE_UNSPECIFIED = 0;
-  FIELD_TYPE_FLOAT = 1;
-  FIELD_TYPE_INT = 2;
-}
-
-message FloatList {
-  repeated float value = 1 [packed = true];
-}
-message IntList {
-  repeated int32 value = 1 [packed = true];
-}
-
-// Containers for non-sequential data.
-message Values {
-  // Each feature can be exactly one kind.
-  oneof data {
-    FloatList floats = 2;
-    IntList ints = 3;
-  }
-}
-*/
-
-
 enum DType {
   D_TYPE_UNSPECIFIED = 0;
   D_TYPE_F32 = 1;
@@ -125,13 +99,23 @@ message Stored {
   }
 }
 
-
+/* The request object for QueryData.  A given client is expected to make the first
+ * request with file_offset=0, and subsequent requests using the file_offset returned
+ * by RecordResult.  scope_pattern and name_pattern should be the same for the whole
+ * series of requests for the lifetime of the client.
+ */
 message DataRequest {
   string scope_pattern = 1;
   string name_pattern = 2;
   uint64 file_offset = 3;
 }
 
+/* The result returned by QueryData.  file_offset is then used for the next
+ * DataRequest.  scopes and names represent the state of the index up until
+ * file_offset, and filtered by the scope_pattern and name_pattern pair from
+ * DataRequest.  Note that scope and/or name objects may disappear between successive
+ * results if there was an intervening call to DeleteScopeNames.
+ */
 message RecordResult {
   map<uint32, Scope> scopes = 1;
   map<uint32, Name> names = 2;
@@ -159,15 +143,10 @@ message ConfigResult {
   }
 }
 
-
-
 message Tag {
   string scope = 1;
   string name = 2;
 }
-
-
-
 
 message Streamed {
   oneof value {
@@ -181,11 +160,10 @@ message Streamed {
 
 message DataResult {
   oneof value {
-    RecordResult record = 1;
+    Index index = 1;
     Data data = 2;
   }
 }
-
 
 
 message WriteConfigRequest {
@@ -229,6 +207,12 @@ message WriteConfigResponse {}
 
 
 service Service {
+  /*
+   * QueryData is periodically run by the client, using a monotonically increasing
+   * fileOffset to get new data.  The DataRequest includes the current fileOffset,
+   * and the DataResult returns the new fileOffset and current catalog of Scope and
+   * Name objects logically present in the index for the history of queries.
+   */
   rpc QueryData (DataRequest) returns (stream DataResult);
   rpc Scopes (ScopeRequest) returns (stream ScopeResult);
   rpc Names (NamesRequest) returns (stream Tag);

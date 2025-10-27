@@ -17,7 +17,7 @@ camera.lookAt(0, 0, 0);
 const client = getServiceClient('/');
 const scopePattern = '4xmess3-c100-noise0.01';
 const namePattern = 'loss-kldiv';
-const refreshSeconds = 10;
+const refreshSeconds = 5;
 
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });

@@ -22,6 +22,7 @@ func main() {
 		return
 	}
 
+	// provide a single global in-memory index supporting all queries
 	indexStore := index.New(*dataPath)
 	indexService := service.New(&indexStore)
 

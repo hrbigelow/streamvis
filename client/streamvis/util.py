@@ -257,7 +257,8 @@ class Index:
         match item:
             case pb.Scope(scope_id=scope_id, scope=scope):
                 assert scope_id not in self.scopes, "Duplicate scope_id in index"
-                self.scopes[scope_id] = item 
+                if self._filter(scope=scope):
+                    self.scopes[scope_id] = item 
 
             case pb.Name(name_id=name_id, scope_id=scope_id, name=name):
                 if self._filter(name=name) and scope_id in self.scopes:

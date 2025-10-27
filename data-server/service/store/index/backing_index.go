@@ -69,7 +69,6 @@ type Index struct {
 	tagToNames     map[[2]string][]uint32
 	nameToEntries  map[uint32][]uint32
 	scopeToConfigs map[string][]uint32
-	fileOffset     uint64
 }
 
 func NewIndex() Index {
@@ -122,25 +121,25 @@ func (idx *Index) ConfigEntryList(scopePat *regexp.Regexp, minOffset uint64) []*
 	return entries
 }
 
-func (idx *Index) ScopeList(scopePat *regexp.Regexp) []string {
-	// return a list of scope names that match scopePat and have content
-	scopeNames := make(map[string]struct{}, 0)
+func (idx *Index) GetScopes(scopePat *regexp.Regexp) map[uint32]*pb.Scope {
+	// return a list of pb.Scope objects having content and matching scopePat
+	scopes := make(map[uint32]*pb.Scope)
 	for scopeId, scope := range idx.scopes {
 		if !scopePat.MatchString(scope.Scope) {
 			continue
 		}
 		for _, name := range idx.names {
 			if name.ScopeId == scopeId {
-				scopeNames[scope.Scope] = struct{}{}
+				scopes[scopeId] = &scope
 				break
 			}
 		}
 	}
-	return slices.Collect(maps.Keys(scopeNames))
+	return scopes
 }
 
-func (idx *Index) NameList(scopePat, namePat *regexp.Regexp) [][2]string {
-	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name)
+func (idx *Index) GetNames(scopePat, namePat *regexp.Regexp) map[uint32]*pb.Name {
+	names := make(map[uint32]*pb.Name)
 	for scopeId, scope := range idx.scopes {
 		if !scopePat.MatchString(scope.Scope) {
 			continue
@@ -152,10 +151,10 @@ func (idx *Index) NameList(scopePat, namePat *regexp.Regexp) [][2]string {
 			if !namePat.MatchString(name.Name) {
 				continue
 			}
-			tags[[2]string{scope.Scope, name.Name}] = struct{}{}
+			names[name.NameId] = &name
 		}
 	}
-	return slices.Collect(maps.Keys(tags))
+	return names
 }
 
 type DataKey struct {
