@@ -73,7 +73,7 @@ class GrowingLine extends Line {
 
     this.size = newSize;
     this.geometry.setDrawRange(0, newSize / 3);
-    console.log(`setting Draw Range to (0, ${newSize / 3}`);
+    // console.log(`setting Draw Range to (0, ${newSize / 3}`);
 
   }
 

@@ -91,10 +91,6 @@ class SceneReplicator extends Scene {
         }
       }
     }
-    console.log('request:');
-    console.dir(request);
-    console.log('result:');
-    console.dir(recordResult);
 
     if (recordResult === null) {
       throw new Error(`Got null recordResult from request`);
@@ -132,8 +128,8 @@ class SceneReplicator extends Scene {
   async start() {
     while (true) {
       await this.update();
-      console.log('after update');
-      console.dir(this.objects);
+      // console.log('after update');
+      // console.dir(this.objects);
       await sleep(this.refreshSeconds * 1000);
     }
   }
