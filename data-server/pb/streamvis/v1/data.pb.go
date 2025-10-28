@@ -566,9 +566,8 @@ func (x *ConfigEntry) GetEndOffset() uint64 {
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// globally unique key is (entry_id, index)
-	EntryId uint32 `protobuf:"varint,1,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"` // foreign key to Entry message
-	Index   uint32 `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`                    //
-	// repeated Values axes = 3; // actual data
+	EntryId       uint32  `protobuf:"varint,1,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"` // foreign key to Entry message
+	Index         uint32  `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`                    //
 	Axes          []*Axis `protobuf:"bytes,3,rep,name=axes,proto3" json:"axes,omitempty"`
 	NameId        uint32  `protobuf:"varint,4,opt,name=name_id,json=nameId,proto3" json:"name_id,omitempty"` // not stored on disk - used in join logic for RPC
 	unknownFields protoimpl.UnknownFields
@@ -855,6 +854,10 @@ func (*Stored_Data) isStored_Value() {}
 
 func (*Stored_Config) isStored_Value() {}
 
+// The request object for QueryData.  A given client is expected to make the first
+// request with file_offset=0, and subsequent requests using the file_offset returned
+// by RecordResult.  scope_pattern and name_pattern should be the same for the whole
+// series of requests for the lifetime of the client.
 type DataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ScopePattern  string                 `protobuf:"bytes,1,opt,name=scope_pattern,json=scopePattern,proto3" json:"scope_pattern,omitempty"`
@@ -915,6 +918,11 @@ func (x *DataRequest) GetFileOffset() uint64 {
 	return 0
 }
 
+// The result returned by QueryData.  file_offset is then used for the next
+// DataRequest.  scopes and names represent the state of the index up until
+// file_offset, and filtered by the scope_pattern and name_pattern pair from
+// DataRequest.  Note that scope and/or name objects may disappear between successive
+// results if there was an intervening call to DeleteScopeNames.
 type RecordResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Scopes        map[uint32]*Scope      `protobuf:"bytes,1,rep,name=scopes,proto3" json:"scopes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`

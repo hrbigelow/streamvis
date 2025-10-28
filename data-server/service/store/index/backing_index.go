@@ -233,7 +233,7 @@ func (idx *Index) updateWithItem(item *pb.Stored) {
 	case *pb.Stored_DataEntry:
 		de := m.DataEntry
 		if _, ok := idx.names[de.NameId]; ok {
-			idx.entries[de.NameId] = *de
+			idx.entries[de.EntryId] = *de
 			entries := idx.nameToEntries[de.NameId]
 			if entries == nil {
 				entries := make([]uint32, 0)

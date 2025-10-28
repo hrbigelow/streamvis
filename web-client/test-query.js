@@ -24,20 +24,23 @@ program
 
 async function main() {
 
-  program.parse(process.argv)
-  const options = program.opts() 
+  program.parse(process.argv);
+  const options = program.opts();
   const client = getServiceClient(options.host);
 
+  console.log('All Scopes');
   const req = create(ScopeRequestSchema, {});
   for await (const scope of client.scopes(req)) {
     console.log(inspect(scope, inspectOpts));
   }
 
-  const nreq = create(NamesRequestSchema, {scope: "test-scope"});
+  console.log(`\nNames in scope ${options.scope}`);
+  const nreq = create(NamesRequestSchema, {scope: options.scope});
   for await (const name of client.names(nreq)) {
     console.log(inspect(name, inspectOpts));
   }
 
+  console.log(`\nData in scope ${options.scope}, name ${options.name}`);
   const dreq = create(DataRequestSchema, {
     scopePattern: options.scope,
     namePattern: options.name,
@@ -47,46 +50,12 @@ async function main() {
   for await (const dataResult of client.queryData(dreq)) {
     console.log(inspect(dataResult, inspectOpts));
     continue;
-    /*
-    const { value } = dataResult;
-    switch (value?.case) {
-      case 'record': {
-        const recordResult = value.value;
-        for (const name of Object.values(recordResult.names)) {
-          console.log(name);
-        }
-        break;
-      }
-      case 'data': {
-        const pbData = value.value;
-        for (const values of pbData.axes) {
-          const { data } = values; 
-          console.log(data);
-          switch (data?.case) {
-            case 'floats': {
-              const fl = data.value;
-              console.log(`floats of length ${fl.value.length}`);
-              break;
-            }
-            case 'ints': {
-              const il = data.value;
-              console.log(`ints of length ${il.value.length}`);
-              break;
-            }
-            default: {
-              console.log(`Warning: Unexpected streamvis.v1.Data axes type: ${data?.case}`);
-            }
-          }
-        }
-        break;
-      }
-      default: {
-        throw new Error(`Unexpected queryData response type: ${value?.case}`)
-      }
-    }
-    */
   }
 }
+
 await main();
+// if (process.stdout.writableNeedDrain) {
+//    await new Promise(resolve => process.stdout.once('drain', resolve));
+// }
 
 

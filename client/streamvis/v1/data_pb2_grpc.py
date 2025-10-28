@@ -85,7 +85,12 @@ class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def QueryData(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """
+        QueryData is periodically run by the client, using a monotonically increasing
+        fileOffset to get new data.  The DataRequest includes the current fileOffset,
+        and the DataResult returns the new fileOffset and current catalog of Scope and
+        Name objects logically present in the index for the history of queries.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

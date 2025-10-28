@@ -77,6 +77,7 @@ func (s *IndexStore) GetData(
 
 // tabulates the RecordResult for the list of ConfigEntry objects.
 // leaves Names and FileOffset uninitialized
+// TODO: replace this with
 func (s *IndexStore) getConfigEntryRecordResult(
 	configEntries []*pb.ConfigEntry,
 ) pb.RecordResult {

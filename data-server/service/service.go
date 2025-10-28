@@ -43,18 +43,14 @@ func streamRecords[M proto.Message, R any](
 			return status.Convert(ctx.Err()).Err()
 
 		case err, ok := <-errCh:
-			if !ok {
-				// error channel closed without error.
-				return nil
+			if err != nil && ok {
+				st := status.Convert(err)
+				if st.Code() == codes.OK {
+					st = status.New(codes.Internal, err.Error())
+				}
+				stream.ResponseTrailer().Set("x-partial", "true")
+				return st.Err()
 			}
-
-			st := status.Convert(err)
-			if st.Code() == codes.OK {
-				st = status.New(codes.Internal, err.Error())
-			}
-			// stream.SetTrailer(metadata.Pairs("x-partial", "true"))
-			stream.ResponseTrailer().Set("x-partial", "true")
-			return st.Err()
 
 		case d, ok := <-dataCh:
 			if !ok {

@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import os
 import struct
 import numpy as np
-from .v1 import data_pb2 as pb
-from .v1 import data_pb2_grpc as pb_grpc
+from streamvis.v1 import data_pb2 as pb
+from streamvis.v1 import data_pb2_grpc as pb_grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.struct_pb2 import Struct
 
@@ -36,13 +36,13 @@ def data_file(path: str) -> str:
 
 
 DTYPE_TO_PROTO = { 
-    np.dtype('<i4'): pb.DType.DTYPE_I32, 
-    np.dtype('<f4'): pb.DType.DTYPE_F32 
+    np.dtype('<i4'): pb.DType.D_TYPE_I32, 
+    np.dtype('<f4'): pb.DType.D_TYPE_F32 
 }
 
 PROTO_TO_DTYPE = {
-    pb.DType.DTYPE_I32: np.dtype('<i4'),
-    pb.DType.DTYPE_F32: np.dtype('<f4'),
+    pb.DType.D_TYPE_I32: np.dtype('<i4'),
+    pb.DType.D_TYPE_F32: np.dtype('<f4'),
 }
 
 
@@ -92,9 +92,9 @@ def make_data_messages(
             vals = data.axes.add()
             vals.length = field_data.size
             if np.issubdtype(field_data.dtype, np.floating):
-                vals.dtype = pb.DTYPE_F32
+                vals.dtype = pb.D_TYPE_F32
             elif np.issubdtype(field_data.dtype, np.integer):
-                vals.dtype = pb.DTYPE_I32
+                vals.dtype = pb.D_TYPE_I32
             else:
                 raise RuntimeError(f"field data is an unsupported dtype: {dty}")
             vals.data = field_data.astype(PROTO_TO_DTYPE[vals.dtype]).tobytes()
@@ -411,7 +411,7 @@ def _data_to_cds(
         if flatten:
             key = key.scope, key.name, key.index
         if key not in collate:
-            cds = {f.name: PROTO_TO_DTYPE[f.type] for f in name.fields}
+            cds = {f.name: PROTO_TO_DTYPE[f.dtype] for f in name.fields}
             tmp = {f.name: [] for f in name.fields}
             collate[key] = cds
             tmpdata[key] = tmp
@@ -423,9 +423,9 @@ def _data_to_cds(
                         f"Mismatched field dtypes between data and name object"
                         f"data axis dtype = {axis.dtype}, name field dtype = {field.dtype}"
                 )
-            if axis.dtype == pb.DType.DTYPE_F32:
+            if axis.dtype == pb.DType.D_TYPE_F32:
                 ary = np.frombuffer(axis.data, dtype="<f4")
-            elif axis.dtype == pb.DType.DTYPE_I32:
+            elif axis.dtype == pb.DType.D_TYPE_I32:
                 ary = np.frombuffer(axis.data, dtype="<i4")
             tmp[field.name].append(ary)
 

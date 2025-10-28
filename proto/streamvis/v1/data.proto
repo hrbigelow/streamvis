@@ -73,7 +73,6 @@ message ConfigEntry {
 // Data, Config are stored in .log file 
 
 message Data {
-  // globally unique key is (entry_id, index)
   uint32 entry_id = 1; // foreign key to Entry message
   uint32 index = 2; // 
   repeated Axis axes = 3;
@@ -160,7 +159,7 @@ message Streamed {
 
 message DataResult {
   oneof value {
-    Index index = 1;
+    RecordResult record = 1;
     Data data = 2;
   }
 }

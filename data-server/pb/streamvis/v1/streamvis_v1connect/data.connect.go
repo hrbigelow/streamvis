@@ -56,6 +56,10 @@ const (
 
 // ServiceClient is a client for the streamvis.v1.Service service.
 type ServiceClient interface {
+	// QueryData is periodically run by the client, using a monotonically increasing
+	// fileOffset to get new data.  The DataRequest includes the current fileOffset,
+	// and the DataResult returns the new fileOffset and current catalog of Scope and
+	// Name objects logically present in the index for the history of queries.
 	QueryData(context.Context, *v1.DataRequest) (*connect.ServerStreamForClient[v1.DataResult], error)
 	Scopes(context.Context, *v1.ScopeRequest) (*connect.ServerStreamForClient[v1.ScopeResult], error)
 	Names(context.Context, *v1.NamesRequest) (*connect.ServerStreamForClient[v1.Tag], error)
@@ -215,6 +219,10 @@ func (c *serviceClient) WriteData(ctx context.Context, req *v1.WriteDataRequest)
 
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
+	// QueryData is periodically run by the client, using a monotonically increasing
+	// fileOffset to get new data.  The DataRequest includes the current fileOffset,
+	// and the DataResult returns the new fileOffset and current catalog of Scope and
+	// Name objects logically present in the index for the history of queries.
 	QueryData(context.Context, *v1.DataRequest, *connect.ServerStream[v1.DataResult]) error
 	Scopes(context.Context, *v1.ScopeRequest, *connect.ServerStream[v1.ScopeResult]) error
 	Names(context.Context, *v1.NamesRequest, *connect.ServerStream[v1.Tag]) error

@@ -14,46 +14,50 @@ from streamvis import util
 from streamvis.logger import DataLogger
 from streamvis.v1 import data_pb2 as pb
 from streamvis.v1 import data_pb2_grpc as pb_grpc
-from .demo_async import demo_log_data_async
-from .demo_sync import demo_log_data
+from .demo import log_data, log_data_async
 from google.protobuf.empty_pb2 import Empty
 
 
 def demo_sync_fn(
     grpc_uri: str, scope: str, delete_existing_names: bool=True, num_steps: str="2000"):
     num_steps = int(num_steps)
-    demo_log_data(grpc_uri, scope, delete_existing_names, num_steps)
+    log_data(grpc_uri, scope, delete_existing_names, num_steps)
 
 def demo_async_fn(
     grpc_uri: str, scope: str, delete_existing_names: bool=True, num_steps: str="2000"):
     num_steps = int(num_steps)
-    asyncio.run(demo_log_data_async(grpc_uri, scope, delete_existing_names, num_steps))
+    asyncio.run(log_data_async(grpc_uri, scope, delete_existing_names, num_steps))
 
 
 def fetch(uri: str, scope: str, name: str):
     return fetch_with_patterns(uri=uri, scope_pattern=f"^{scope}$", name_pattern=f"^{name}$")
 
 def fetch_with_patterns(uri: str, scope_pattern: str, name_pattern: str):
-    channel = grpc.insecure_channel(uri)
-    stub = pb_grpc.ServiceStub(channel)
-    req = pb.RecordRequest(
-        scope_pattern=scope_pattern,
-        name_pattern=name_pattern,
-        file_offset=0
-    )
-    datas = []
-    i = 0
-    for msg in stub.QueryRecords(req):
-        match msg.WhichOneof("value"):
-            case "index":
-                index = util.Index.from_record_result(msg.index)
-            case "data":
-                datas.append(msg.data)
-            case other:
-                raise ValueError(
-                    f"QueryRecords should only return index or data.  Returned {other}")
+    try:
+        channel = grpc.insecure_channel(uri)
+        stub = pb_grpc.ServiceStub(channel)
+        req = pb.DataRequest(
+            scope_pattern=scope_pattern,
+            name_pattern=name_pattern,
+            file_offset=0
+        )
+        datas = []
+        i = 0
+        for msg in stub.QueryData(req):
+            match msg.WhichOneof("value"):
+                case "record":
+                    record = util.Index.from_record_result(msg.record)
+                case "data":
+                    datas.append(msg.data)
+                case other:
+                    raise ValueError(
+                        f"QueryRecords should only return index or data.  Returned {other}")
 
-    return util.data_to_cds_flat(index, datas)
+        return util.data_to_cds_flat(record, datas)
+    except grpc.RpcError as e:
+        raise ValueError(f"RPC failed: {e.code()}: {e.details()}")
+    finally:
+        channel.close()
 
 
 def scopes(uri: str) -> list[str]:

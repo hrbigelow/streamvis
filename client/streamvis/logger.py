@@ -23,18 +23,19 @@ MAX_ELEMS_PER_REQUEST = 800_000 # 3.2M or 80% of maximum grpc request
 
 @dataclass
 class DataItem:
-    name: str
-    start_index: int
-    data: dict[str, 'tensor']
+    name: str # the pb.Name.name field
+    start_index: int # pb.Data.index
+    data: dict[str, 'tensor']  # axis => data, of shape [index, point]
 
-    def split(self) -> Generator['DataItem', None, None]:
+    def split_point_ranges(self) -> Generator['DataItem', None, None]:
         shape_set = set(ten.shape for ten in self.data.values())
         assert len(shape_set) == 1, "Can't call split yet"
-        dim1 = shape_set.pop()[1]
-        num_elems = sum(np.prod(ten.shape) for ten in self.data.values())
-        num_splits = int(np.ceil(num_elems / MAX_ELEMS_PER_REQUEST))
-        steps = np.linspace(0, dim1, num_splits+1, dtype=int)
-        for beg, end in zip(steps[:-1], steps[1:]):
+        shape = shape_set.pop()
+        num_points = shape[1]
+        num_elems = np.prod(shape) * len(self.data)
+        num_ranges = int(np.ceil(num_elems / MAX_ELEMS_PER_REQUEST))
+        point_ranges = np.linspace(0, num_points, num_ranges+1, dtype=int, endpoint=False)
+        for beg, end in zip(point_ranges[:-1], point_ranges[1:]):
             data = {k: v[:,beg:end] for k, v in self.data.items()}
             item = DataItem(self.name, self.start_index, data)
             yield item
@@ -232,7 +233,7 @@ class BaseLogger:
             cds = {k: self.concat(vs, axis=1) for k, vs in out_item.data.items()}
             out_item.data = cds
 
-        split_items = [sp for item in out_items for sp in item.split()]
+        split_items = [sp for item in out_items for sp in item.split_point_ranges()]
         return split_items
 
 
@@ -259,7 +260,7 @@ class BaseLogger:
             if data_elems > MAX_ELEMS_PER_REQUEST:
                 raise RuntimeError(
                     f"Single item with {data_elems} elements exceeds max of "
-                    f"${MAX_ELEMS_PER_REQUEST}")
+                    f"{MAX_ELEMS_PER_REQUEST}")
 
             if len(sizes) == 0 or sizes[-1] + data_elems > MAX_ELEMS_PER_REQUEST:
                 request = pb.WriteDataRequest()
