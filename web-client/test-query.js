@@ -54,8 +54,5 @@ async function main() {
 }
 
 await main();
-// if (process.stdout.writableNeedDrain) {
-//    await new Promise(resolve => process.stdout.once('drain', resolve));
-// }
 
 

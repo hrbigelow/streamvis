@@ -6,7 +6,7 @@ import { createConnectTransport } from "@connectrpc/connect-web";
  * create a gRPC client
  * @param {string} host - string with host:port for gRPC server
  */
-export function getServiceClient(url) {
+function getServiceClient(url) {
   const transport = createConnectTransport({
     baseUrl: url,
     httpVersion: "1.1"
@@ -22,7 +22,7 @@ export function getServiceClient(url) {
  * @param {list} axes - a list of strings holding the axes to extract
  * returns: Float32Array with data points flattened [axis1[0], axis2[0], ..., axis1[i], axis2[i], ...] 
 */
-export function extractData(name, data, axes) {
+function extractData(name, data, axes) {
   const isLE = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
   if (! isLE) {
     throw new Error(`Only supported on little-endian systems`);
@@ -76,4 +76,36 @@ export function extractData(name, data, axes) {
   }
   return out;
 }
+
+
+// call if window changes size and canvas is full window size
+function resizeToWindow(window, renderer, camera) {
+  const { innerWidth: w, innerHeight: h } = window;
+  const canvas = renderer.domElement;
+  renderer.setSize(w, h, true); // true needed here to actually set canvas size
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  // console.log(`resized to ${w} x ${h}`);
+  // console.log(`canvas: ${canvas.clientWidth} x ${canvas.clientHeight}`);
+}
+
+// call if canvas size was changed 
+function resizeToCanvas(renderer) {
+  const canvas = renderer.domElement;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const needsResize = canvas.width !== width || canvas.height !== canvas.height;
+  if (needsResize) {
+    renderer.setSize(width, height, );
+  }
+  return needsResize;
+}
+
+export {
+  getServiceClient,
+  extractData,
+  resizeToWindow,
+  resizeToCanvas,
+};
+
 

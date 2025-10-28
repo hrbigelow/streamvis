@@ -43,7 +43,6 @@ class GrowingLine extends Line {
     if (points.length % 3 !== 0) {
       throw new Error(`points.length={points.length} not divisible by 3`);
     }
-    debugger;
     const oldSize = this.size;
     const newSize = this.size + points.length;
 
