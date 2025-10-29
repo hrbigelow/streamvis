@@ -31,14 +31,17 @@ class DataItem:
         shape_set = set(ten.shape for ten in self.data.values())
         assert len(shape_set) == 1, "Can't call split yet"
         shape = shape_set.pop()
-        num_points = shape[1]
-        num_elems = np.prod(shape) * len(self.data)
-        num_ranges = int(np.ceil(num_elems / MAX_ELEMS_PER_REQUEST))
-        point_ranges = np.linspace(0, num_points, num_ranges+1, dtype=int, endpoint=False)
-        for beg, end in zip(point_ranges[:-1], point_ranges[1:]):
-            data = {k: v[:,beg:end] for k, v in self.data.items()}
+        num_indexes, num_points = shape
+        num_axes = len(self.data.keys())
+        elems_per_point = num_indexes * num_axes
+        max_points_per_req = int(np.floor(MAX_ELEMS_PER_REQUEST / elems_per_point))
+        beg_point = 0
+        while beg_point != num_points:
+            end_point = min(beg_point + max_points_per_req, num_points)
+            data = {k: v[:,beg_point:end_point] for k, v in self.data.items()}
             item = DataItem(self.name, self.start_index, data)
             yield item
+            beg_point = end_point
 
 
 class BaseLogger:
@@ -216,6 +219,7 @@ class BaseLogger:
                     out_items.append(out_item)
                 break
             if prev_name != item.name or prev_index != item.start_index:
+                # start on a new DataItem
                 if out_item is not None:
                     out_items.append(out_item)
                 out_item = DataItem(
