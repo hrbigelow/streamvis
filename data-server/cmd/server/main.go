@@ -54,7 +54,7 @@ func main() {
 	p.SetHTTP1(true)
 	p.SetUnencryptedHTTP2(true)
 	s := http.Server{
-		Addr: fmt.Sprintf("%s:%d", "localhost", *port),
+		Addr: fmt.Sprintf("%s:%d", "0.0.0.0", *port),
 		// Addr:      "localhost:8080",
 		Handler:   mux,
 		Protocols: p,
