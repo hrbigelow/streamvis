@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sync"
 
 	pb "data-server/pb/streamvis/v1"
 	"data-server/util"
@@ -20,9 +21,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// TODO: race conditions - lock the index
-
 type IndexStore struct {
+	mu             sync.RWMutex
 	index          Index
 	appendDataFh   *os.File
 	readDataFh     *os.File
@@ -64,6 +64,10 @@ func (s *IndexStore) GetData(
 	ctx context.Context,
 ) (pb.RecordResult, <-chan *pb.Data, <-chan error) {
 	unwrap := func(s *pb.Stored) *pb.Data { return s.Value.(*pb.Stored_Data).Data }
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	entries := s.index.EntryList(scopePat, namePat, minOffset)
 	dataCh, errCh := LoadMessages[*pb.DataEntry, *pb.Data](s.readDataFh, entries, ctx, unwrap)
 
@@ -109,6 +113,9 @@ func (s *IndexStore) GetConfigs(
 
 func (s *IndexStore) AddScope(scope *pb.Scope) error {
 	msg := util.WrapStored(scope)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.index.updateWithItem(msg)
 	buf := bytes.NewBuffer(make([]byte, 0, proto.Size(msg)+10))
 	if _, err := util.WriteDelimited(buf, msg); err != nil {
@@ -126,6 +133,9 @@ func (s *IndexStore) AddConfig(config *pb.Config) error {
 	if err != nil {
 		return fmt.Errorf("Couldn't marshal config: %v", err)
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	off, err2 := util.SafeWrite(s.appendDataFh, bytes.NewBuffer(buf))
 	if err2 != nil {
 		return fmt.Errorf("Couldn't SafeWrite to data file: %v", err)
@@ -157,6 +167,8 @@ func (s *IndexStore) AddConfig(config *pb.Config) error {
 func (s *IndexStore) AddNames(names []*pb.Name) error {
 	stored, size := util.WrapArray[*pb.Name](names)
 	bbuf := bytes.NewBuffer(make([]byte, 0, size))
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, msg := range stored {
 		s.index.updateWithItem(msg)
 		if _, err := util.WriteDelimited(bbuf, msg); err != nil {
@@ -183,6 +195,9 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 		}
 	}
 	totalSize := int64(len(buf))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	off, err := util.SafeWrite(s.appendDataFh, bytes.NewBuffer(buf))
 	if err != nil {
 		return fmt.Errorf("Couldn't SafeWrite to data file: %v", err)
@@ -217,6 +232,9 @@ func (s *IndexStore) AddDatas(datas []*pb.Data) error {
 
 func (s *IndexStore) DeleteScopeNames(scope string, names []string) {
 	buf := bytes.NewBuffer(make([]byte, 0, 100))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, name := range names {
 		ct := &pb.Control{
 			Scope:  scope,
@@ -235,10 +253,14 @@ func (s *IndexStore) DeleteScopeNames(scope string, names []string) {
 }
 
 func (s *IndexStore) GetMaxId() uint32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.index.MaxId()
 }
 
 func (s *IndexStore) GetScopes(scopePat *regexp.Regexp) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	scopes := s.index.GetScopes(scopePat)
 	scopeNames := make(map[string]struct{}, 0)
 	for _, scope := range scopes {
@@ -248,6 +270,8 @@ func (s *IndexStore) GetScopes(scopePat *regexp.Regexp) []string {
 }
 
 func (s *IndexStore) GetNames(scopePat, namePat *regexp.Regexp) [][2]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	names := s.index.GetNames(scopePat, namePat)
 	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name)
 	for _, name := range names {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	pb "data-server/pb/streamvis/v1"
@@ -239,6 +240,9 @@ func (s *Service) WriteData(
 	for i := range req.Datas {
 		req.Datas[i].EntryId = s.IssueId()
 	}
-	s.store.AddDatas(req.Datas)
+	if err := s.store.AddDatas(req.Datas); err != nil {
+		return &pb.WriteDataResponse{}, fmt.Errorf("WriteData: couldn't AddDatas: %v", err)
+	}
+
 	return &pb.WriteDataResponse{}, nil
 }
