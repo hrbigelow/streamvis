@@ -28,7 +28,7 @@ window.addEventListener('resize', () => resizeToWindow(window, renderer, camera)
 const client = getServiceClient('/');
 const scopePattern = '4xmess3-c100-noise0.01';
 const namePattern = 'loss-kldiv|probe-kldiv';
-// const scopePattern = 'test3';
+// const scopePattern = '10M';
 // const namePattern = 'sinusoidal';
 const refreshSeconds = 5;
 

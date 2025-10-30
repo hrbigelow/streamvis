@@ -5,7 +5,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/streamvis.v1.Service': {
-        target: 'http://localhost:8081',
+        target: 'http://100.65.34.72:8001',
         changeOrigin: true,
       }
     }

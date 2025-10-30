@@ -28,7 +28,7 @@ class SceneReplicator extends Scene {
     this.namePattern = namePattern
     this.fileOffset = 0
     this.refreshSeconds = refreshSeconds
-    this.objects = {} // objectId => Object3D
+    this.objects = {} // objectId => Object3D.
     this.names = {}
   }
 
