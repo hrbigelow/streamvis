@@ -1,5 +1,5 @@
 import { SceneReplicator } from './SceneReplicator';
-import { GrowingLine } from './GrowingLine';
+import { PlotLine2D } from './PlotLine2D';
 import { extractData } from './util';
 
 class LineSceneReplicator extends SceneReplicator {
@@ -21,7 +21,7 @@ class LineSceneReplicator extends SceneReplicator {
   }
 
   createObject() {
-    return new GrowingLine(100, this.material);
+    return new PlotLine2D(this.material);
   }
 
   destroyObject(object) {
@@ -39,6 +39,9 @@ class LineSceneReplicator extends SceneReplicator {
     const vals = extractData(name, data, [this.xField, this.yField]);
     object.appendPoints(vals);
   }
+
+
+
 
 }
 

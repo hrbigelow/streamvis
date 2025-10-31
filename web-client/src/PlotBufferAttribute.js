@@ -83,10 +83,16 @@ class PlotBufferAttribute extends BufferAttribute {
       return;
     }
     this._altData.grow(this._sourceData.capacity);
-    this.activeTransform(this._sourceData.array, this._altData.array, beg, end);
+    const src = this._sourceData.array;
+    const trg = this._altData.array;
+    for (let i = beg; i != end; i += 3) {
+      const [x, y] = this.activeTransform(src[i], src[i+1]);
+      trg[i] = x;
+      trg[i+1] = y;
+    }
     this._altData.size = Math.max(this._altData.size, end);
     this.updateArrayRef();
-    if (! this.newArrayRef) { 
+    if (! this.needsDispose) { 
       this.needsUpdate = true;
       this.addUpdateRange(beg, end - beg);
     }
@@ -102,7 +108,7 @@ class PlotBufferAttribute extends BufferAttribute {
   set(value, offset=0) {
     this._array.set(value, offset);
     this.syncTransformed(offset, offset + value.length);
-    if (! this.newArrayRef) {
+    if (! this.needsDispose) {
       this.needsUpdate = true;
       this.addUpdateRange(offset, value.length);
     }
