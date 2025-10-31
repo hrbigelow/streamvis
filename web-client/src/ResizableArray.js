@@ -33,6 +33,25 @@ class ResizableArray {
   }
 
   /*
+   * maybe re-allocate an array to bring capacity inside the range.
+   * if so, the new capacity will be the smallest change requred to do so.
+   * @param {number} minCapacity - the minimum for the new capacity
+   * @param {number} maxCapacity - the maximum for the new capacity
+  */
+  resize(minCapacity, maxCapacity=Infinity) {
+    if (minCapacity > maxCapacity || minCapacity < 0) {
+      throw new Error(`Must provide a valid and non-negative range for resizing.  Got [${minCapacity}, ${maxCapacity}]`)
+    }
+    const newCapacity = Math.min(Math.max(minCapacity, this.capacity), maxCapacity)
+    if (newCapacity === this.capacity) {
+      return;
+    }
+    const newArray = new this.ctor(newCapacity);
+    newArray.set(this._array.subarray(0, this.size));
+    this._array = newArray;
+  }
+
+  /*
    * set the range [offset, offset+data.length] to the content of data
    * @param {TypedArray}
    */
@@ -41,8 +60,8 @@ class ResizableArray {
       throw new Error(
         `set requires source data type to match: ${data.constructor} !== ${this.ctor}`);
     }
-    const minCapacity = data.length + offset;
-    this.grow(minCapacity);
+    const minCapacity = Math.max(data.length + offset, this.capacity * 2);
+    this.resize(minCapacity);
     this._array.set(data, offset);
     this.size = Math.max(this.size, minCapacity);
   }
@@ -58,4 +77,6 @@ class ResizableArray {
 }
 
 
-
+export {
+  ResizableArray
+};

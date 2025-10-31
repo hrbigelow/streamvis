@@ -1,5 +1,5 @@
 import { SceneReplicator } from './SceneReplicator';
-import { PlotLine2D } from './PlotLine2D';
+import { LinePlot2D } from './LinePlot2D';
 import { extractData } from './util';
 
 class LineSceneReplicator extends SceneReplicator {
@@ -21,7 +21,7 @@ class LineSceneReplicator extends SceneReplicator {
   }
 
   createObject() {
-    return new PlotLine2D(this.material);
+    return new LinePlot2D(this.material);
   }
 
   destroyObject(object) {

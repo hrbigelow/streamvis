@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { resizeToWindow, getServiceClient } from './src/util.js';
 import { LineSceneReplicator } from './src/LineSceneReplicator.js'; 
-import { LinePlotControls } from './src/LinePlotControls.js';
+import { LinePlotControls, ToggleLogControls } from './src/LinePlotControls.js';
 
 
 const canvas = document.querySelector('#plot-canvas');
@@ -17,8 +17,7 @@ const camera = new THREE.OrthographicCamera(
 );
 camera.position.z = 100;
 
-const controls = new LinePlotControls(camera, renderer.domElement);
-controls.update();
+// const controls = new LinePlotControls(camera, renderer.domElement);
 
 window.addEventListener('resize', () => resizeToWindow(window, renderer, camera));
 // camera.position.set(0, 0, 1000);
@@ -26,10 +25,10 @@ window.addEventListener('resize', () => resizeToWindow(window, renderer, camera)
 
 // see vite.config.js proxy forwarding
 const client = getServiceClient('/');
-const scopePattern = '4xmess3-c100-noise0.01';
-const namePattern = 'loss-kldiv|probe-kldiv';
-// const scopePattern = '10M';
-// const namePattern = 'sinusoidal';
+// const scopePattern = '4xmess3-c100-noise0.01';
+// const namePattern = 'loss-kldiv|probe-kldiv';
+const scopePattern = 'test1';
+const namePattern = 'sinusoidal';
 const refreshSeconds = 5;
 
 const lineMaterial = new THREE.LineBasicMaterial({
@@ -39,10 +38,11 @@ const lineMaterial = new THREE.LineBasicMaterial({
 
 const scene = new LineSceneReplicator(
   client, scopePattern, namePattern, 10, 'x', 'y', lineMaterial); 
+
+const keyControls = new ToggleLogControls(scene, renderer.domElement);
 const sceneStart = scene.start();
 
 function animate() {
-  controls.update();
   /*
   if (resizeRendererToDisplaySize(renderer)) {
     const canvas = renderer.domElement;

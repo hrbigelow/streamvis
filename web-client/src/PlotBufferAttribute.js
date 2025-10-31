@@ -1,7 +1,7 @@
 import {
   BufferAttribute
 } from 'three';
-import { ResizableArray } from './src/ResizableArray.js';
+import { ResizableArray } from './ResizableArray';
 
 
 /*
@@ -17,7 +17,7 @@ class PlotBufferAttribute extends BufferAttribute {
   constructor(array, itemSize, normalized=false) {
     super(array, itemSize, normalized); 
     this._sourceData = new ResizableArray(array);
-    this._altData = new ResizableArray(array.constructor(0));
+    this._altData = new ResizableArray(new array.constructor(0));
     this.transforms = {}
     this.activeTransform = undefined
     this.prevArrayRef = undefined
@@ -40,9 +40,20 @@ class PlotBufferAttribute extends BufferAttribute {
     return this.array !== this.prevArrayRef;
   }
 
-  // set to false after calling geometry.dispose()
-  set needsDispose() {
-    this.prevArrayRef = this.array;
+  /*
+   * gets the logical size of the data in this attribute
+  */
+  get size() {
+    return this._sourceData.size;
+  }
+
+  get activeTransformName() {
+    for (const [name, fn] of Object.entries(this.transforms)) {
+      if (this.activeTransform === fn) {
+        return name;
+      }
+    }
+    return 'none';
   }
 
   /**
@@ -69,6 +80,12 @@ class PlotBufferAttribute extends BufferAttribute {
     this.updateArrayRef();
   }
 
+  unsetTransform() {
+    this.activeTransform = undefined;
+    this._altData.resize(0, 0);
+    this.updateArrayRef();
+  }
+
   /**
    * update the alternate data from source data in the range [beg, end), using the
    * current transform.
@@ -82,7 +99,7 @@ class PlotBufferAttribute extends BufferAttribute {
     if (this.activeTransform === undefined) {
       return;
     }
-    this._altData.grow(this._sourceData.capacity);
+    this._altData.resize(this._sourceData.capacity);
     const src = this._sourceData.array;
     const trg = this._altData.array;
     for (let i = beg; i != end; i += 3) {
@@ -106,7 +123,8 @@ class PlotBufferAttribute extends BufferAttribute {
    * @return {ResizableBufferAttribute} A reference to this instance.
    */
   set(value, offset=0) {
-    this._array.set(value, offset);
+    this._sourceData.set(value, offset);
+    this.count = this.size / this.itemSize;
     this.syncTransformed(offset, offset + value.length);
     if (! this.needsDispose) {
       this.needsUpdate = true;
@@ -116,3 +134,8 @@ class PlotBufferAttribute extends BufferAttribute {
   }
 
 }
+
+export {
+  PlotBufferAttribute
+};
+
