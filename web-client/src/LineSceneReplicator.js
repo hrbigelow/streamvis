@@ -38,6 +38,7 @@ class LineSceneReplicator extends SceneReplicator {
   addData(object, name, data) {
     const axesData = getAxes(name, data, [this.xField, this.yField]);
     object.appendPoints(axesData[this.xField], axesData[this.yField]);
+    console.dir(object.geometry);
   }
 
 

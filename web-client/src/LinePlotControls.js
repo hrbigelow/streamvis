@@ -29,6 +29,8 @@ class LinePlotControls extends OrbitControls {
     this.object.position.y += offsetY;
     this.target.x -= offsetX;
     this.target.y += offsetY;
+    console.log(`LinePlotControls:`);
+    console.dir(this.object);
   }
 }
 
@@ -36,12 +38,12 @@ function onToggleAxes(event) {
   if (this.enabled === false) return;
   if (this.keys.TOGGLE_XLOG.includes(event.code)) {
     for (const object of Object.values(this.object.objects)) {
-      object.toggleXAxisMode();
+      object.toggleXAxisLog();
     }
   }
   if (this.keys.TOGGLE_YLOG.includes(event.code)) {
     for (const object of Object.values(this.object.objects)) {
-      object.toggleYAxisMode();
+      object.toggleYAxisLog();
     }
   }
 }

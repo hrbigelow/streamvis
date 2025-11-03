@@ -48,6 +48,20 @@ class RunningStats {
 }
 
 
+function computeStats(data) {
+  const sum = data.reduce((acc, el) => acc + el, 0);
+  const mean = sum / data.length;
+  const sq = data.reduce((acc, el) => acc + (el - mean) ** 2, 0);
+  const variance = sq / data.length;
+  return { mean, variance };
+}
+
+
+function validStats({ mean, variance }) {
+  const stddev = Math.sqrt(variance);
+  return mean - stddev > -3 && mean + stddev < -3;
+}
+
 /**
  * A class for representing transforms 
 */
@@ -56,6 +70,13 @@ class PointwiseTransform {
     this.name = name;
     this.fun = fun;
   }
+
+  // apply the function inplace
+  call(data) {
+    for (let i = 0; i != data.length; i++) {
+      data[i] = this.fun(data[i]);
+    }
+  }
 }
 
 
@@ -63,9 +84,9 @@ class Axis {
   constructor(axisIndex, ctor) {
     this.index = axisIndex;
     this.array = new ResizableArray(new ctor(0)); 
-    this.stats = new RunningStats(); // stats on transformed data 
+    this.targetStats = new RunningStats(); // stats on transformed data 
     this.transform = new PointwiseTransform('none', undefined);
-    this.currentWhitening = { mean: 0, variance: 1}; // currently used whitening parameters
+    this.currentWhitening = undefined; // currently used whitening parameters
     this._offset = 0; // offset into source array to read from
     this._targetOffset = 0; // offset into target array to resume writing
   }
@@ -79,21 +100,22 @@ class Axis {
     return this.array.set(data, this.array.size);
   }
 
-  _whitenOne(stats, val) {
-    return (val - stats.mean) / Math.sqrt(stats.variance);
+  _preprocess() {
+    let data = new Float32Array(this.array.subarray(this._offset, this.array.size));
+    if (this.transform.fun !== undefined) {
+      this.transform.call(data);
+    }
+    if (this.currentWhitening === undefined) {
+      this.currentWhitening = computeStats(data);
+    }
+    const { mean, variance } = this.currentWhitening;
+    const stddev = Math.sqrt(variance);
+    for (let i = 0; i != data.length; i++) {
+      data[i] = (data[i] - mean) / stddev;
+    }
+    return data;
   }
 
-  /**
-   * Do a pass over all data on target array, rewhitening and collecting
-   * new stats.
-  */
-  _rewhiten(target) {
-    const { mean, variance } = this.currentWhitening = this.stats.stats();
-    const stddev = Math.sqrt(variance);
-    for (let i = this.index; i < this._targetOffset; i += 3) {
-      target[i] = (target[i] - mean) / stddev;
-    }
-  }
 
   /**
    * send new ground-truth data range [this._offset, this.size) to the target array
@@ -105,33 +127,32 @@ class Axis {
    * was realloced, and the [beg, end) vertex range of the array that was affected 
   */
   send(target) {
-    let data = this.array.subarray(this._offset);
-    if (this.transform.fun !== undefined) {
-      data = this.transform.fun(data);
+    // console.log(`Sending axis ${this.index}...`);
+    // console.log(`Before: `);
+    // console.dir(this);
+    // console.dir(target.array.slice(0, 10));
+    let data = this._preprocess();
+    this.targetStats.update(data);
+
+    if (! validStats(this.targetStats.stats())) {
+      this.targetStats.clear();
+      this._offset = 0;
+      this._targetOffset = 0;
+      this.currentWhitening = undefined;
+      data = this._preprocess();
     }
-    this.stats.update(data);
     const targetEnd = (this._targetOffset + data.length) * 3;
     const info = { realloc: false, beg: this._targetOffset / 3, end: targetEnd / 3};
     info.realloc = target.resize(targetEnd);
 
-    const { mean, variance } = this.currentWhitening; 
-    const stddev = Math.sqrt(variance);
-    for (let i = this._offset, j = this._targetOffset * 3 + this.index; 
-      i != this.array.size; i++, j += 3) {
-      target.setAt(j, (data[i] - mean) / stddev);
+    for (let i = this._offset, j = this._targetOffset + this.index; i < data.length; i++, j+=3) {
+      target.setAt(j, data[i]);
     }
     this._offset = this.array.size;
     this._targetOffset = targetEnd;
-
-    const ts = this.stats.stats();
-    const adjmean = this._whitenOne(this.currentWhitening, ts.mean);
-    const adjvar = this._whitenOne(this.currentWhitening, ts.variance);
-    console.log(`Before whitening with index ${this.index}:`, target._array.slice(0, 10));
-    if (adjmean - adjvar < -5 || adjmean + adjvar > 5) { // TODO: tweak this
-      this._rewhiten(target._array);
-      console.log('whitened:', target._array.slice(0, 10));
-      info.beg = 0;
-    }
+    // console.log(`After: `);
+    // console.dir(this);
+    // console.dir(target.array);
     return info;
   }
 
@@ -225,6 +246,7 @@ class PlotBufferAttribute extends BufferAttribute {
    * @param {number} axis - the axis to append the data to
   */
   _appendAxis(data, axisIndex) {
+    // console.log(`In _appendAxis with axis ${axisIndex}`);
     let axis = this._getAxis(axisIndex);
     if (axis === undefined) {
       axis = new Axis(axisIndex, data.constructor);
@@ -236,8 +258,6 @@ class PlotBufferAttribute extends BufferAttribute {
         `axis type ${axis.arrayType}`);
     }
     axis.append(data);
-    const info = axis.send(this._array);
-    this._updateBuffers(info);
   }
 
   /**

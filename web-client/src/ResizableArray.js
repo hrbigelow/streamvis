@@ -19,7 +19,7 @@ class ResizableArray {
   }
 
   /*
-   * construct a new array containing just the range [begin, end)
+   * return the subarray in the range [begin, end)
    * @param {number} begin - the start of the range
    * @param {number} end - the end of the range
    */
@@ -43,7 +43,7 @@ class ResizableArray {
       return false;
     }
     const newArray = new this.ctor(newCapacity);
-    newArray.set(this._array.subarray(0, this.size));
+    newArray.set(this._array);
     this._array = newArray;
     return true;
   }

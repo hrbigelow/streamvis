@@ -32,21 +32,21 @@ class LinePlot2D extends Line {
   }
 
   toggleXAxisLog() {
-    self._toggleAxisLog(0);
+    this._toggleAxisLog(0);
   }
 
   toggleYAxisLog() {
-    self._toggleAxisLog(1);
+    this._toggleAxisLog(1);
   }
 
   appendPoints(xdata, ydata) {
+    // console.log(`appendPoints...`);
     if (xdata.length !== ydata.length) {
       throw new Error(`xdata.length ${xdata.length} != ydata.length ${ydata.length}`);
     }
     const attr = this.geometry.getAttribute('position');
     attr.append(xdata, 0);
     attr.append(ydata, 1);
-    debugger;
 
     if (attr.needsDispose) {
       this.geometry.dispose();
