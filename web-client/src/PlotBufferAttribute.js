@@ -80,7 +80,7 @@ class Axis {
   }
 
   _whitenOne(stats, val) {
-    return (val - stats.mean) / stats.variance;
+    return (val - stats.mean) / Math.sqrt(stats.variance);
   }
 
   /**
@@ -89,8 +89,9 @@ class Axis {
   */
   _rewhiten(target) {
     const { mean, variance } = this.currentWhitening = this.stats.stats();
+    const stddev = Math.sqrt(variance);
     for (let i = this.index; i < this._targetOffset; i += 3) {
-      target[i] = (target[i] - mean) / variance;
+      target[i] = (target[i] - mean) / stddev;
     }
   }
 
@@ -104,7 +105,6 @@ class Axis {
    * was realloced, and the [beg, end) vertex range of the array that was affected 
   */
   send(target) {
-    debugger;
     let data = this.array.subarray(this._offset);
     if (this.transform.fun !== undefined) {
       data = this.transform.fun(data);
@@ -115,9 +115,10 @@ class Axis {
     info.realloc = target.resize(targetEnd);
 
     const { mean, variance } = this.currentWhitening; 
-    for (let i = this._offset, j = this._offset * 3 + this.index; 
+    const stddev = Math.sqrt(variance);
+    for (let i = this._offset, j = this._targetOffset * 3 + this.index; 
       i != this.array.size; i++, j += 3) {
-      target[j] = (data[i] - mean) / variance;
+      target.setAt(j, (data[i] - mean) / stddev);
     }
     this._offset = this.array.size;
     this._targetOffset = targetEnd;
@@ -125,8 +126,10 @@ class Axis {
     const ts = this.stats.stats();
     const adjmean = this._whitenOne(this.currentWhitening, ts.mean);
     const adjvar = this._whitenOne(this.currentWhitening, ts.variance);
+    console.log(`Before whitening with index ${this.index}:`, target._array.slice(0, 10));
     if (adjmean - adjvar < -5 || adjmean + adjvar > 5) { // TODO: tweak this
-      this._rewhiten(target);
+      this._rewhiten(target._array);
+      console.log('whitened:', target._array.slice(0, 10));
       info.beg = 0;
     }
     return info;

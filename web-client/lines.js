@@ -12,9 +12,7 @@ const renderer = new THREE.WebGLRenderer({
 
 renderer.setSize(window.innerWidth, window.innerHeight);
 
-const camera = new THREE.OrthographicCamera(
-  1, 10000, 2, -2, 0, 2000 
-);
+const camera = new THREE.OrthographicCamera(-1, 1, 2, -2, 0, 5);
 camera.position.z = 100;
 
 const controls = new LinePlotControls(camera, renderer.domElement);

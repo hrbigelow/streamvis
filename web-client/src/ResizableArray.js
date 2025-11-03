@@ -65,6 +65,10 @@ class ResizableArray {
     return realloc;
   }
 
+  setAt(index, value) {
+    this._array[index] = value;
+  }
+
 }
 
 

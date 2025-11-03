@@ -46,6 +46,7 @@ class LinePlot2D extends Line {
     const attr = this.geometry.getAttribute('position');
     attr.append(xdata, 0);
     attr.append(ydata, 1);
+    debugger;
 
     if (attr.needsDispose) {
       this.geometry.dispose();
