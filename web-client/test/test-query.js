@@ -7,9 +7,9 @@ import {
   DataResultSchema,
   ScopeRequestSchema,
   NamesRequestSchema
-} from './streamvis/v1/data_pb.js';
+} from '../streamvis/v1/data_pb.js';
 
-import { getServiceClient } from './src/util.js';
+import { getServiceClient } from '../src/util.js';
 
 
 const inspectOpts = { depth: null, colors: true, maxArrayLength: 10 };
@@ -26,7 +26,8 @@ async function main() {
 
   program.parse(process.argv);
   const options = program.opts();
-  const client = getServiceClient(options.host);
+  const url = `http://${options.host}`;
+  const client = getServiceClient(url);
 
   console.log('All Scopes');
   const req = create(ScopeRequestSchema, {});

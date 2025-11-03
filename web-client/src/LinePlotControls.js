@@ -41,7 +41,7 @@ function onToggleAxes(event) {
   }
   if (this.keys.TOGGLE_YLOG.includes(event.code)) {
     for (const object of Object.values(this.object.objects)) {
-      object.toggleXAxisMode();
+      object.toggleYAxisMode();
     }
   }
 }

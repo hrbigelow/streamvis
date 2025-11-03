@@ -16,6 +16,46 @@ function getServiceClient(url) {
 
 
 /**
+ * Converts data returned from the service client, converting fields based on their
+ * declared type, and extracting just the named axes.
+ * @param {streamvis.v1.Name} name - the pb.Name object returned by the gRPC service 
+ * @param {streamvis.v1.Data} data - the pb.Data object returned by the gRPC service 
+ * @param {array of string} axes - the names of the axes to retrieve
+ * @returns object with keys the axes, values TypedArray of appropriate subtype
+*/
+function getAxes(name, data, axes) {
+  const isLE = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
+  if (! isLE) {
+    throw new Error(`Only supported on little-endian systems`);
+  }
+  const sources = Object.fromEntries(Object.values(axes).map(k => [k, undefined])); 
+  for (const [fieldIndex, field] of name.fields.entries()) {
+    if (! field.name in sources) {
+      continue;
+    }
+    const axis = data.axes[fieldIndex];
+    switch (axis.dtype) {
+      case DType.UNSPECIFIED: {
+        throw new Error(`Unspecified DType received for axis ${field.name}`);
+      }
+      case DType.F32: {
+        sources[field.name] = new Float32Array(axis.data.buffer);
+        break;
+      }
+      case DType.I32: {
+        sources[field.name] = new Int32Array(axis.data.buffer);
+        break;
+      }
+      default: {
+        throw new Error(`Unknown DType for axis ${field.name}`);
+      }
+    }
+  }
+  return sources;
+}
+
+
+/**
  * extractData from the data object according to the name schema
  * @param {streamvis.v1.Name} name - the name object describing the data
  * @param {streamvis.v1.Data} data - the data object holding the numerical data
@@ -103,6 +143,7 @@ function resizeToCanvas(renderer) {
 
 export {
   getServiceClient,
+  getAxes,
   extractData,
   resizeToWindow,
   resizeToCanvas,

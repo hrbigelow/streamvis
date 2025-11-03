@@ -19,17 +19,12 @@ class ResizableArray {
   }
 
   /*
-   * maybe grow the capacity of the array
-   * @param {number} minCapacity - the minimum desired capacity
+   * construct a new array containing just the range [begin, end)
+   * @param {number} begin - the start of the range
+   * @param {number} end - the end of the range
    */
-  grow(minCapacity) {
-    if (minCapacity <= this.capacity) {
-      return;
-    }
-    const newCapacity = Math.max(minCapacity, this.capacity * 2);
-    const newArray = new this.ctor(newCapacity);
-    newArray.set(this._array.subarray(0, this.size));
-    this._array = newArray;
+  subarray(begin = 0, end = this.size) {
+    return this._array.subarray(begin, end);
   }
 
   /*
@@ -37,6 +32,7 @@ class ResizableArray {
    * if so, the new capacity will be the smallest change requred to do so.
    * @param {number} minCapacity - the minimum for the new capacity
    * @param {number} maxCapacity - the maximum for the new capacity
+   * @return {bool} true if there was a reallocation
   */
   resize(minCapacity, maxCapacity=Infinity) {
     if (minCapacity > maxCapacity || minCapacity < 0) {
@@ -44,16 +40,18 @@ class ResizableArray {
     }
     const newCapacity = Math.min(Math.max(minCapacity, this.capacity), maxCapacity)
     if (newCapacity === this.capacity) {
-      return;
+      return false;
     }
     const newArray = new this.ctor(newCapacity);
     newArray.set(this._array.subarray(0, this.size));
     this._array = newArray;
+    return true;
   }
 
   /*
    * set the range [offset, offset+data.length] to the content of data
    * @param {TypedArray}
+   * @return {bool} true if there was a reallocation
    */
   set(data, offset) {
     if (data.constructor !== this.ctor) {
@@ -61,19 +59,12 @@ class ResizableArray {
         `set requires source data type to match: ${data.constructor} !== ${this.ctor}`);
     }
     const minCapacity = Math.max(data.length + offset, this.capacity * 2);
-    this.resize(minCapacity);
+    const realloc = this.resize(minCapacity);
     this._array.set(data, offset);
     this.size = Math.max(this.size, minCapacity);
+    return realloc;
   }
 
-  /*
-   * construct a new array containing just the range [begin, end)
-   * @param {number} begin - the start of the range
-   * @param {number} end - the end of the range
-   */
-  subarray(begin, end) {
-    return this._array(begin, end);
-  }
 }
 
 

@@ -17,7 +17,7 @@ const camera = new THREE.OrthographicCamera(
 );
 camera.position.z = 100;
 
-// const controls = new LinePlotControls(camera, renderer.domElement);
+const controls = new LinePlotControls(camera, renderer.domElement);
 
 window.addEventListener('resize', () => resizeToWindow(window, renderer, camera));
 // camera.position.set(0, 0, 1000);
@@ -33,7 +33,7 @@ const refreshSeconds = 5;
 
 const lineMaterial = new THREE.LineBasicMaterial({
   color: 0xff0000,
-  linewidth: 1.2,
+  linewidth: 1.5,
 });
 
 const scene = new LineSceneReplicator(

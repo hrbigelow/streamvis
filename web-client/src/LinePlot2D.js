@@ -2,94 +2,56 @@ import {
   Line,
   BufferGeometry
 } from 'three';
-import { PlotBufferAttribute } from './PlotBufferAttribute';
 
-const transforms = {
-  xlog: function(x, y) {
-    return [Math.log(x), y];
-  },
-
-  ylog: function(x, y) {
-    return [x, Math.log(y)];
-  },
-
-  xylog: function(x, y) {
-    return [Math.log(x), Math.log(y)];
-  }
-}
+import { 
+  PlotBufferAttribute, 
+  PointwiseTransform 
+} from './PlotBufferAttribute.js';
 
 /*
- * An object for plotting 2D lines which can toggle xlog
+ * An object for plotting 2D lines which can toggle xlog or ylog
+ *
 */
 class LinePlot2D extends Line {
 
   constructor(material = new LineBasicMaterial({ color: 0xff0000 })) {
     super(new BufferGeometry(), material);
-    const attr = new PlotBufferAttribute(new Float32Array(0), 3);
-    for (const [name, fn] of Object.entries(attr)) {
-      attr.addTransform(name, fn);
-    }
+    const attr = new PlotBufferAttribute(3);
     this.geometry.setAttribute('position', attr);
+    this.transforms = {
+      log: new PointwiseTransform('log', Math.log),
+      none: new PointwiseTransform('none', undefined),
+    };
   }
 
-  get xLogMode() {
+  _toggleAxisLog(axisIndex) {
     const attr = this.geometry.getAttribute('position');
-    return ['xlog', 'xylog'].includes(attr.activeTransformName);
+    const funName = attr.axes[axisIndex].transform.name;
+    const newFunName = { log: 'none', none: 'log' }[funName];
+    attr.setTransform(axisIndex, this.transforms[newFunName]);
   }
 
-  get yLogMode() {
-    const attr = this.geometry.getAttribute('position');
-    return ['ylog', 'xylog'].includes(attr.activeTransformName);
+  toggleXAxisLog() {
+    self._toggleAxisLog(0);
   }
 
-  toggleXAxisMode() {
-    const attr = this.geometry.getAttribute('position');
-    const mode = attr.activeTransformName;
-    const newMode = { xlog: 'none', ylog: 'xylog', xylog: 'xlog', none: 'xlog' }[mode];
-    if (newMode === 'none') {
-      attr.unsetTransform();
-    } else {
-      attr.setTransform(newMode);
-    }
+  toggleYAxisLog() {
+    self._toggleAxisLog(1);
   }
 
-  toggleYAxisMode() {
-    const attr = this.geometry.getAttribute('position');
-    const mode = attr.activeTransformName;
-    const newMode = { xlog: 'xylog', ylog: 'none', xylog: 'xlog', none: 'ylog' }[mode];
-    if (newMode === 'none') {
-      attr.unsetTransform();
-    } else {
-      attr.setTransform(newMode);
-    }
-  }
-
-  appendPoints(points) {
-    if (points.length % 3 !== 0) {
-      throw new Error(`points.length={points.length} not divisible by 3`);
+  appendPoints(xdata, ydata) {
+    if (xdata.length !== ydata.length) {
+      throw new Error(`xdata.length ${xdata.length} != ydata.length ${ydata.length}`);
     }
     const attr = this.geometry.getAttribute('position');
-    attr.set(points, attr.size);
+    attr.append(xdata, 0);
+    attr.append(ydata, 1);
+
     if (attr.needsDispose) {
       this.geometry.dispose();
-      attr.updateArrayRef();
+      attr.needsDispose = false;
     }
     this.geometry.setDrawRange(0, attr.count);
-  }
-
-    
-
-
-  /*
-   * set the transform name to 
-  */
-  setTransform(name) {
-    debugger;
-    const attr = this.geometry.getAttribute('position');
-    if (! name in attr.transforms) {
-      throw new Error(`transform name ${name} not among the available transforms`);
-    }
-    attr.setTransform(name);
   }
 
   dispose() {
