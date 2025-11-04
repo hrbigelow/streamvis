@@ -97,7 +97,7 @@ class Axis {
 
   // append ground-truth data to this axis
   append(data) {
-    return this.array.set(data, this.array.size);
+    return this.array.append(data);
   }
 
   _preprocess() {

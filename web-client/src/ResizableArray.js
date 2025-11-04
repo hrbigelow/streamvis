@@ -49,19 +49,19 @@ class ResizableArray {
   }
 
   /*
-   * set the range [offset, offset+data.length] to the content of data
+   * appends data to the array, reallocating if necessary
    * @param {TypedArray}
    * @return {bool} true if there was a reallocation
    */
-  set(data, offset) {
+  append(data) {
     if (data.constructor !== this.ctor) {
       throw new Error(
         `set requires source data type to match: ${data.constructor} !== ${this.ctor}`);
     }
-    const minCapacity = Math.max(data.length + offset, this.capacity * 2);
+    const minCapacity = Math.max(data.length + this.size, this.capacity * 2);
     const realloc = this.resize(minCapacity);
-    this._array.set(data, offset);
-    this.size = Math.max(this.size, minCapacity);
+    this._array.set(data, this.size);
+    this.size += data.length; 
     return realloc;
   }
 
