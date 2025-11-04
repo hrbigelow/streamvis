@@ -36,8 +36,8 @@ class Sinusoidal(SynthData):
         top_data = np.array(
             [
                 [math.sin(1 + s / 10) for s in range(beg, end)],
-                [0.5 * math.sin(1.5 + s / 20) for s in range(beg, end)],
-                [1.5 * math.sin(2 + s / 15) for s in range(beg, end)]
+                # [0.5 * math.sin(1.5 + s / 20) for s in range(beg, end)],
+                # [1.5 * math.sin(2 + s / 15) for s in range(beg, end)]
             ], dtype=np.float32) 
         return xs, top_data
 
@@ -69,7 +69,7 @@ def log_data(grpc_uri, scope, delete_existing_names, num_steps):
         # xs, ys = points[:,0], points[:,1]
         # logger.write('cloud', x=xs, y=ys, t=step)
 
-        if step % 10 == 0:
+        if step % 1000 == 0:
             print(f'Logged {step=}')
     print(f'Logged {step=}')
 

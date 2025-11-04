@@ -67,6 +67,8 @@ def fetch_with_patterns(
         )
         datas = []
         i = 0
+        import pdb
+        pdb.set_trace()
         for msg in stub.QueryData(req):
             match msg.WhichOneof("value"):
                 case "record":
