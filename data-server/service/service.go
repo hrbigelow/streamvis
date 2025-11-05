@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	pb "data-server/pb/streamvis/v1"
+	"data-server/util"
 
 	"connectrpc.com/connect"
 	"google.golang.org/grpc/codes"
@@ -72,44 +73,52 @@ func streamSampledData[R any](
 	dataCh <-chan *pb.Data,
 	errCh <-chan error,
 	wrapToStream func(msg *pb.Data) *R,
-	sampling *req.Sampling,
+	sampling *pb.Sampling,
 ) error {
-    type dtag {
-        nameId int
-        index int
-    }
-    orphans := make(map[dtag]*pb.Data)
+	type dtag struct {
+		nameId uint32
+		index  uint32
+	}
+	orphans := make(map[dtag]*pb.Data)
 
-    for {
-        select {
-        case <-ctx.Done():
-            return status.Convert(ctx.Err()).Err()
+	for {
+		select {
+		case <-ctx.Done():
+			return status.Convert(ctx.Err()).Err()
 
-        case err, ok := <-errCh:
-            if err != nil && ok {
-                st := status.Convert(err)
-                if st.Code() == codes.OK {
-                    st = status.New(codes.Internal, err.Error())
-                }
-                stream.ResponseTrailer().Set("x-partial", "true")
-                return st.Err()
-            }
+		case err, ok := <-errCh:
+			if err != nil && ok {
+				st := status.Convert(err)
+				if st.Code() == codes.OK {
+					st = status.New(codes.Internal, err.Error())
+				}
+				stream.ResponseTrailer().Set("x-partial", "true")
+				return st.Err()
+			}
 
-        case d, ok := <-dataCh:
-            if !ok {
-                // data channel closed cleanly
-                return nil
-            }
-            orphan := orphans[dtag{d.NameId, d.Index}]
-            if orphan != nil {
-                if d, err = util.MergeData(orphan, d) err != nil {
-                    return err
-                }
-
-
-
-
-
+		case d, ok := <-dataCh:
+			if !ok {
+				// data channel closed cleanly
+				return nil
+			}
+			tag := dtag{d.NameId, d.Index}
+			orphan := orphans[tag]
+			if orphan != nil {
+				if merged, err := util.MergeData(orphan, d); err != nil {
+					return status.New(codes.Internal, err.Error()).Err()
+				}
+			}
+			if window, remain, err := util.ApplySamplingToData(
+				merged, sampling.Stride, sampling.WindowSize, windowFn); err != nil {
+				return status.New(codes.Internal, err.Error()).Err()
+			} else {
+				orphans[tag] = remain
+				if err := stream.Send(wrapToStream(window)); err != nil {
+					return status.Errorf(codes.Unavailable, "send failed: %v", err)
+				}
+			}
+		}
+	}
 }
 
 /*

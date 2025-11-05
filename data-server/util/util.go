@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -142,146 +143,134 @@ func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int) {
 	return stored, size
 }
 
-func MergeData(d1, d2 *pb.Data) (*pb.Data, err) {
-    if d1.NameId != d2.NameId|| d1.Index != d2.Index {
-        return nil, fmt.Errorf(
-            "MergeData: cannot merge data from different (name_id, index) combinations"
-        )
-    }
-    if len(d1.Axes) != len(d1.Axes) {
-        return nil, fmt.Errorf(
-            "MergeData: pb.Data from same (name_id, index) pairs have different numbers of axes"
-        )
-    }
+func MergeData(d1, d2 *pb.Data) (*pb.Data, error) {
+	if d1.NameId != d2.NameId || d1.Index != d2.Index {
+		return nil, fmt.Errorf(
+			"MergeData: cannot merge data from different (name_id, index) combinations")
+	}
+	if len(d1.Axes) != len(d1.Axes) {
+		return nil, fmt.Errorf(
+			"MergeData: pb.Data from same (name_id, index) pairs have different numbers of axes")
+	}
 
-    merged := &pb.Data{
-        EntryId: d1.EntryId, 
-        Index: d1.Index,
-        NameId: d1.NameId,
-        Axes: make([]*pb.Axis, len(d1.Axis)),
-    }
+	merged := &pb.Data{
+		EntryId: d1.EntryId,
+		Index:   d1.Index,
+		NameId:  d1.NameId,
+		Axes:    make([]*pb.Axis, len(d1.Axes)),
+	}
 
-    for i := range d1.Axes {
-        if d1.Axes[i].Dtype != d2.Axes[i].Dtype {
-            return nil, fmt.Errorf(
-                "MergeData: pb.Data from same (name_id, index) pairs have different Axis dtype"
-            )
-        }
-        combinedData := make([]byte, 0, len(d1.Axes[i].Data) + len(d2.Axes[i].Data))
-        combinedData = append(combinedData, d1.Axes[i].Data...)
-        combinedData = append(combinedData, d2.Axes[i].Data...)
+	for i := range d1.Axes {
+		if d1.Axes[i].Dtype != d2.Axes[i].Dtype {
+			return nil, fmt.Errorf(
+				"MergeData: pb.Data from same (name_id, index) pairs have different Axis dtype")
+		}
+		combinedData := make([]byte, 0, len(d1.Axes[i].Data)+len(d2.Axes[i].Data))
+		combinedData = append(combinedData, d1.Axes[i].Data...)
+		combinedData = append(combinedData, d2.Axes[i].Data...)
 
-        merged.Axes[i] = &pb.Axis{
-            Dtype: d1.Axes[i].Dtype,
-            Length: d1.Axes[i].Length + d2.Axes[i].Length,
-            Data: combinedData,
-        }
-    }
-    return merged, nil
+		merged.Axes[i] = &pb.Axis{
+			Dtype:  d1.Axes[i].Dtype,
+			Length: d1.Axes[i].Length + d2.Axes[i].Length,
+			Data:   combinedData,
+		}
+	}
+	return merged, nil
 }
 
 /*
 Apply windowFn to windows of data, interpreting it as pb.DType and collecting the result.
-Returns: result, leftover, error
+Returns:
+
+	result - the computed window values for windows every `stride` steps
+	leftover - the bytes that would start the next window
+	error -
 */
 func windowFilter(
-    data []byte,
-    dtype pb.DType,
-    stride int,
-    windowSize int,
-    windowFn func(data []float64) float64,
+	data []byte,
+	dtype pb.DType,
+	stride int,
+	windowSize int,
+	windowFn func(data []float64) float64,
 ) ([]byte, []byte, error) {
-    numVals := len(data) / 4
-    numWin := len(data) - windowSize + 1) / windowSize
-    numRemain := len(data) - windowSize + 1) % windowSize
+	numVals := len(data) / 4
+	numWin := (len(data) - windowSize + 1) / windowSize
+	numRemain := (len(data) - windowSize + 1) % windowSize
 
-    vals := make([]float64, numVals)
-    results := make([]byte, numWin)
-    remain := data[-numRemain:]
+	vals := make([]float64, numVals)
+	results := make([]byte, numWin)
+	remain := data[-numRemain:]
 
-    for i := 0; i < numVals; i++ {
-        bits := binary.LittleEndian.Uint32(data[i*4:(i+1)*4])
-        if dtype == pb.D_TYPE_I32 {
-            vals[i] = (float64)math.Int32frombits(bits)
-        } else if dtype == pb.D_TYPE_F32 {
-            vals[i] = (float64)math.Float32frombits(bits)
-        } else {
-            return make([]byte, 0), make([]byte, 0), fmt.Errorf("Invalid DType")
-        }
-    }
+	for i := 0; i < numVals; i++ {
+		u := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
+		if dtype == pb.DType_D_TYPE_I32 {
+			vals[i] = float64(int32(u))
+		} else if dtype == pb.DType_D_TYPE_F32 {
+			vals[i] = float64(math.Float32frombits(u))
+		} else {
+			return make([]byte, 0), make([]byte, 0), fmt.Errorf("Invalid DType")
+		}
+	}
 
-    for w := 0; w < numWind; w++ {
-        fval := windowFn(vals[w*stride : (w*stride)+windowSize])
-        dest := results[w*4 : (w+1)*4]
-        if dtype == pb.D_TYPE_I32 { 
-            uval := uint32(int32(fval))
-        } else if dtype == pb.D_TYPE_F32 {
-            uval := uint32(float32(fval))
-        } else {
-            return make([]byte, 0), make([]byte, 0), fmt.Errorf("Invalid DType")
-        }
-        binary.LittleEndian.PutUint32(dest, uval))
-    }
-    return results, remain, nil
+	for w := 0; w < numWin; w++ {
+		fval := windowFn(vals[w*stride : (w*stride)+windowSize])
+		dest := results[w*4 : (w+1)*4]
+		if dtype == pb.DType_D_TYPE_I32 {
+			uval := uint32(int32(fval))
+			binary.LittleEndian.PutUint32(dest, uval)
+		} else if dtype == pb.DType_D_TYPE_F32 {
+			uval := uint32(float32(fval))
+			binary.LittleEndian.PutUint32(dest, uval)
+		} else {
+			return make([]byte, 0), make([]byte, 0), fmt.Errorf("Invalid DType")
+		}
+	}
+	return results, remain, nil
 
 }
 
-
+/*
+ */
 func ApplySamplingToData(
-    data *pb.Data,
-    stride int,
-    windowSize int,
-    windowFn func(data []float64) float64,
-) (*pb.Data, error) {
+	data *pb.Data,
+	stride int,
+	windowSize int,
+	windowFn func(data []float64) float64,
+) (*pb.Data, *pb.Data, error) {
 
-    result := &pb.Data{
-        EntryId: data.EntryId,
-        Index: data.Index,
-        NameId: data.NameId,
-        Axes: make([]*pb.Axis, len(data.Axis)),
-    }
+	result := &pb.Data{
+		EntryId: data.EntryId,
+		Index:   data.Index,
+		NameId:  data.NameId,
+		Axes:    make([]*pb.Axis, len(data.Axes)),
+	}
 
-    for a in range data.Axes {
-        axis := data.Axes[a]
-        numVals := len(axis.Data) / 4
-        vals := make([]float64 numVals)
-        if axis.Dtype == pb.D_TYPE_I32 {
-            for i := 0; i < numVals; i++ {
-                bits := binary.LittleEndian.Uint32(axis.Data[i*4:(i+1)*4])
-                vals[i] = (float64)math.Int32frombits(bits)
-            }
-        else if axis.Dtype == pb.D_TYPE_F32 {
-            for i := 0; i < numVals; i++ {
-                bits := binary.LittleEndian.Uint32(axis.Data[i*4,(i+1)*4])
-                vals[i] = (float64)math.Float32frombits(bits)
-            }
-        } else {
-            return nil, fmt.Error("Unknown Dtype, Cannot convert")
-        }
+	remain := &pb.Data{
+		EntryId: data.EntryId,
+		Index:   data.Index,
+		NameId:  data.NameId,
+		Axes:    make([]*pb.Axis, len(data.Axes)),
+	}
 
-        numWindows := numVals / stride + 1
-        windata := make([]byte, 0, numWindows * 4)
-        if axis.Dtype == pb.D_TYPE_I32 {
-            for w := 0; w < numWindows; w++ {
-                fval := windowFn(vals[w*stride : (w*stride)+windowSize])
-                ival := binary.LittleEndian.PutUint32(windata[w*4:(w+1)*4], uint32(int32(fval)))
-            }
-        } else if axis.Dtype == pb.D_TYPE_F32 {
-            for w := 0; w < numWindows; w++ {
-                fval := windowFn(vals[w*stride : (w*stride)+windowSize])
-                ival := binary.LittleEndian.PutFloat32(windata[w*4:(w+1)*4], uint32(fval))
-            }
-        } else {
-            return nil, fmt.Error("Unknown Dtype, Cannot convert")
-        }
-        
-        result.Axes[a] = &pb.Axis{
-            Dtype: axis.Dtype,
-            Length: numWindows,
-            Data: windata,
-        }
-    }
+	for a := range data.Axes {
+		axis := data.Axes[a]
+		win, extra, err := windowFilter(axis.Data, axis.Dtype, stride, windowSize, windowFn)
+		if err != nil {
+			return result, remain, fmt.Errorf("Error applying window Filter for axis %d", a)
+		}
 
-    return result, nil
+		result.Axes[a] = &pb.Axis{
+			Dtype:  axis.Dtype,
+			Length: uint32(len(win)),
+			Data:   win,
+		}
+
+		remain.Axes[a] = &pb.Axis{
+			Dtype:  axis.Dtype,
+			Length: uint32(len(extra)),
+			Data:   extra,
+		}
+	}
+
+	return result, remain, nil
 }
-
