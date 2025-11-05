@@ -58,6 +58,11 @@ func New(path string) IndexStore {
 	}
 }
 
+/*
+Retries all pb.Data messages matching scopePat and namePat occurring after minOffset
+in the data file.  pb.Data messages are returned in the channel in order of BegOffset
+(see pb.DataEntry.beg_offset)
+*/
 func (s *IndexStore) GetData(
 	scopePat, namePat *regexp.Regexp,
 	minOffset uint64,

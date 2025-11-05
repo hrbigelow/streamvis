@@ -308,6 +308,10 @@ type offsets interface {
 	GetEndOffset() uint64
 }
 
+/*
+Returns a channel that yields messages of type M in order of BegOffset (see
+pb.DataEntry.beg_offset)
+*/
 func LoadMessages[E offsets, M proto.Message](
 	fh *os.File,
 	entries []E, // E is pointer type

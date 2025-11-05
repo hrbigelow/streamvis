@@ -66,6 +66,52 @@ func streamRecords[M proto.Message, R any](
 	}
 }
 
+func streamSampledData[R any](
+	ctx context.Context,
+	stream *connect.ServerStream[R],
+	dataCh <-chan *pb.Data,
+	errCh <-chan error,
+	wrapToStream func(msg *pb.Data) *R,
+	sampling *req.Sampling,
+) error {
+    type dtag {
+        nameId int
+        index int
+    }
+    orphans := make(map[dtag]*pb.Data)
+
+    for {
+        select {
+        case <-ctx.Done():
+            return status.Convert(ctx.Err()).Err()
+
+        case err, ok := <-errCh:
+            if err != nil && ok {
+                st := status.Convert(err)
+                if st.Code() == codes.OK {
+                    st = status.New(codes.Internal, err.Error())
+                }
+                stream.ResponseTrailer().Set("x-partial", "true")
+                return st.Err()
+            }
+
+        case d, ok := <-dataCh:
+            if !ok {
+                // data channel closed cleanly
+                return nil
+            }
+            orphan := orphans[dtag{d.NameId, d.Index}]
+            if orphan != nil {
+                if d, err = util.MergeData(orphan, d) err != nil {
+                    return err
+                }
+
+
+
+
+
+}
+
 /*
 QueryData finds and returns all Data items in the database whose scope and name
 matches req.scope_pattern and req.name_pattern, and which occur at or after
@@ -73,7 +119,7 @@ req.file_offset in the backing data file.  It returns a pb.RecordResult.  The
 result file_offset can be then used for the next request to retrieve records
 incrementally.  The pb.RecordResult scopes and names maps represent the current
 state of the index up until the file_offset, and consistent with the scope_pattern
-and name_pattern filters
+and name_pattern filters.  Data are streamed in order of increasing BegOffset.
 */
 func (s *Service) QueryData(
 	ctx context.Context,
@@ -95,6 +141,9 @@ func (s *Service) QueryData(
 
 	wrapData := func(msg *pb.Data) *pb.DataResult {
 		return &pb.DataResult{Value: &pb.DataResult_Data{Data: msg}}
+	}
+	if req.sampling != nil {
+		return streamSampledData(ctx, *stream, dataCh, errCh, req.sampling, wrapData)
 	}
 	return streamRecords[*pb.Data, pb.DataResult](ctx, *stream, dataCh, errCh, wrapData)
 }
