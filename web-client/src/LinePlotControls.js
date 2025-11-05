@@ -29,8 +29,8 @@ class LinePlotControls extends OrbitControls {
     this.object.position.y += offsetY;
     this.target.x -= offsetX;
     this.target.y += offsetY;
-    console.log(`LinePlotControls:`);
-    console.dir(this.object);
+    // console.log(`LinePlotControls:`);
+    // console.dir(this.object);
   }
 }
 

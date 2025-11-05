@@ -5,7 +5,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/streamvis.v1.Service': {
-        target: 'http://localhost:8001',
+        target: `http://${process.env.GRPC_URI}`,
         changeOrigin: true,
       }
     }

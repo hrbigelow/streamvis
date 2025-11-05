@@ -24,11 +24,12 @@ window.addEventListener('resize', () => resizeToWindow(window, renderer, camera)
 
 // see vite.config.js proxy forwarding
 const client = getServiceClient('/');
-// const scopePattern = '4xmess3-c100-noise0.01';
+const scopePattern = '4xmess3-c100-noise0.01';
 // const namePattern = 'loss-kldiv|probe-kldiv';
-// const namePattern = 'loss-kldiv';
-const scopePattern = 'test-1M';
-const namePattern = 'sinusoidal';
+const namePattern = 'loss-kldiv';
+// const namePattern = 'participation-ratio';
+// const scopePattern = 'test-100$';
+// const namePattern = 'sinusoidal';
 const refreshSeconds = 5;
 
 const lineMaterial = new THREE.LineBasicMaterial({
@@ -38,6 +39,7 @@ const lineMaterial = new THREE.LineBasicMaterial({
 
 const scene = new LineSceneReplicator(
   client, scopePattern, namePattern, 10, 'x', 'y', lineMaterial); 
+
 
 // const scene = new THREE.Scene();
 

@@ -29,6 +29,7 @@ class RunningStats {
   update(values) {
     let mprev;
     for (let v of values) {
+      if (!Number.isFinite(v)) continue;
       this.count++;
       mprev = this.m;
       this.m += (v - this.m) / this.count;
@@ -37,7 +38,11 @@ class RunningStats {
   }
 
   stats() { 
-    return { mean: this.m, variance: this.s / this.count };
+    return { 
+      mean: this.m, 
+      variance: this.s / this.count,
+      stddev: Math.sqrt(this.s / this.count),
+    };
   }
 
   clear() {
@@ -49,17 +54,18 @@ class RunningStats {
 
 
 function computeStats(data) {
-  const sum = data.reduce((acc, el) => acc + el, 0);
+  const get = (el, other) => Number.isFinite(el) ? el : other;
+  const sum = data.reduce((acc, el) => acc + get(el, 0), 0);
   const mean = sum / data.length;
-  const sq = data.reduce((acc, el) => acc + (el - mean) ** 2, 0);
+  const sq = data.reduce((acc, el) => acc + (get(el, mean) - mean) ** 2, 0);
   const variance = sq / data.length;
-  return { mean, variance };
+  const stddev = Math.sqrt(variance);
+  return { mean, stddev };
 }
 
 
-function validStats({ mean, variance }) {
-  const stddev = Math.sqrt(variance);
-  return mean - stddev > -3 && mean + stddev < -3;
+function validStats({ mean, stddev }) {
+  return mean - stddev > -3 && mean + stddev < 3;
 }
 
 /**
@@ -108,14 +114,22 @@ class Axis {
     if (this.currentWhitening === undefined) {
       this.currentWhitening = computeStats(data);
     }
-    const { mean, variance } = this.currentWhitening;
-    const stddev = Math.sqrt(variance);
+    const { mean, stddev } = this.currentWhitening;
     for (let i = 0; i != data.length; i++) {
       data[i] = (data[i] - mean) / stddev;
     }
     return data;
   }
 
+  /**
+   * called when all target data needs to be re-computed
+  */
+  resetForTarget() {
+    this.targetStats.clear();
+    this._offset = 0;
+    this._targetOffset = 0;
+    this.currentWhitening = undefined;
+  }
 
   /**
    * send new ground-truth data range [this._offset, this.size) to the target array
@@ -135,24 +149,21 @@ class Axis {
     this.targetStats.update(data);
 
     if (! validStats(this.targetStats.stats())) {
-      this.targetStats.clear();
-      this._offset = 0;
-      this._targetOffset = 0;
-      this.currentWhitening = undefined;
+      this.resetForTarget();
       data = this._preprocess();
     }
-    const targetEnd = (this._targetOffset + data.length) * 3;
-    const info = { realloc: false, beg: this._targetOffset / 3, end: targetEnd / 3};
-    info.realloc = target.resize(targetEnd);
+    target.size = this._targetOffset;
+    const count = data.length * 3;
+    const targetEnd = this._targetOffset + count;
+    const info = { realloc: false, beg: this._targetOffset, count: count};
+    info.realloc = target.reserveAdditional(count);
 
-    for (let i = this._offset, j = this._targetOffset + this.index; i < data.length; i++, j+=3) {
+    for (let i = 0, j = this._targetOffset + this.index; i < data.length; i++, j+=3) {
       target.setAt(j, data[i]);
     }
+    target.size = targetEnd;
     this._offset = this.array.size;
     this._targetOffset = targetEnd;
-    // console.log(`After: `);
-    // console.dir(this);
-    // console.dir(target.array);
     return info;
   }
 
@@ -181,6 +192,7 @@ class PlotBufferAttribute extends BufferAttribute {
    * @param {boolean} [normalized=false] - Whether the data are normalized or not.
   */
   constructor(ndim) {
+    console.log(`Constructing new PlotBufferAttribute`);
     if (! ndim in [2, 3]) {
       throw new Error(`ndim must be 2 or 3.  Got ndim=${ndim}`);
     }
@@ -208,13 +220,12 @@ class PlotBufferAttribute extends BufferAttribute {
    * @param {PointwiseTransform} fun - the function to set
    */
   setTransform(axisIndex, fun) {
-    if (axis < 0 || axis >= this.axes.length) {
-      throw new Error(`axis ${axis} not valid`);
-    }
-    if (this.axes[axis].transform === fun) {
+    const axis = this._getAxis(axisIndex);
+    if (axis.transform === fun) {
       return; // nothing to do
     } 
-    this.axes[axis].transform = fun;
+    axis.transform = fun;
+    axis.resetForTarget();
     this._synch(axisIndex);
   }
 
@@ -227,17 +238,18 @@ class PlotBufferAttribute extends BufferAttribute {
 
 
   /**
-   * called to synchronize any 
+   * should be called after this._array has been updated
   */
   _updateBuffers(info) {
     if (info.realloc) {
       this.needsDispose = true;
       this.array = this._array.array;
+      this.clearUpdateRanges();
     } else {
       this.needsUpdate = true;
-      this.addUpdateRange(info.beg, info.end);
+      this.addUpdateRange(info.beg, info.count); // index and count (in this.array indices, not vertexes)
     }
-    this.count = info.end;
+    this.count = this._array.size / 3;
   }
 
   /**

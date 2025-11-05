@@ -23,6 +23,7 @@ class SceneReplicator extends Scene {
 
   constructor(rpcClient, scopePattern, namePattern, refreshSeconds) {
     super();
+    this.background = 0xffffff;
     this.client = rpcClient
     this.scopePattern = scopePattern
     this.namePattern = namePattern
@@ -128,7 +129,7 @@ class SceneReplicator extends Scene {
   async start() {
     while (true) {
       await this.update();
-      // console.log('after update');
+      console.log('after update');
       // console.dir(this.objects);
       await sleep(this.refreshSeconds * 1000);
     }

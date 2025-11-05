@@ -45,14 +45,15 @@ class LinePlot2D extends Line {
       throw new Error(`xdata.length ${xdata.length} != ydata.length ${ydata.length}`);
     }
     const attr = this.geometry.getAttribute('position');
-    debugger;
     attr.append(xdata, 0);
     attr.append(ydata, 1);
+    // console.log(`appendPoints: appending ${xdata.length} points, needsDispose: ${attr.needsDispose}, Setting DrawRange to ${attr.count}`);
 
     if (attr.needsDispose) {
       this.geometry.dispose();
       attr.needsDispose = false;
     }
+    // console.dir(attr);
     this.geometry.setDrawRange(0, attr.count);
   }
 

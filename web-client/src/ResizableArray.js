@@ -1,3 +1,6 @@
+// threshold under which we grow by 2x
+const smallThreshold = 65536;
+const growthFactor = 1.5;
 
 /*
  * A container for any TypedArray which is resizable on-demand
@@ -27,26 +30,40 @@ class ResizableArray {
     return this._array.subarray(begin, end);
   }
 
-  /*
-   * maybe re-allocate an array to bring capacity inside the range.
-   * if so, the new capacity will be the smallest change requred to do so.
-   * @param {number} minCapacity - the minimum for the new capacity
-   * @param {number} maxCapacity - the maximum for the new capacity
-   * @return {bool} true if there was a reallocation
+  /**
+   * compute an optimal new capacity if we were to append `appendSize` elements.
   */
-  resize(minCapacity, maxCapacity=Infinity) {
-    if (minCapacity > maxCapacity || minCapacity < 0) {
-      throw new Error(`Must provide a valid and non-negative range for resizing.  Got [${minCapacity}, ${maxCapacity}]`)
+  _newCapacity(appendSize) {
+    const needed = this.size + appendSize;
+    if (needed < this.capacity) {
+      return this.capacity;
     }
-    const newCapacity = Math.min(Math.max(minCapacity, this.capacity), maxCapacity)
-    if (newCapacity === this.capacity) {
-      return false;
+    if (this.capacity < smallThreshold) {
+      return Math.max(needed, this.capacity * 2);
     }
-    const newArray = new this.ctor(newCapacity);
-    newArray.set(this._array);
-    this._array = newArray;
-    return true;
+    const headroom = needed * 0.25;
+    return Math.max(
+      Math.round(needed + headroom),
+      Math.round(this.capacity * growthFactor)
+    );
   }
+  
+  /**
+   * Ensures that the capacity can accommodate an append of size `appendSize
+   * @returns: whether a reallocation was performed
+  */
+  reserveAdditional(appendSize) {
+    const newCapacity = this._newCapacity(appendSize);
+    if (newCapacity > this.capacity) {
+      // console.log(`reserveAdditional: resizing from ${this.capacity} to ${newCapacity}`);
+      const newArray = new this.ctor(newCapacity);
+      newArray.set(this._array);
+      this._array = newArray;
+      return true;
+    }
+    return false;
+  }
+
 
   /*
    * appends data to the array, reallocating if necessary
@@ -58,8 +75,7 @@ class ResizableArray {
       throw new Error(
         `set requires source data type to match: ${data.constructor} !== ${this.ctor}`);
     }
-    const minCapacity = Math.max(data.length + this.size, this.capacity * 2);
-    const realloc = this.resize(minCapacity);
+    const realloc = this.reserveAdditional(data.length);
     this._array.set(data, this.size);
     this.size += data.length; 
     return realloc;
