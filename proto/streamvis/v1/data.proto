@@ -98,15 +98,27 @@ message Stored {
   }
 }
 
+enum Reduction {
+  REDUCTION_MEAN = 0;
+}
+
+message Sampling {
+  uint32 stride = 1;
+  Reduction reduction = 2;
+  uint32 window_size = 3;
+}
+
 /* The request object for QueryData.  A given client is expected to make the first
  * request with file_offset=0, and subsequent requests using the file_offset returned
  * by RecordResult.  scope_pattern and name_pattern should be the same for the whole
- * series of requests for the lifetime of the client.
+ * series of requests for the lifetime of the client.  If sampling is provided, this
+ * defines how data are further transformed before being returned.
  */
 message DataRequest {
   string scope_pattern = 1;
   string name_pattern = 2;
   uint64 file_offset = 3;
+  Sampling sampling = 4;
 }
 
 /* The result returned by QueryData.  file_offset is then used for the next
