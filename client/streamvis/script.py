@@ -55,15 +55,26 @@ def fetch_with_patterns(
     uri: str, 
     scope_pattern: str, 
     name_pattern: str,
+    window_size: int=None,
+    stride: int=None,
     flat_format: bool=True
 ) -> dict[tuple, 'cds_data']:
     try:
         channel = grpc.insecure_channel(uri)
         stub = pb_grpc.ServiceStub(channel)
+        sampling = None
+        if window_size is not None and stride is not None:
+            sampling = pb.Sampling(
+                    window_size=window_size,
+                    reduction=pb.Reduction.REDUCTION_MEAN,
+                    stride=stride
+                    )
+
         req = pb.DataRequest(
             scope_pattern=scope_pattern,
             name_pattern=name_pattern,
-            file_offset=0
+            file_offset=0,
+            sampling=sampling
         )
         datas = []
         i = 0
