@@ -108,6 +108,9 @@ class PageLayout(BasePage):
                 in same order as the names in rows or cols is given)
         xlog:   if present, set x axis to log-scale
         ylog:   if present, set y axis to log-scale
+
+        window: if present, use a pb.Sampler
+        stride: if present, use a pb.Sampler
         
         width:  csv numbers list
         height: csv numbers list
@@ -198,6 +201,16 @@ class PageLayout(BasePage):
                 f"Each mode should be one of 'lin', 'xlog', 'ylog', 'xylog'.  "
                 f"Received {axes_arg=}")
         out_args["axes-modes"] = tuple(axes)
+
+        window_arg = get_decode(args, "window")
+        if window_arg is not None:
+            window_arg = int(window_arg[0])
+        out_args["window"] = window_arg
+
+        stride_arg = get_decode(args, "stride")
+        if stride_arg is not None:
+            stride_arg = int(stride_arg[0])
+        out_args["stride"] = stride_arg
 
         self._set_layout(box_elems, box_part, plot_part, out_args) # update out_args
         return out_args 

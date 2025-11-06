@@ -121,11 +121,15 @@ message DataRequest {
   Sampling sampling = 4;
 }
 
-/* The result returned by QueryData.  file_offset is then used for the next
- * DataRequest.  scopes and names represent the state of the index up until
- * file_offset, and filtered by the scope_pattern and name_pattern pair from
- * DataRequest.  Note that scope and/or name objects may disappear between successive
- * results if there was an intervening call to DeleteScopeNames.
+/* The result returned by QueryData.  This represents the catalog of accumulated
+ * contents up until this point.  The client should replace its local catalog with
+ * this one.  
+ *
+ * The new file_offset is then used for the next DataRequest.  scopes and names
+ * represent the state of the index up until file_offset, and filtered by the
+ * scope_pattern and name_pattern pair from DataRequest.  Note that scope and/or name
+ * objects may disappear between successive results if there was an intervening call
+ * to DeleteScopeNames.
  */
 message RecordResult {
   map<uint32, Scope> scopes = 1;

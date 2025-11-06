@@ -1,11 +1,12 @@
 from typing import Any
+from dataclasses import dataclass, field
 import asyncio
 import math
 import re
 import copy
 import grpc
-from . import data_pb2_grpc as pb_grpc
-from . import data_pb2 as pb
+from streamvis.v1 import data_pb2_grpc as pb_grpc
+from streamvis.v1 import data_pb2 as pb
 import numpy as np
 from bokeh.models import ColumnDataSource, Legend, LegendItem, CategoricalSlider
 from bokeh.application.application import SessionContext, Document
@@ -15,7 +16,6 @@ from bokeh.models.ranges import Range1d, DataRange1d
 from bokeh.models import glyphs
 from bokeh import palettes
 from bokeh.plotting import figure
-from . import data_pb2 as pb
 from . import util
 
 EMPTY_VAL = "EMPTY"
@@ -42,7 +42,7 @@ class Plot:
         axis_mode: str,
         width_frac: float,
         height_frac: float,
-        name_pat: str 
+        name_pat: str,
     ):
         axes_mode_to_kwargs = {
             "lin":  dict(x_axis_type="linear", y_axis_type="linear"),
@@ -293,16 +293,23 @@ class Plot:
         for rend in list(self.figure.renderers):
             if rend.name in remove:
                 self.figure.renderers.remove(rend)
+
+@dataclass
+class GrpcClientState:
+    scopes: dict[int, pb.Scope] = field(default_factory=dict)
+    names: dict[int, pb.Name] = field(default_factory=dict)
+    file_offset: int = field(default_factory=int)
             
 
 class Session:
-    index: util.Index
     schema: dict
     chan: grpc.Channel
     stub: pb_grpc.ServiceStub 
     uri: str
     plots: list[Plot] 
     scope_filter: re.Pattern        # global pattern for all plots on the page
+    name_filter: re.Pattern
+    grpc_state: GrpcClientState
 
     def __init__(
         self, 
@@ -315,19 +322,23 @@ class Session:
     ):
         self.schema = schema
         self.refresh_seconds = refresh_seconds
-        self.index = util.Index.from_filters(scope_filter, name_filters)
         self.chan = grpc.insecure_channel(grpc_uri)
         self.stub = pb_grpc.ServiceStub(self.chan)
         self.plots = []
         self.session_context = session_context
-        self.scope_filter = re.compile(scope_filter)
+        self.scope_filter = scope_filter
+        self.name_filter = "|".join(name_filters)
+        self.grpc_state = GrpcClientState()
 
         req_args = session_context.token_payload
         plots = req_args["plots"]
         axes_modes = req_args["axes-modes"]
         width_fracs = req_args["widths"]
         height_fracs = req_args["heights"]
+        self.window = req_args["window"] # whether to use window smoothing
+        self.stride = req_args["stride"]
 
+        # hack
         z = zip(plots, name_filters, axes_modes, width_fracs, height_fracs)
         doc = self.session_context._document
 
@@ -340,7 +351,8 @@ class Session:
                 raise RuntimeError(
                     f"No name '{plot_name}' found in global_schema. "
                     f"Available names: {', '.join(name for name in self.schema)}")
-            plot = Plot(plot_name, doc, plot_schema, axes_mode, width_frac, height_frac, name_pat) 
+            plot = Plot(plot_name, doc, plot_schema, axes_mode, width_frac,
+                        height_frac, name_pat) 
             self.plots.append(plot)
 
 
@@ -360,14 +372,14 @@ class Session:
         label_to_rend_map = {}
         for r in list(plot.figure.renderers):
             name_id, index = self.split_glyph_id(r.name)
-            name = self.index.names[name_id]
-            scope = self.index.scopes[name.scope_id]
+            name = self.grpc_state.names[name_id]
+            scope = self.grpc_state.scopes[name.scope_id]
             label_key = plot.label_key(scope, name, index)
             label_keys.add(label_key)
         for r in list(plot.figure.renderers):
             name_id, index = self.split_glyph_id(r.name)
-            name = self.index.names[name_id]
-            scope = self.index.scopes[name.scope_id]
+            name = self.grpc_state.names[name_id]
+            scope = self.grpc_state.scopes[name.scope_id]
             label = plot.label(scope, name, index)
             rs = label_to_rend_map.setdefault(label, [])
             rs.append(r)
@@ -375,8 +387,32 @@ class Session:
         label_ord = {plot.to_label(k): i for i, k in enumerate(sorted(label_keys))}
         return label_ord, label_to_rend_map
 
+    # prepare a 
+    def prepare_request(self) -> pb.DataRequest:
+        sampling = None
+        if self.window is not None and self.stride is not None:
+            sampling = pb.Sampling(
+                window_size=self.window,
+                reduction=pb.Reduction.REDUCTION_MEAN,
+                stride=self.stride
+                )
+
+        return pb.DataRequest(
+            scope_pattern=self.scope_filter,
+            name_pattern=self.name_filter,
+            file_offset=self.grpc_state.file_offset,
+            sampling=sampling
+        )
+
+    def process_response(self, result: pb.RecordResult):
+        self.grpc_state.scopes = result.scopes
+        self.grpc_state.names = result.names
+        self.grpc_state.file_offset = result.file_offset
+
     async def refresh_data(self):
-        self.index, cds_map = util.get_new_data(self.index, self.stub)
+        req = self.prepare_request()
+        record_result, cds_map = util.get_new_data(req, self.stub)
+        self.process_response(record_result)
         return cds_map
 
     def send_patch_cb(self, cds_map: dict[util.DataKey, 'cds'], fut):
@@ -386,7 +422,7 @@ class Session:
 
         for plot in self.plots:
             for name_id in plot.name_ids:
-                if name_id not in self.index.names: 
+                if name_id not in self.grpc_state.names: 
                     plot.remove_name_id(name_id)
             plot.sync_slider()
 

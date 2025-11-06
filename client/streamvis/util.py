@@ -180,165 +180,6 @@ class DataKey:
     index: int
 
 
-class Index:
-    scopes:          dict[int, pb.Scope]    # scope_id => Scope
-    names:           dict[int, pb.Name]      # name_id => Name
-    entries:         dict[int, pb.DataEntry]  # entry_id => DataEntry
-    config_entries:  dict[int, pb.ConfigEntry]  # entry_id => ConfigEntry
-    _tag_to_names:    dict[tuple[str, str], set[int]] # (scope, name) => set[name_id]
-    _name_to_entries: dict[int, set[int]]  # name_id => set[entry_id]
-    _scope_to_configs:dict[str, list[pb.ConfigEntry]] # scope => list[pb.ConfigEntry]
-    file_offset: int
-
-    def __init__(self, scopes, names, file_offset):
-        self.scopes = scopes
-        self.names = names
-        self.entries = {} 
-        self.config_entries = {}
-        self._tag_to_names = {}
-        self._name_to_entries = {}
-        self._scope_to_configs = {}
-        self.file_offset = file_offset
-
-    @classmethod
-    def from_record_result(cls, result: pb.RecordResult):
-        return cls(
-            scopes=dict(result.scopes),
-            names=dict(result.names),
-            file_offset=result.file_offset
-        )
-
-    def __repr__(self):
-        return (f"scopes: {len(self.scopes)}, "
-                f"names: {len(self.names)}, "
-                f"entries: {len(self.entries)}, "
-                f"config_entries: {len(self.config_entries)}, "
-                f"file_offset: {self.file_offset})")
-    
-    @property
-    def entry_list(self):
-        return tuple(self.entries.values())
-
-    @property
-    def config_entry_list(self):
-        return tuple(self.config_entries.values())
-
-    @property
-    def scope_list(self) -> tuple[str]:
-        """Return a list of scope names that have content"""
-        scopes = set() 
-        for scope_id, scope in self.scopes.items():
-            gen = (pb for pb in self.names.values() if pb.scope_id == scope_id)
-            if next(gen, None) != None:
-                scopes.add(scope.scope)
-        return tuple(scopes)
-
-    @property
-    def name_list(self) -> tuple[str]:
-        return tuple(set(pb.name for pb in self.names.values()))
-
-    def get_key(self, data: pb.Data) -> DataKey:
-        name = self.names[data.name_id]
-        scope = self.scopes[name.scope_id]
-        return DataKey(scope.scope_id, scope.scope, name.name_id, name.name, data.index)
-
-    def get_name(self, data: pb.Data) -> pb.Name:
-        return self.names[data.name_id]
-
-    def _filter(self, /, scope: str=None, name: str=None):
-        if scope is not None and self.scope_filter.match(scope) is None:
-            return False
-        if name is not None:
-            return any(nf.match(name) for nf in self.name_filters) 
-        return True
-
-    def _update_with_item(self, item):
-        """Updates the index with the item."""
-        match item:
-            case pb.Scope(scope_id=scope_id, scope=scope):
-                assert scope_id not in self.scopes, "Duplicate scope_id in index"
-                if self._filter(scope=scope):
-                    self.scopes[scope_id] = item 
-
-            case pb.Name(name_id=name_id, scope_id=scope_id, name=name):
-                if self._filter(name=name) and scope_id in self.scopes:
-                    assert name_id not in self.names, "Duplicate name_id in index"
-                    self.names[name_id] = item
-                    scope = self.scopes[scope_id].scope
-                    _scope_to_names = self._tag_to_names.setdefault(scope, dict())
-                    _scope_to_names.setdefault(name, list()).append(name_id)
-
-            case pb.Control(scope=scope, name=name, action=pb.Action.DELETE_NAME):
-                if not self._filter(scope=scope, name=name):
-                    return
-                _scope_to_names = self._tag_to_names.get(scope, {})
-                for name_id in _scope_to_names.pop(name, list()):
-                    del self.names[name_id]
-                    for entry_id in self._name_to_entries.pop(name_id, tuple()):
-                        del self.entries[entry_id]
-                """
-                # this doesn't work since scope is logged, then DELETE_NAMEs are
-                # logged before any data.
-                if len(_scope_to_names) == 0:
-                    # scope is now empty
-                    self._tag_to_names.pop(scope, None)
-                    scopes_to_del = set()
-                    for entry_id in self._scope_to_configs.pop(scope, tuple()):
-                        scope_id = self.config_entries.pop(entry_id).scope_id
-                        scopes_to_del.add(scope_id)
-                    for scope_id in scopes_to_del:
-                        del self.scopes[scope_id]
-                """
-
-            case pb.DataEntry(entry_id=entry_id, name_id=name_id):
-                if name_id in self.names:
-                    self.entries[entry_id] = item
-                    self._name_to_entries.setdefault(name_id, list()).append(entry_id)
-
-            case pb.ConfigEntry(entry_id=entry_id, scope_id=scope_id):
-                if scope_id in self.scopes:
-                    scope = self.scopes[scope_id].scope
-                    self.config_entries[entry_id] = item
-                    self._scope_to_configs.setdefault(scope, list()).append(entry_id)
-
-    def update(self, fh):
-        """Updates using any new data that may have been written to fh."""
-        fh.seek(self.file_offset)
-        pack = fh.read()
-        gen = unpack(pack)
-        while True:
-            try:
-                item = next(gen)
-            except StopIteration as exc:
-                self.file_offset += len(pack) - exc.value
-                break
-            self._update_with_item(item)
-
-    def to_bytes(self) -> bytes:
-        """Serialize the index to protobuf message bytes."""
-        packs = []
-        messages = itertools.chain(
-            self.scopes.values(), 
-            self.names.values(),
-            self.entries.values(),
-            self.config_entries.values()
-        )
-        for msg in messages:
-            pack = pack_message(msg)
-            packs.append(pack)
-        return b''.join(packs)
-
-    @property
-    def max_id(self):
-        return max(
-            itertools.chain(
-                self.scopes.keys(), 
-                self.names.keys(), 
-                self.entries.keys(), 
-                self.config_entries.keys()),
-            default=0)
-
-
 def load_data(
     fh, 
     entries: list[pb.DataEntry | pb.ConfigEntry],
@@ -363,29 +204,23 @@ def load_data(
 
 # used only in client
 def get_new_data(
-    scope_pattern: str,
-    name_pattern: str,
-    file_offset: int,
+    request: pb.DataRequest,
     stub: pb_grpc.ServiceStub,
-) -> tuple[Index, dict[DataKey, 'cds_data']]:
+) -> tuple[pb.RecordResult, dict[DataKey, 'cds_data']]:
     """Given current state of index, get new data and return updated index."""
-    req = pb.RecordRequest(
-        scope_pattern=scope_pattern,
-        name_pattern=name_pattern,
-        file_offset=file_offset
-    )
     datas = []
-    for msg in stub.QueryRecords(req):
-        match msg.WhichOneOf("record"):
-            case "index":
-                index = Index.from_record_result(msg.index)
+    record = None
+    for msg in stub.QueryData(request):
+        match msg.WhichOneof("value"):
+            case "record":
+                record = msg.record
             case "data":
                 datas.append(msg.data)
             case other:
                 raise ValueError(
-                    "QueryRecords should only return index or data.  Returned {other}")
-    cds_map = data_to_cds(index, datas)
-    return index, cds_map
+                    "QueryData should only return index or data.  Returned {other}")
+    cds_map = data_to_cds(record.scopes, record.names, datas)
+    return record, cds_map
 
 # client only
 def _concatenate(nums_list: list[Iterable], dtype: np.dtype) -> np.ndarray:
@@ -398,16 +233,28 @@ def _concatenate(nums_list: list[Iterable], dtype: np.dtype) -> np.ndarray:
         offset += n
     return out
 
+def _get_key(
+    scopes: dict[int, pb.Scope],
+    names: dict[int, pb.Name],
+    data: pb.Data
+) -> DataKey:
+    name = names[data.name_id]
+    scope = scopes[name.scope_id]
+    return DataKey(scope.scope_id, scope.scope, name.name_id, name.name, data.index)
+
 
 # client only
 def _data_to_cds(
-    index: Index, datas: list[pb.Data], flatten: bool
+    scopes: dict[int, pb.Scope],
+    names: dict[int, pb.Name],
+    datas: list[pb.Data], 
+    flatten: bool
 ) -> dict[Union[DataKey, tuple], 'cds_data']:
     collate = {} # DataKey => cds_data
     tmpdata = {} # DataKey => (str => ndarray)
     for data in datas:
-        key = index.get_key(data)
-        name = index.get_name(data)
+        key = _get_key(scopes, names, data)
+        name = names[data.name_id] 
         if flatten:
             key = key.scope, key.name, key.index
         if key not in collate:
@@ -437,12 +284,20 @@ def _data_to_cds(
     return collate
 
 # client only
-def data_to_cds(index: Index, datas: list[pb.Data]) -> dict[DataKey, 'cds_data']:
-    return _data_to_cds(index, datas, flatten=False)
+def data_to_cds(
+    scopes: dict[int, pb.Scope],
+    names: dict[int, pb.Name],
+    datas: list[pb.Data]
+) -> dict[DataKey, 'cds_data']:
+    return _data_to_cds(scopes, names, datas, flatten=False)
 
 # client only
-def data_to_cds_flat(index: Index, datas: list[pb.Data]) -> dict[tuple, 'cds_data']:
-    return _data_to_cds(index, datas, flatten=True)
+def data_to_cds_flat(
+    scopes: dict[int, pb.Scope],
+    names: dict[int, pb.Name], 
+    datas: list[pb.Data]
+) -> dict[tuple, 'cds_data']:
+    return _data_to_cds(scopes, names, datas, flatten=True)
 
 
 # client only
@@ -459,12 +314,15 @@ def _struct_to_dict(struct: Struct) -> dict:
     return {k: convert_value(v) for k, v in struct.fields.items()}
 
 # client only
-def export_configs(index: Index, configs: list[pb.Config]) -> dict[str, Any]:
+def export_configs(
+    scopes: dict[int, pb.Scope], 
+    configs: list[pb.Config]
+) -> dict[str, Any]:
     """Convert the pb.Config object to a python dictionary."""
     res = {}
     for cfg in configs:
         d = _struct_to_dict(cfg.attributes)
-        scope = index.scopes[cfg.scope_id]
+        scope = scopes[cfg.scope_id]
         l = res.setdefault(scope.scope, [])
         l.append(d)
     return res

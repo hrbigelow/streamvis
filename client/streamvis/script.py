@@ -81,17 +81,17 @@ def fetch_with_patterns(
         for msg in stub.QueryData(req):
             match msg.WhichOneof("value"):
                 case "record":
-                    record = util.Index.from_record_result(msg.record)
+                    record = msg.record
                 case "data":
                     datas.append(msg.data)
                 case other:
                     raise ValueError(
-                        f"QueryRecords should only return index or data.  Returned {other}")
+                        f"QueryData should only return index or data.  Returned {other}")
 
         if flat_format:
-            return util.data_to_cds_flat(record, datas)
+            return util.data_to_cds_flat(record.scopes, record.names, datas)
         else:
-            return util.data_to_cds(record, datas)
+            return util.data_to_cds(record.scopes, record.names, datas)
     except grpc.RpcError as e:
         raise ValueError(f"RPC failed: {e.code()}: {e.details()}")
     finally:
@@ -141,10 +141,10 @@ def config(uri: str, scope: str) -> dict[str, Any]:
     for res in stub.Configs(req):
         match res.WhichOneof("value"):
             case "index":
-                index = util.Index.from_record_result(res.index)
+                index = res.index
             case "config":
                 configs.append(res.config)
-    return util.export_configs(index, configs)
+    return util.export_configs(index.scopes, configs)
 
 
 def serve(web_uri: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
