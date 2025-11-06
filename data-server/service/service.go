@@ -69,17 +69,22 @@ func streamRecords[M proto.Message, R any](
 
 func streamSampledData[R any](
 	ctx context.Context,
-	stream *connect.ServerStream[R],
+	stream connect.ServerStream[R],
 	dataCh <-chan *pb.Data,
 	errCh <-chan error,
-	wrapToStream func(msg *pb.Data) *R,
 	sampling *pb.Sampling,
+	wrapToStream func(msg *pb.Data) *R,
 ) error {
 	type dtag struct {
 		nameId uint32
 		index  uint32
 	}
-	orphans := make(map[dtag]*pb.Data)
+
+	carries := make(map[dtag]util.DataWithOffset)
+	windowFn, ok := util.Reductions[sampling.Reduction]
+	if !ok || windowFn == nil {
+		return status.Errorf(codes.Internal, "missing reduction function")
+	}
 
 	for {
 		select {
@@ -101,21 +106,34 @@ func streamSampledData[R any](
 				// data channel closed cleanly
 				return nil
 			}
+			var err error
 			tag := dtag{d.NameId, d.Index}
-			orphan := orphans[tag]
-			if orphan != nil {
-				if merged, err := util.MergeData(orphan, d); err != nil {
-					return status.New(codes.Internal, err.Error()).Err()
+			carry, ok := carries[tag]
+			if !ok {
+				carry = util.DataWithOffset{
+					Data:      d,
+					NextStart: 0,
 				}
-			}
-			if window, remain, err := util.ApplySamplingToData(
-				merged, sampling.Stride, sampling.WindowSize, windowFn); err != nil {
-				return status.New(codes.Internal, err.Error()).Err()
+				carries[tag] = carry
 			} else {
-				orphans[tag] = remain
-				if err := stream.Send(wrapToStream(window)); err != nil {
-					return status.Errorf(codes.Unavailable, "send failed: %v", err)
-				}
+				carry, err = util.MergeData(carry, d)
+			}
+			if err != nil {
+				return status.New(codes.Internal, err.Error()).Err()
+			}
+			window, carry, err := util.ApplySamplingToData(
+				carry, int(sampling.Stride), int(sampling.WindowSize), windowFn)
+
+			carries[tag] = carry
+
+			if err != nil {
+				return status.New(codes.Internal, err.Error()).Err()
+			}
+			if window == nil {
+				continue
+			}
+			if err := stream.Send(wrapToStream(window)); err != nil {
+				return status.Errorf(codes.Unavailable, "send failed: %v", err)
 			}
 		}
 	}
@@ -151,8 +169,8 @@ func (s *Service) QueryData(
 	wrapData := func(msg *pb.Data) *pb.DataResult {
 		return &pb.DataResult{Value: &pb.DataResult_Data{Data: msg}}
 	}
-	if req.sampling != nil {
-		return streamSampledData(ctx, *stream, dataCh, errCh, req.sampling, wrapData)
+	if req.Sampling != nil {
+		return streamSampledData[pb.DataResult](ctx, *stream, dataCh, errCh, req.Sampling, wrapData)
 	}
 	return streamRecords[*pb.Data, pb.DataResult](ctx, *stream, dataCh, errCh, wrapData)
 }

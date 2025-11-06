@@ -143,48 +143,110 @@ func WrapArray[M proto.Message](msgs []M) ([]*pb.Stored, int) {
 	return stored, size
 }
 
-func MergeData(d1, d2 *pb.Data) (*pb.Data, error) {
-	if d1.NameId != d2.NameId || d1.Index != d2.Index {
-		return nil, fmt.Errorf(
-			"MergeData: cannot merge data from different (name_id, index) combinations")
+/*
+A carry value when merging data.  This will exist in one of two states.
+
+ 1. data is non-nil and NextStart is 0.
+    This state represents that the next window will consume `data`
+
+ 2. data is nil and NextStart > 0
+    This means that the next window doesn't occur and more data needs to be processed.
+*/
+type DataWithOffset struct {
+	Data      *pb.Data
+	NextStart uint32
+}
+
+func dataByteLength(data *pb.Data) uint32 {
+	return uint32(len(data.Axes[0].Data))
+}
+
+/*
+Given input `data`, computes a slice of that data starting at `offset`
+Returns:
+*pb.Data - the new slice (copying underlying memory)
+uint32 - the new offset
+*/
+func sliceData(data *pb.Data, offset uint32) (*pb.Data, uint32) {
+	result := &pb.Data{
+		EntryId: data.EntryId,
+		Index:   data.Index,
+		NameId:  data.NameId,
+		Axes:    make([]*pb.Axis, len(data.Axes)),
 	}
-	if len(d1.Axes) != len(d1.Axes) {
-		return nil, fmt.Errorf(
-			"MergeData: pb.Data from same (name_id, index) pairs have different numbers of axes")
+	bytes := dataByteLength(data)
+	newOffset := uint32(0)
+	if bytes < offset {
+		newOffset += offset - bytes
+		offset = bytes
+	}
+
+	for i := range data.Axes {
+		source := data.Axes[i].Data[offset:]
+		dest := make([]byte, len(source))
+		copy(dest, source)
+
+		result.Axes[i] = &pb.Axis{
+			Dtype:  data.Axes[i].Dtype,
+			Length: uint32(len(dest)),
+			Data:   dest,
+		}
+	}
+	return result, newOffset
+}
+
+/*
+ */
+func MergeData(carry DataWithOffset, data *pb.Data) (DataWithOffset, error) {
+
+	if carry.NextStart > 0 {
+		newData, newOffset := sliceData(data, carry.NextStart)
+		return DataWithOffset{
+			Data:      newData,
+			NextStart: newOffset,
+		}, nil
+	}
+	if carry.Data.NameId != carry.Data.NameId || data.Index != data.Index {
+		return DataWithOffset{}, fmt.Errorf(
+			"MergeData: cannot merge data from different (name_id, index) combinations")
 	}
 
 	merged := &pb.Data{
-		EntryId: d1.EntryId,
-		Index:   d1.Index,
-		NameId:  d1.NameId,
-		Axes:    make([]*pb.Axis, len(d1.Axes)),
+		EntryId: data.EntryId,
+		Index:   data.Index,
+		NameId:  data.NameId,
+		Axes:    make([]*pb.Axis, len(data.Axes)),
 	}
 
-	for i := range d1.Axes {
-		if d1.Axes[i].Dtype != d2.Axes[i].Dtype {
-			return nil, fmt.Errorf(
+	for i := range carry.Data.Axes {
+		if carry.Data.Axes[i].Dtype != data.Axes[i].Dtype {
+			return DataWithOffset{}, fmt.Errorf(
 				"MergeData: pb.Data from same (name_id, index) pairs have different Axis dtype")
 		}
-		combinedData := make([]byte, 0, len(d1.Axes[i].Data)+len(d2.Axes[i].Data))
-		combinedData = append(combinedData, d1.Axes[i].Data...)
-		combinedData = append(combinedData, d2.Axes[i].Data...)
+		combinedData := make([]byte, 0, dataByteLength(carry.Data)+dataByteLength(data))
+		combinedData = append(combinedData, carry.Data.Axes[i].Data...)
+		combinedData = append(combinedData, data.Axes[i].Data...)
 
 		merged.Axes[i] = &pb.Axis{
-			Dtype:  d1.Axes[i].Dtype,
-			Length: d1.Axes[i].Length + d2.Axes[i].Length,
+			Dtype:  carry.Data.Axes[i].Dtype,
+			Length: uint32(len(combinedData)),
 			Data:   combinedData,
 		}
 	}
-	return merged, nil
+
+	return DataWithOffset{
+		Data:      merged,
+		NextStart: 0,
+	}, nil
 }
 
 /*
 Apply windowFn to windows of data, interpreting it as pb.DType and collecting the result.
 Returns:
 
-	result - the computed window values for windows every `stride` steps
-	leftover - the bytes that would start the next window
-	error -
+		result - the computed window values for windows every `stride` steps
+	    offset - next window position
+		error -
 */
 func windowFilter(
 	data []byte,
@@ -192,15 +254,24 @@ func windowFilter(
 	stride int,
 	windowSize int,
 	windowFn func(data []float64) float64,
-) ([]byte, []byte, error) {
-	numVals := len(data) / 4
-	numWin := (len(data) - windowSize + 1) / windowSize
-	numRemain := (len(data) - windowSize + 1) % windowSize
+) ([]byte, uint32, error) {
+	n := len(data)
+	if n < windowSize {
+		return []byte{}, 0, nil
+	}
+	numVals := n / 4
+	numWinPositions := numVals - windowSize + 1              // total number of window positions possible
+	numStridedWin := (numWinPositions + stride - 1) / stride // # complete windows in [0, n) when striding
+	nextWinPos := uint32(numStridedWin * stride * 4)
 
 	vals := make([]float64, numVals)
-	results := make([]byte, numWin)
-	remain := data[-numRemain:]
+	results := make([]byte, numStridedWin*4)
 
+	if (numStridedWin-1)*stride+windowSize > len(vals) {
+		panic("incorrectly sized vals")
+	}
+
+	// extract vals as float64
 	for i := 0; i < numVals; i++ {
 		u := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
 		if dtype == pb.DType_D_TYPE_I32 {
@@ -208,35 +279,46 @@ func windowFilter(
 		} else if dtype == pb.DType_D_TYPE_F32 {
 			vals[i] = float64(math.Float32frombits(u))
 		} else {
-			return make([]byte, 0), make([]byte, 0), fmt.Errorf("Invalid DType")
+			return make([]byte, 0), 0, fmt.Errorf("Invalid DType")
 		}
 	}
 
-	for w := 0; w < numWin; w++ {
+	// apply windowFn over vals
+	for w := 0; w < numStridedWin; w++ {
 		fval := windowFn(vals[w*stride : (w*stride)+windowSize])
 		dest := results[w*4 : (w+1)*4]
 		if dtype == pb.DType_D_TYPE_I32 {
-			uval := uint32(int32(fval))
+			uval := uint32(int32(math.Round(fval)))
 			binary.LittleEndian.PutUint32(dest, uval)
 		} else if dtype == pb.DType_D_TYPE_F32 {
-			uval := uint32(float32(fval))
+			uval := math.Float32bits(float32(fval))
 			binary.LittleEndian.PutUint32(dest, uval)
 		} else {
-			return make([]byte, 0), make([]byte, 0), fmt.Errorf("Invalid DType")
+			return make([]byte, 0), 0, fmt.Errorf("Invalid DType")
 		}
 	}
-	return results, remain, nil
+	return results, nextWinPos, nil
 
 }
 
 /*
- */
+Applies the sampling strategy to data
+Returns:
+
+		*pb.Data - the result of the sampling
+	    dataWithOffset - information for continuing
+		error    - any error occurring
+*/
 func ApplySamplingToData(
-	data *pb.Data,
+	carry DataWithOffset,
 	stride int,
 	windowSize int,
 	windowFn func(data []float64) float64,
-) (*pb.Data, *pb.Data, error) {
+) (*pb.Data, DataWithOffset, error) {
+	data := carry.Data
+	if data.Axes[0].Length < uint32(windowSize) {
+		return nil, carry, nil
+	}
 
 	result := &pb.Data{
 		EntryId: data.EntryId,
@@ -245,18 +327,14 @@ func ApplySamplingToData(
 		Axes:    make([]*pb.Axis, len(data.Axes)),
 	}
 
-	remain := &pb.Data{
-		EntryId: data.EntryId,
-		Index:   data.Index,
-		NameId:  data.NameId,
-		Axes:    make([]*pb.Axis, len(data.Axes)),
-	}
+	// the relative position in new data where the next window occurs.
+	var offset uint32
 
 	for a := range data.Axes {
 		axis := data.Axes[a]
-		win, extra, err := windowFilter(axis.Data, axis.Dtype, stride, windowSize, windowFn)
+		win, nextBytePos, err := windowFilter(axis.Data, axis.Dtype, stride, windowSize, windowFn)
 		if err != nil {
-			return result, remain, fmt.Errorf("Error applying window Filter for axis %d", a)
+			return result, DataWithOffset{}, fmt.Errorf("Error applying window Filter for axis %d", a)
 		}
 
 		result.Axes[a] = &pb.Axis{
@@ -264,13 +342,27 @@ func ApplySamplingToData(
 			Length: uint32(len(win)),
 			Data:   win,
 		}
-
-		remain.Axes[a] = &pb.Axis{
-			Dtype:  axis.Dtype,
-			Length: uint32(len(extra)),
-			Data:   extra,
-		}
+		offset = nextBytePos
 	}
 
-	return result, remain, nil
+	remain, _ := sliceData(data, offset)
+
+	newCarry := DataWithOffset{
+		Data:      remain,
+		NextStart: offset,
+	}
+
+	return result, newCarry, nil
+}
+
+func MeanReduction(window []float64) float64 {
+	sum := float64(0)
+	for i := 0; i != len(window); i++ {
+		sum += window[i]
+	}
+	return sum / float64(len(window))
+}
+
+var Reductions = map[pb.Reduction]func([]float64) float64{
+	pb.Reduction_REDUCTION_MEAN: MeanReduction,
 }
