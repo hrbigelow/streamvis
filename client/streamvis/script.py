@@ -152,11 +152,6 @@ def serve(web_uri: str, grpc_uri: str, schema_file: str, refresh_seconds: float=
     return server.make_server(web_uri, grpc_uri, schema_file, refresh_seconds)
 
 
-def grpc_serve(path: str, port: str):
-    from streamvis import grpc_server
-    asyncio.run(grpc_server.serve(path, int(port)))
-
-
 def counts(grpc_uri: str, scope: str):
     res = fetch_with_patterns(grpc_uri, f"^{scope}$", ".+")
     for (s, n, i), cds in res.items():
@@ -176,7 +171,6 @@ def main():
 
     tasks = { 
              "web-serve": serve,
-             "grpc-serve": grpc_serve,
              "logging-demo": demo_sync_fn,
              "logging-demo-async": demo_async_fn,
              "scopes": partial(print_list, scopes),
