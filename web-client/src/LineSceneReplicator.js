@@ -9,12 +9,13 @@ class LineSceneReplicator extends SceneReplicator {
    * @param {protobuf-es Client} rpcClient - the connect-go rpc client
    * @param {string} scopePattern - a regex for filtering scopes
    * @param {string} namePattern - a regex for filtering names
+   * @param {object} sampling - an object with windowSize and stride fields
    * @param {list} fieldNames - 
   */
-  constructor(rpcClient, scopePattern, namePattern, refreshSeconds, xField, yField,
+  constructor(rpcClient, scopePattern, namePattern, sampling, refreshSeconds, xField, yField,
     material,
   ) {
-    super(rpcClient, scopePattern, namePattern, refreshSeconds);
+    super(rpcClient, scopePattern, namePattern, sampling, refreshSeconds);
     this.xField = xField;
     this.yField = yField;
     this.material = material;
@@ -38,6 +39,7 @@ class LineSceneReplicator extends SceneReplicator {
   addData(object, name, data) {
     const axesData = getAxes(name, data, [this.xField, this.yField]);
     object.appendPoints(axesData[this.xField], axesData[this.yField]);
+    console.log(`added data ${data.entryId}`);
     // console.dir(object.geometry);
   }
 

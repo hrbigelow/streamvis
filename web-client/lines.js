@@ -11,6 +11,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.0, 10);
 // const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -24,13 +25,16 @@ window.addEventListener('resize', () => resizeToWindow(window, renderer, camera)
 
 // see vite.config.js proxy forwarding
 const client = getServiceClient('/');
-const scopePattern = '4xmess3-c100-noise0.01';
+// const scopePattern = '4xmess3-c100-noise0.01';
+const scopePattern = '4xmess3-c100-noise';
 // const namePattern = 'loss-kldiv|probe-kldiv';
-const namePattern = 'loss-kldiv';
-// const namePattern = 'participation-ratio';
+// const namePattern = 'loss-kldiv';
+const namePattern = 'participation-ratio';
 // const scopePattern = 'test-100$';
 // const namePattern = 'sinusoidal';
 const refreshSeconds = 5;
+// const sampling = { windowSize: 50, stride: 100 }
+const sampling = undefined; 
 
 const lineMaterial = new THREE.LineBasicMaterial({
   color: 0xff0000,
@@ -38,8 +42,9 @@ const lineMaterial = new THREE.LineBasicMaterial({
 });
 
 const scene = new LineSceneReplicator(
-  client, scopePattern, namePattern, 10, 'x', 'y', lineMaterial); 
+  client, scopePattern, namePattern, sampling, 10, 'x', 'y', lineMaterial); 
 
+scene.background = new THREE.Color(0xffffff)
 
 // const scene = new THREE.Scene();
 

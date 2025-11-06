@@ -14,6 +14,9 @@ function getServiceClient(url) {
   return createClient(Service, transport);
 }
 
+function optParseInt(value, prev) {
+  return parseInt(value);
+}
 
 /**
  * Converts data returned from the service client, converting fields based on their
@@ -83,6 +86,7 @@ export {
   getAxes,
   resizeToWindow,
   resizeToCanvas,
+  optParseInt,
 };
 
 

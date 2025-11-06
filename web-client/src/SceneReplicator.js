@@ -1,6 +1,10 @@
 import { Scene } from 'three';
 import { create } from '@bufbuild/protobuf';
-import { DataRequestSchema } from '../streamvis/v1/data_pb.js';
+import { 
+  DataRequestSchema,
+  SamplingSchema,
+  Reduction
+} from '../streamvis/v1/data_pb.js';
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -19,14 +23,25 @@ class SceneReplicator extends Scene {
    * @param {protobuf-es Client} rpcClient - the connect-go rpc client
    * @param {string} scopePattern - a regex for filtering scopes
    * @param {string} namePattern - a regex for filtering names
+   * @param {object} sampling - object having windowSize and stride fields (optional)
+   *
+   * If `sampling` is defined, the returned data will be sampled accordingly.
   */
 
-  constructor(rpcClient, scopePattern, namePattern, refreshSeconds) {
+  constructor(
+    rpcClient, scopePattern, namePattern, sampling, refreshSeconds) {
     super();
     this.background = 0xffffff;
     this.client = rpcClient
     this.scopePattern = scopePattern
     this.namePattern = namePattern
+    this.sampling = sampling === undefined
+      ? undefined  
+      : create(SamplingSchema, {
+        stride: sampling.stride,
+        reduction: Reduction.REDUCTION_MEAN,
+        windowSize: sampling.windowSize,
+      });
     this.fileOffset = 0
     this.refreshSeconds = refreshSeconds
     this.objects = {} // objectId => Object3D.
@@ -67,11 +82,13 @@ class SceneReplicator extends Scene {
    * Updates local state from gRPC service
   */
   async update() {
+
     const request = create(DataRequestSchema, 
       {
         scopePattern: this.scopePattern,
         namePattern: this.namePattern,
-        fileOffset: this.fileOffset 
+        fileOffset: this.fileOffset,
+        sampling: this.sampling
       });
 
     let recordResult = null;

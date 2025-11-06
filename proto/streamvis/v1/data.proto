@@ -14,7 +14,7 @@ enum DType {
 
 message Axis {
   DType dtype = 1;
-  uint32 length = 2;
+  uint32 length = 2; // logical length of value array (= len(data) / 4
   bytes data = 3;
 }
 
