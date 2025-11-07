@@ -188,7 +188,7 @@ func sliceData(data *pb.Data, offset uint32) (*pb.Data, uint32) {
 
 		result.Axes[i] = &pb.Axis{
 			Dtype:  data.Axes[i].Dtype,
-			Length: uint32(len(dest)),
+			Length: uint32(len(dest)) / 4,
 			Data:   dest,
 		}
 	}
@@ -229,7 +229,7 @@ func MergeData(carry DataWithOffset, data *pb.Data) (DataWithOffset, error) {
 
 		merged.Axes[i] = &pb.Axis{
 			Dtype:  carry.Data.Axes[i].Dtype,
-			Length: uint32(len(combinedData)),
+			Length: uint32(len(combinedData)) / 4,
 			Data:   combinedData,
 		}
 	}
@@ -256,10 +256,10 @@ func windowFilter(
 	windowFn func(data []float64) float64,
 ) ([]byte, uint32, error) {
 	n := len(data)
-	if n < windowSize {
+	numVals := n / 4
+	if numVals < windowSize {
 		return []byte{}, 0, nil
 	}
-	numVals := n / 4
 	numWinPositions := numVals - windowSize + 1              // total number of window positions possible
 	numStridedWin := (numWinPositions + stride - 1) / stride // # complete windows in [0, n) when striding
 	nextWinPos := uint32(numStridedWin * stride * 4)
@@ -303,6 +303,8 @@ func windowFilter(
 
 /*
 Applies the sampling strategy to data
+
+carry - the
 Returns:
 
 		*pb.Data - the result of the sampling
@@ -339,13 +341,13 @@ func ApplySamplingToData(
 
 		result.Axes[a] = &pb.Axis{
 			Dtype:  axis.Dtype,
-			Length: uint32(len(win)),
+			Length: uint32(len(win)) / 4,
 			Data:   win,
 		}
 		offset = nextBytePos
 	}
 
-	remain, _ := sliceData(data, offset)
+	remain, offset := sliceData(data, offset)
 
 	newCarry := DataWithOffset{
 		Data:      remain,

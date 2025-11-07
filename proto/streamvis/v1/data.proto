@@ -14,7 +14,7 @@ enum DType {
 
 message Axis {
   DType dtype = 1;
-  uint32 length = 2; // logical length of value array (= len(data) / 4
+  uint32 length = 2; // logical length of value array (= len(data) / 4 TODO: remove 
   bytes data = 3;
 }
 
