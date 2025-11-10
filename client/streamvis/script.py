@@ -23,10 +23,10 @@ def demo_sync_fn(
     scope: str, 
     delete_existing_names: bool=True, 
     num_steps: int=2000,
-    report_every: int=100
+    step_sleep_ms: int=0,
 ):
     num_steps = int(num_steps)
-    log_data(grpc_uri, scope, delete_existing_names, num_steps)
+    log_data(grpc_uri, scope, delete_existing_names, num_steps, step_sleep_ms)
 
 def demo_async_fn(
     grpc_uri: str, 

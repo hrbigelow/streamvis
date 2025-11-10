@@ -43,7 +43,7 @@ class Sinusoidal(SynthData):
 
 
 
-def log_data(grpc_uri, scope, delete_existing_names, num_steps):
+def log_data(grpc_uri, scope, delete_existing_names, num_steps, step_sleep_ms=0):
     """Demo of the Synchronous DataLogger."""
     logger = DataLogger(
         scope=scope, 
@@ -64,6 +64,7 @@ def log_data(grpc_uri, scope, delete_existing_names, num_steps):
 
         xs, top_data = sinusoidal.step(step, num_points=1)
         logger.write('sinusoidal', x=xs, y=top_data)
+        time.sleep(step_sleep_ms / 1000)
 
         # points = cloud.step(step)
         # xs, ys = points[:,0], points[:,1]
