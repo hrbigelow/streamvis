@@ -1,6 +1,7 @@
 import { Service, DType } from '../streamvis/v1/data_pb.js';  
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
+import * as THREE from 'three';
 
 /**
  * create a gRPC client
@@ -81,12 +82,59 @@ function resizeToCanvas(renderer) {
   return needsResize;
 }
 
+// 
+function cameraAutoFit(camera, controls, sceneBoundingBox) {
+  const center = new THREE.Vector3(); 
+  const size = new THREE.Vector3(); 
+  sceneBoundingBox.getCenter(center);
+  sceneBoundingBox.getSize(size);
+  // camera.lookAt(center.x, center.y, center.z);
+  const halfX = size.x / 2 * 1.05
+  const halfY = size.y / 2 * 1.05;
+  camera.left = -halfX;
+  camera.right = halfX;
+  camera.top = halfY;
+  camera.bottom = -halfY;
+  controls.target = center;
+  camera.position.set(center.x, center.y, camera.position.z);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+  controls.update()
+  printMatrix(camera.projectionMatrix, 'projectionMatrix');
+  printMatrix(camera.matrixWorld, 'matrixWorld');
+  // console.log('bounding box');
+  // console.dir(sceneBoundingBox.clone());
+  // console.log('camera position');
+  // console.dir(camera.position.clone());
+}
+
+
+function printMatrix(mat, tag) {
+  console.log(tag);
+  // do transpose because matrix is stored column-major
+  let els = mat.clone().transpose().toArray().map(n => n.toPrecision(3));
+  for (let i = 0; i != 16; i+=4) {
+    console.log(els.slice(i, i+4).join('  '));
+  }
+}
+
+
+function printVector(vec, tag) {
+  console.log(tag);
+  let els = vec.clone().toArray().map(n => n.toPrecision(3));
+  console.log(els.join('  '));
+}
+
+
 export {
   getServiceClient,
   getAxes,
   resizeToWindow,
   resizeToCanvas,
   optParseInt,
+  cameraAutoFit,
+  printMatrix,
+  printVector,
 };
 
 

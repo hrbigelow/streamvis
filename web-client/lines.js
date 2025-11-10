@@ -1,8 +1,15 @@
 import * as THREE from 'three';
-import { resizeToWindow, getServiceClient } from './src/util.js';
+import { resizeToWindow, getServiceClient, cameraAutoFit, optParseInt } from './src/util.js';
 import { LineSceneReplicator } from './src/LineSceneReplicator.js'; 
-import { LinePlotControls, ToggleLogControls } from './src/LinePlotControls.js';
+import { LinePlotControls } from './src/LinePlotControls.js';
+import { ToggleLogControls } from './src/ToggleLogControls.js';
 
+const params = new URLSearchParams(window.location.search);
+const scopePattern = params.get('s');
+const namePattern = params.get('n');
+const windowSize = parseInt(params.get('w'));
+const stride = parseInt(params.get('t'));
+const far = parseFloat(params.get('far'));
 
 const canvas = document.querySelector('#plot-canvas');
 const renderer = new THREE.WebGLRenderer({
@@ -13,28 +20,25 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.0, 10);
-// const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 10;
-
-const controls = new LinePlotControls(camera, renderer.domElement);
+// far plane means far from the scene
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, far);
+camera.position.z = far / 2; 
 
 window.addEventListener('resize', () => resizeToWindow(window, renderer, camera));
-// camera.position.set(0, 0, 1000);
-// camera.lookAt(20000, 0, 0);
+
 
 // see vite.config.js proxy forwarding
 const client = getServiceClient('/');
-// const scopePattern = '4xmess3-c100-noise0.01';
-const scopePattern = '4xmess3-c100-noise';
-// const namePattern = 'loss-kldiv|probe-kldiv';
-// const namePattern = 'loss-kldiv';
-const namePattern = 'participation-ratio';
-// const scopePattern = 'test-100$';
-// const namePattern = 'sinusoidal';
-const refreshSeconds = 5;
-// const sampling = { windowSize: 50, stride: 100 }
-const sampling = undefined; 
+const refreshSeconds = 600;
+// const sampling = { windowSize: 100, stride: 500 }
+let sampling = undefined; 
+
+if (Number.isFinite(windowSize) && Number.isFinite(stride)) {
+  sampling = { windowSize, stride };
+}
+console.log('sampling: ');
+console.dir(sampling);
+
 
 const lineMaterial = new THREE.LineBasicMaterial({
   color: 0xff0000,
@@ -42,33 +46,35 @@ const lineMaterial = new THREE.LineBasicMaterial({
 });
 
 const scene = new LineSceneReplicator(
-  client, scopePattern, namePattern, sampling, 10, 'x', 'y', lineMaterial); 
+  client, scopePattern, namePattern, sampling, refreshSeconds, 'x', 'y', lineMaterial); 
+
+
+const controls = new LinePlotControls(camera, renderer.domElement);
+// cameraAutoFit(camera, controls, scene.getBoundingBox());
+await scene.update();
+scene.toggleLogMode(0);
+scene.toggleLogMode(1);
+cameraAutoFit(camera, controls, scene.getBoundingBox());
 
 scene.background = new THREE.Color(0xffffff)
 
-// const scene = new THREE.Scene();
+scene.addEventListener('boundsChanged', (event) => {
+  cameraAutoFit(camera, controls, event.box);
+});
 
-/*
-const box = new THREE.BoxGeometry(1, 1, 1);
-const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(box, boxMaterial);
-scene.add(cube);
-*/
+
+function render() {
+  renderer.render(scene, camera);
+  console.log('render');
+}
+
+controls.addEventListener('change', (event) => {
+  render();
+});
 
 
 const keyControls = new ToggleLogControls(scene, renderer.domElement);
-const sceneStart = scene.start();
+// const sceneStart = scene.start();
 
-function animate() {
-  /*
-  if (resizeRendererToDisplaySize(renderer)) {
-    const canvas = renderer.domElement;
-    camera.aspect = canvas.clientWidth / canvas.clientHeight;
-    camera.updateProjectionMatrix();
-  }
-  */
-  renderer.render(scene, camera);
-}
-
-renderer.setAnimationLoop(animate);
+// renderer.setAnimationLoop(animate);
 

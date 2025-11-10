@@ -29,6 +29,14 @@ class LineSceneReplicator extends SceneReplicator {
     object.dispose();
   }
 
+  toggleLogMode(axisIndex) {
+    for (const object of Object.values(this.objects)) {
+      object.toggleAxisLog(axisIndex);
+    }
+    this.sendBoundsChanged();
+  }
+
+
   /**
    * extracts the (x, y) fields from data, flattens them and appends them to the
    * object
@@ -39,7 +47,7 @@ class LineSceneReplicator extends SceneReplicator {
   addData(object, name, data) {
     const axesData = getAxes(name, data, [this.xField, this.yField]);
     object.appendPoints(axesData[this.xField], axesData[this.yField]);
-    console.log(`added data ${data.entryId}`);
+    // console.log(`added data ${data.entryId}`);
     // console.dir(object.geometry);
   }
 

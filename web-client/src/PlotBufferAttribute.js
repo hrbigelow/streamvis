@@ -111,13 +111,16 @@ class Axis {
     if (this.transform.fun !== undefined) {
       this.transform.call(data);
     }
+    /*
     if (this.currentWhitening === undefined) {
       this.currentWhitening = computeStats(data);
     }
     const { mean, stddev } = this.currentWhitening;
+    const stddevInv = stddev ** -1
     for (let i = 0; i != data.length; i++) {
-      data[i] = (data[i] - mean) / stddev;
+      data[i] = (data[i] - mean) * stddevInv
     }
+    */
     return data;
   }
 
@@ -146,12 +149,14 @@ class Axis {
     // console.dir(this);
     // console.dir(target.array.slice(0, 10));
     let data = this._preprocess();
-    this.targetStats.update(data);
+    // this.targetStats.update(data);
 
+    /*
     if (! validStats(this.targetStats.stats())) {
       this.resetForTarget();
       data = this._preprocess();
     }
+    */
     target.size = this._targetOffset;
     const count = data.length * 3;
     const targetEnd = this._targetOffset + count;
@@ -205,7 +210,6 @@ class PlotBufferAttribute extends BufferAttribute {
     // this flag is set to true whenever the underlying array has been reallocated.
     this.needsDispose = false;
   }
-
 
   /*
    * gets the logical size of the data in this attribute

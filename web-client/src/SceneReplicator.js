@@ -1,4 +1,4 @@
-import { Scene } from 'three';
+import { Scene, Box3, Vector3 } from 'three';
 import { create } from '@bufbuild/protobuf';
 import { 
   DataRequestSchema,
@@ -46,6 +46,7 @@ class SceneReplicator extends Scene {
     this.refreshSeconds = refreshSeconds
     this.objects = {} // objectId => Object3D.
     this.names = {}
+    this._boundingBox = undefined
   }
 
   /**
@@ -91,17 +92,15 @@ class SceneReplicator extends Scene {
         sampling: this.sampling
       });
 
-    let recordResult = null;
-    const dataItems = [];
     for await (const resp of this.client.queryData(request)) {
       const { value } = resp;
       switch (value?.case) {
         case 'record': {
-          recordResult = value.value;
+          this.updateClientState(value.value);
           break;
         }
         case 'data': {
-          dataItems.push(value.value);
+          this.addDataItem(value.value);
           break;
         }
         default: {
@@ -110,11 +109,30 @@ class SceneReplicator extends Scene {
       }
     }
 
-    if (recordResult === null) {
-      throw new Error(`Got null recordResult from request`);
+    this.sendBoundsChanged();
+  }
+
+  sendBoundsChanged() {
+    this.dispatchEvent({
+      type: 'boundsChanged',
+      box: this.getBoundingBox(),
+    });
+  }
+
+  getBoundingBox() {
+    if (Object.values(this.objects).length === 0) {
+      return new Box3(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
     }
-    this.fileOffset = recordResult.fileOffset;
-    this.names = recordResult.names;
+    const box = new Box3();
+    for (const obj of Object.values(this.objects)) {
+      box.union(obj.getBoundingBox());
+    }
+    return box;
+  }
+
+  updateClientState(record) {
+    this.names = record.names;
+    this.fileOffset = record.fileOffset;
 
     // delete any non-represented objects and detach from this scene
     for (const [objectId, obj] of Object.entries(this.objects)) {
@@ -125,19 +143,18 @@ class SceneReplicator extends Scene {
         delete this.objects[objectId];
       }
     }
+  }
 
-    // create any new objects and attach to this scene
-    for (let data of dataItems) {
-      const objectId = this._makeObjectId(data.nameId, data.index);
-      if (! (objectId in this.objects)) {
-        this.objects[objectId] = this.createObject();
-        this.add(this.objects[objectId]);
-      }
-      const object = this.objects[objectId];
-      const nameId = this._getNameId(objectId)
-      const name = this.names[nameId];
-      this.addData(object, name, data);
+  addDataItem(data) {
+    const objectId = this._makeObjectId(data.nameId, data.index);
+    if (! (objectId in this.objects)) {
+      this.objects[objectId] = this.createObject();
+      this.add(this.objects[objectId]);
     }
+    const object = this.objects[objectId];
+    const nameId = this._getNameId(objectId)
+    const name = this.names[nameId];
+    this.addData(object, name, data);
   }
 
   /**
