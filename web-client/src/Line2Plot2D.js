@@ -5,6 +5,10 @@ import {
   Vector3
 } from 'three';
 
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+
 
 import { 
   PlotBufferAttribute, 
@@ -15,24 +19,21 @@ import {
  * An object for plotting 2D lines which can toggle xlog or ylog
  *
 */
-class LinePlot2D extends Line {
+class Line2Plot2D extends Line2 {
 
   constructor(material) {
-    super(new BufferGeometry(), material);
-    const attr = new PlotBufferAttribute(3);
-    this.geometry.setAttribute('position', attr);
+    super(new LineGeometry(), material);
+    this.positionData = new PlotBufferAttribute(3);
     this.transforms = {
       log: new PointwiseTransform('log', Math.log),
       none: new PointwiseTransform('none', undefined),
     };
-    this.scale.set(1, 1, 1);
   }
 
   toggleAxisLog(axisIndex) {
-    const attr = this.geometry.getAttribute('position');
-    const funName = attr.axes[axisIndex].transform.name;
+    const funName = this.positionData.axes[axisIndex].transform.name;
     const newFunName = { log: 'none', none: 'log' }[funName];
-    attr.setTransform(axisIndex, this.transforms[newFunName]);
+    this.positionData.setTransform(axisIndex, this.transforms[newFunName]);
     this.rescale();
   }
 
@@ -41,23 +42,22 @@ class LinePlot2D extends Line {
     if (xdata.length !== ydata.length) {
       throw new Error(`xdata.length ${xdata.length} != ydata.length ${ydata.length}`);
     }
-    const attr = this.geometry.getAttribute('position');
-    attr.append(xdata, 0);
-    attr.append(ydata, 1);
-    // console.log(`appendPoints: appending ${xdata.length} points, needsDispose: ${attr.needsDispose}, Setting DrawRange to ${attr.count}`);
+    this.positionData.append(xdata, 0);
+    this.positionData.append(ydata, 1);
+    this.geometry.setPositions(this.positionData.array);
 
-    if (attr.needsDispose) {
+    if (this.positionData.needsDispose) {
       this.geometry.dispose();
-      attr.needsDispose = false;
+      this.positionData.needsDispose = false;
     }
-    // console.dir(attr);
-    this.geometry.setDrawRange(0, attr.count);
+    this.geometry.setDrawRange(0, this.positionData.count);
     this.rescale();
+    this.computeLineDistances();
+    this.scale.set(1, 1, 1);
   }
 
   _getAttributeBox() {
-    const attr = this.geometry.getAttribute('position');
-    const array = attr.array;
+    const array = this.positionData.array;
     let minx = Infinity;
     let miny = Infinity;
     let minz = Infinity;
@@ -104,6 +104,7 @@ class LinePlot2D extends Line {
 
 
 export {
-  LinePlot2D
+  Line2Plot2D
 };
+
 

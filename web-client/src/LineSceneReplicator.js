@@ -1,5 +1,6 @@
 import { SceneReplicator } from './SceneReplicator.js';
 import { LinePlot2D } from './LinePlot2D.js';
+import { Line2Plot2D } from './Line2Plot2D.js';
 import { getAxes } from './util.js';
 
 class LineSceneReplicator extends SceneReplicator {
@@ -22,7 +23,7 @@ class LineSceneReplicator extends SceneReplicator {
   }
 
   createObject() {
-    return new LinePlot2D(this.material);
+    return new Line2Plot2D(this.material);
   }
 
   destroyObject(object) {

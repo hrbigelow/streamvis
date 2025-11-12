@@ -3,6 +3,7 @@ import { resizeToWindow, getServiceClient, cameraAutoFit, optParseInt } from './
 import { LineSceneReplicator } from './src/LineSceneReplicator.js'; 
 import { LinePlotControls } from './src/LinePlotControls.js';
 import { ToggleLogControls } from './src/ToggleLogControls.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 
 const params = new URLSearchParams(window.location.search);
 const scopePattern = params.get('s');
@@ -39,14 +40,26 @@ if (Number.isFinite(windowSize) && Number.isFinite(stride)) {
 console.log('sampling: ');
 console.dir(sampling);
 
+const line2Material = new LineMaterial({
+  color: 0xff0000,
+  linewidth: 2.0,
+  vertexColors: false,
+  alphaToCoverage: true,
+});
+
+// line2Material.resolution.set(window.innerWidth, window.innerHeight);
+
 
 const lineMaterial = new THREE.LineBasicMaterial({
   color: 0xff0000,
   linewidth: 1.3,
 });
 
+// const scene = new LineSceneReplicator(
+  // client, scopePattern, namePattern, sampling, refreshSeconds, 'x', 'y', lineMaterial); 
+
 const scene = new LineSceneReplicator(
-  client, scopePattern, namePattern, sampling, refreshSeconds, 'x', 'y', lineMaterial); 
+  client, scopePattern, namePattern, sampling, refreshSeconds, 'x', 'y', line2Material); 
 
 
 const controls = new LinePlotControls(camera, renderer.domElement);
