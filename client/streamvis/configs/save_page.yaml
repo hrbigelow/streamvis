@@ -1,0 +1,17 @@
+_target_: streamvis.save_page.SavePage
+
+defaults:
+  - _self_
+  - schema: lineplot
+
+out_file: null 
+grpc_uri: null
+scope_pattern: null
+name_pattern: null
+axis_mode: lin
+key_fun: sni
+window_size: null
+stride: null
+page_width: 1800
+page_height: 1000
+

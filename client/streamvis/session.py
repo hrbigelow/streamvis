@@ -43,6 +43,7 @@ class Plot:
         width_frac: float,
         height_frac: float,
         name_pat: str,
+        color_key: str,
     ):
         axes_mode_to_kwargs = {
             "lin":  dict(x_axis_type="linear", y_axis_type="linear"),
@@ -54,6 +55,8 @@ class Plot:
         plot_schema = copy.deepcopy(plot_schema)
         figure_kwargs = plot_schema.setdefault("figure_kwargs", {})
         figure_kwargs.update(**args_update)
+        if color_key is not None:
+            plot_schema["color"]["key_fun"] = color_key
 
         self.name = name
         self.doc = doc
@@ -337,12 +340,13 @@ class Session:
         height_fracs = req_args["heights"]
         self.window = req_args["window"] # whether to use window smoothing
         self.stride = req_args["stride"]
+        color_keys = req_args["color_keys"]
 
         # hack
-        z = zip(plots, name_filters, axes_modes, width_fracs, height_fracs)
+        z = zip(plots, name_filters, axes_modes, width_fracs, height_fracs, color_keys)
         doc = self.session_context._document
 
-        for plot_name, name_pat, axes_mode, width_frac, height_frac in z:
+        for plot_name, name_pat, axes_mode, width_frac, height_frac, color_key in z:
             plot_schema = self.schema.get(plot_name)
             default_schema = self.schema.get("DEFAULTS", {})
             util.fill_defaults(default_schema, plot_schema)
@@ -352,7 +356,7 @@ class Session:
                     f"No name '{plot_name}' found in global_schema. "
                     f"Available names: {', '.join(name for name in self.schema)}")
             plot = Plot(plot_name, doc, plot_schema, axes_mode, width_frac,
-                        height_frac, name_pat) 
+                        height_frac, name_pat, color_key) 
             self.plots.append(plot)
 
 

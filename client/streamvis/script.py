@@ -158,6 +158,7 @@ def counts(grpc_uri: str, scope: str):
         shape_str = " ".join(f"{k}: {v.shape}" for k, v in cds.items())
         print(f"{s}\t{n}\t{i}\t{shape_str}")
 
+
 def main():
     def print_list(fn, *args):
         out = fn(*args)

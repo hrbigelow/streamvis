@@ -106,6 +106,7 @@ class PageLayout(BasePage):
         cols:   semi-colon separated list of csv plot names lists
         names:  regex pattern of names to include (use one query param per plot name,
                 in same order as the names in rows or cols is given)
+        color_keys:  csv list of key functions (i.e. 'n', 'sni', etc)
         xlog:   if present, set x axis to log-scale
         ylog:   if present, set y axis to log-scale
 
@@ -117,9 +118,6 @@ class PageLayout(BasePage):
 
         Exactly one of `rows` or `cols` must be given.  Both `width` and `height` are
         optional.
-
-        scopes is optional.  if absent, defaults to '.+'
-        names is optional.  if absent, defaults to '.+'
 
         This function only accesses the server schema, not the data state
         """
@@ -211,6 +209,14 @@ class PageLayout(BasePage):
         if stride_arg is not None:
             stride_arg = int(stride_arg[0])
         out_args["stride"] = stride_arg
+
+        color_arg = get_decode(args, "color_keys")
+        if color_arg is None:
+            color_keys = (None,) * len(plots)
+        else:
+            color_keys = color_arg[0].split(',')
+
+        out_args["color_keys"] = color_keys
 
         self._set_layout(box_elems, box_part, plot_part, out_args) # update out_args
         return out_args 
