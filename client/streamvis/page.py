@@ -43,10 +43,10 @@ def parse_grid(known_plots, param, grid, plots, box_elems):
         box_elems.append(len(items))
 
 
-def get_decode(args, param):
+def get_decode(args, param, default=None):
     vals = args.get(param)
     if vals is None:
-        return None
+        return default 
     return tuple(v.decode() for v in vals)
 
 
@@ -127,8 +127,8 @@ class PageLayout(BasePage):
         args = request.arguments
         known_plots = self.server.schema.keys()
 
-        scope_pats = get_decode(args, "scopes") 
-        if scope_pats is None:
+        scope_pats = get_decode(args, "scopes", tuple()) 
+        if len(scope_pats) == 0:
             scope_pats = (".*",)
         if len(scope_pats) != 1:
             raise RuntimeError(f"scopes argument must be provided exactly once")
@@ -140,17 +140,17 @@ class PageLayout(BasePage):
         except re.PatternError as ex:
             raise RuntimeError(f"scopes argument '{scope_pat}' is not a valid regex")
 
-        rows = get_decode(args, "rows")
-        cols = get_decode(args, "cols")
-        if rows is not None and cols is None and len(rows) == 1:
+        rows = get_decode(args, "rows", None)
+        cols = get_decode(args, "cols", None)
+        if rows is not None and len(rows) == 1:
             rows = rows[0]
-        elif cols is not None and rows is None and len(cols) == 1:
+        elif cols is not None and len(cols) == 1:
             cols = cols[0]
         else:
             raise RuntimeError(
                 f"Either `rows` or `cols` query parameter must be given exactly once")
 
-        name_pats = get_decode(args, "names")
+        name_pats = get_decode(args, "names", (".*",))
 
         plots = [] 
         box_elems = [] # 
@@ -185,7 +185,7 @@ class PageLayout(BasePage):
         out_args["name-pats"] = tuple(name_pats)
         out_args["plots"] = tuple(plots)
 
-        axes_arg = get_decode(args, "axes")
+        axes_arg = get_decode(args, "axes", None)
         if axes_arg is None:
             axes = ("lin",) * len(plots) 
         elif len(axes_arg) == 1:
