@@ -1,7 +1,8 @@
+import * as THREE from 'three';
 import { SceneReplicator } from './SceneReplicator.js';
-import { LinePlot2D } from './LinePlot2D.js';
 import { Line2Plot2D } from './Line2Plot2D.js';
 import { getAxes } from './util.js';
+import { positionLocal, log, uniform, If } from 'three/tsl';
 
 class LineSceneReplicator extends SceneReplicator {
   /**
@@ -13,13 +14,29 @@ class LineSceneReplicator extends SceneReplicator {
    * @param {object} sampling - an object with windowSize and stride fields
    * @param {list} fieldNames - 
   */
-  constructor(rpcClient, scopePattern, namePattern, sampling, refreshSeconds, xField, yField,
-    material,
-  ) {
+  constructor(rpcClient, scopePattern, namePattern, sampling, refreshSeconds, xField, yField) {
     super(rpcClient, scopePattern, namePattern, sampling, refreshSeconds);
     this.xField = xField;
     this.yField = yField;
-    this.material = material;
+    this.material = new THREE.Line2NodeMaterial({
+      color: 0xff0000,
+      linewidth: 2.0,
+      vertexColors: false,
+      alphaToCoverage: true
+    });
+    this.useXLog = uniform(0);
+    this.useYLog = uniform(0);
+
+    const toggleLogPosition = Fn(({position}) => {
+      const pos = vec3(position);
+      If(bool(this.useXLog), () => {
+        pos.x.assign(log(pos.x));
+      });
+      If(bool(this.useYLog), () => {
+        pos.y.assign(log(pos.y));
+      });
+    });
+    this.material.positionNode = toggleLogPosition({position: positionLocal});
   }
 
   createObject() {
@@ -31,9 +48,15 @@ class LineSceneReplicator extends SceneReplicator {
   }
 
   toggleLogMode(axisIndex) {
-    for (const object of Object.values(this.objects)) {
-      object.toggleAxisLog(axisIndex);
+    if (axisIndex === 0) {
+      this.useXLog.value = 1 - this.useXLog.value;
+    } else {
+      this.useYLog.value = 1 - this.useYLog.value;
     }
+    // change the bounds
+    // for (const object of Object.values(this.objects)) {
+      // object.toggleAxisLog(axisIndex);
+    // }
     this.sendBoundsChanged();
   }
 

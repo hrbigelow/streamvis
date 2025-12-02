@@ -183,12 +183,6 @@ class Axis {
  * Any registered transformation functions must take in .sourceData and compute
  * intercalated output in Float32Array form.
  *
- * For maximizing precision, the transformed data should be scaled independently for
- * x and y axes so that all of the intercalated data are roughly in the same dynamic
- * range.  This implies that as new source data accumulates and thus the dynamic
- * range changes, the existing transform may need to be renormalized.
- * 
- *
 */
 class PlotBufferAttribute extends BufferAttribute {
   /*
