@@ -1,5 +1,6 @@
 from typing import Any
 from dataclasses import dataclass, field
+from functools import reduce
 import asyncio
 import math
 import re
@@ -8,10 +9,10 @@ import grpc
 from streamvis.v1 import data_pb2_grpc as pb_grpc
 from streamvis.v1 import data_pb2 as pb
 import numpy as np
-from bokeh.models import ColumnDataSource, Legend, LegendItem, CategoricalSlider
+from bokeh.models import ColumnDataSource, Legend, LegendItem, Slider, CategoricalSlider, Div
 from bokeh.application.application import SessionContext, Document
 from bokeh.model.model import Model
-from bokeh.layouts import column
+from bokeh.layouts import column, row
 from bokeh.models.ranges import Range1d, DataRange1d
 from bokeh.models import glyphs
 from bokeh import palettes
@@ -31,7 +32,9 @@ class Plot:
     name_pat: re.Pattern 
     full_sources: dict[str, ColumnDataSource]
     plot_sources: dict[str, ColumnDataSource]
-    filter_column: str | None
+    filter_columns: tuple[str]
+    sliders: dict # filter_col => CategoricalSlider 
+    slider_values: dict # filter_col => filter values
     margin: int # number of pixels of margin
 
     def __init__(
@@ -65,7 +68,9 @@ class Plot:
         self.height_frac = height_frac
         self.name_pat = re.compile(name_pat)
         self.full_columns = self.plot_schema['columns']
-        self.filter_column = None
+        self.filter_columns = tuple()
+        self.sliders = {} 
+        self.slider_values = {}
         self.full_sources = {}
         self.plot_sources = {}
         self.sync_plot_source_cb = None
@@ -73,7 +78,7 @@ class Plot:
 
     @property
     def plot_columns(self):
-        return tuple(c for c in self.full_columns if c != self.filter_column)
+        return tuple(c for c in self.full_columns if c not in self.filter_columns)
 
     def build(self, session_opts: dict, page_width: int, page_height: int) -> Model:
         """Build the figure and optional widgets.  session_opts is from ctx.token_payload."""
@@ -92,15 +97,40 @@ class Plot:
 
         filter_opts = self.plot_schema.get("filter_opts")
         if filter_opts is not None:
-            self.filter_column = filter_opts.get("column")
-            self.slider = CategoricalSlider(
-                    value=EMPTY_VAL, categories=[EMPTY_VAL],
-                    height=30, sizing_mode="stretch_width",
-                    styles={"width": "50%", "margin": "0 auto"})
-            self.slider.on_change("value", self.on_slider_change_cb)
-            self.model = column(fig, self.slider)
-        else:
-            self.model = fig
+            self.filter_columns = tuple(filter_opts.get("columns"))
+
+        controls = []
+        for col in self.filter_columns:
+            slider = Slider(start=0, end=1, step=1, value=0,
+                            sizing_mode="stretch_width", height=30)
+                    
+            # slider = CategoricalSlider(
+                    # value=EMPTY_VAL, categories=[EMPTY_VAL],
+                    # height=30, 
+                    # sizing_mode="stretch_width",
+                    # )
+            cb = lambda _, old, new, col=col: self.on_slider_change_cb(col, old, new)
+            slider.on_change("value", cb)
+
+            def _raw_debug(attr, old, new, col=col):
+                print(f"RAW debug: {col} {attr} {old} {new}")
+
+            # slider.on_change("value", _raw_debug)
+            self.sliders[col] = slider
+            self.slider_values[col] = tuple() 
+
+            label = Div(
+                    text=str(col),
+                    styles={
+                        "text-align": "center", 
+                        "font-weight": "bold", 
+                        "margin-bottom": "2px"
+                        },
+                    sizing_mode="stretch_width",
+                    )
+            controls.append(column(label, slider, sizing_mode="stretch_width"))
+        sliders_row = row(*controls, sizing_mode="stretch_width", spacing=20)
+        self.model = column(fig, sliders_row, sizing_mode="stretch_width")
         return self.model
 
 
@@ -118,7 +148,7 @@ class Plot:
 
     @property
     def is_filtered(self):
-        return self.filter_column is not None
+        return len(self.filter_columns) != 0
 
     def color(self, index: int, num_colors: int):
         color_opts = self.plot_schema.get("color", {})
@@ -146,7 +176,8 @@ class Plot:
 
     def get_scaled_size(self, page_width: float, page_height: float):
         if self.is_filtered:
-            page_height -= (self.slider.height + 20)
+            one_col = self.filter_columns[0]
+            page_height -= self.sliders[one_col].height + 20 
 
         width = int(self.width_frac * page_width) - (self.margin * 2)
         height = int(self.height_frac * page_height) - (self.margin * 2)
@@ -157,9 +188,9 @@ class Plot:
 
     def add_data(self, key: util.DataKey, cds_data: dict[str, np.array]):
         """Adds data to the plot."""
-        if set(cds_data) != set(self.full_columns):
+        if any(col not in cds_data for col in self.plot_columns):
             raise RuntimeError(
-                    f"Plot `{self.name}` takes columns {set(self.full_columns)} "
+                    f"Plot `{self.name}` takes columns {set(self.plot_columns)} "
                     f"but received {set(cds_data)}")
         glyph_id = self.make_glyph_id(key.name_id, key.index)
         if glyph_id not in self.full_sources:
@@ -193,46 +224,81 @@ class Plot:
     def name_ids(self):
         return set(self.get_name_id(g) for g in self.full_sources)
 
-    @property
-    def filter_values(self) -> tuple[int]:
+    def filter_values(self, filter_column: str) -> tuple[int]:
         # the set of values determined from
         if not self.is_filtered:
             return None
         vals = set()
         for src in self.full_sources.values():
-            vals.update(np.unique(src.data[self.filter_column]))
+            if filter_column not in src.data:
+                continue
+            vals.update(np.unique(src.data[filter_column]).tolist())
         return tuple(sorted(vals))
         
-    @property
-    def filter_value(self):
-        index = self.slider.categories.index(self.slider.value)
-        return self.filter_values[index]
+    def filter_value(self, filter_column: str):
+        slider = self.sliders[filter_column]
+        try:
+            index = int(slider.value)
+        except ValueError as ve:
+            raise RuntimeError(f"filter_value {filter_column}: {ve}") from ve
+        return self.filter_values(filter_column)[index]
 
     def sync_plot_to_data(self):
         # print("sync_plot_to_data")
         """Synchronize plot state to new data.""" 
         if not self.is_filtered:
             return
-        self.sync_slider()
+        self.sync_sliders()
         self.sync_plot_source(fix_ranges=False)
-        
-    def sync_slider(self):
+
+    def _sync_slider(self, filter_column: str):
+        """Synchronize the slider state to the filter_values."""
         if not self.is_filtered:
             return
 
-        """Synchronize the slider state to the filter_values."""
-        new_categories = [str(v) for v in self.filter_values]
-        if self.slider.categories == new_categories:
+        slider = self.sliders[filter_column]
+        new_categories = tuple(str(v) for v in self.filter_values(filter_column))
+        if slider.end == len(new_categories):
             return
 
-        at_max_val = (self.slider.value == self.slider.categories[-1])
-        self.slider.categories = new_categories
-        if len(self.slider.categories) == 0:
-            self.slider.categories.append(EMPTY_VAL)
-            self.slider.value = EMPTY_VAL
+        at_max_val = (slider.value == slider.end - 1)
+        slider.end = len(new_categories)
+        self.slider_values[filter_column] = new_categories 
+
+        # print(f"Assigned slider {filter_column} num_categories: {len(new_categories)}") 
+        if slider.end == 0:
+            slider.value = 0 
         if at_max_val:
-            self.slider.value = self.slider.categories[-1]
-        # print(f"sync_slider: {len(self.slider.categories)} categories, value={self.slider.value}")
+            slider.value = slider.end - 1
+
+        
+    def _sync_slider_old(self, filter_column: str):
+        """Synchronize the slider state to the filter_values."""
+        if not self.is_filtered:
+            return
+
+        slider = self.sliders[filter_column]
+        new_categories = [str(v) for v in self.filter_values(filter_column)]
+        if len(range(slider.start, slider.end, slider.step)) == len(new_categories):
+            return
+
+        if slider.categories == new_categories:
+            return
+
+        at_max_val = (slider.value == slider.categories[-1])
+        slider.categories = new_categories
+
+        # print(f"Assigned slider {filter_column} slider.categories = {new_categories}") 
+        if len(slider.categories) == 0:
+            slider.categories = [EMPTY_VAL]
+            slider.value = EMPTY_VAL
+        if at_max_val:
+            slider.value = slider.categories[-1]
+        # print(f"sync_slider: {len(slider.categories)} categories, value={self.slider.value}")
+
+    def sync_sliders(self):
+        for filter_column in self.filter_columns:
+            self._sync_slider(filter_column)
 
 
     def sync_plot_source(self, fix_ranges=False):
@@ -245,12 +311,20 @@ class Plot:
         if not self.is_filtered:
             return
 
+
         for glyph_id, full_cds in self.full_sources.items():
-            all_data = full_cds.data
-            plot_cds = self.plot_sources[glyph_id]
-            mask = (all_data[self.filter_column] == self.filter_value)
-            plot_vals = {k: v[mask] for k, v in all_data.items() if k != self.filter_column} 
-            plot_cds.data = plot_vals 
+            vals = tuple(full_cds.data[c] == self.filter_value(c) 
+                         for c in self.filter_columns if c in full_cds.data)
+            filter_vals = {c: self.filter_value(c) 
+                           for c in self.filter_columns if c in full_cds.data}
+            # print(f"sync_plot_source: filtering on settings: {filter_vals}")
+            if len(vals) == 0:
+                plot_vals = full_cds.data
+            else:
+                mask = reduce(np.logical_and, vals)
+                plot_vals = {k: v[mask] for k, v in full_cds.data.items() if k not in self.filter_columns} 
+
+            self.plot_sources[glyph_id].data = plot_vals 
 
         if fix_ranges:
             self._fix_ranges()
@@ -276,10 +350,16 @@ class Plot:
             self.figure.y_range = DataRange1d(start=yr.start, end=yr.end)
 
 
-    def on_slider_change_cb(self, attr, old, new):
-        self.slider.value = new
-        if self.sync_plot_source_cb is not None:
-            self.doc.remove_next_tick_callback(self.sync_plot_source_cb)
+    def on_slider_change_cb(self, filter_column, old, new):
+        slider = self.sliders.get(filter_column)
+        if slider is None:
+            print(f"No slider exists for {filter_column}")
+            return
+
+        # print(f"on_slider_change_cb: {filter_column} {old} {new}, {type(old)=} {type(new)=}")
+        # slider.value = new
+        # if self.sync_plot_source_cb is not None:
+         #    self.doc.remove_next_tick_callback(self.sync_plot_source_cb)
         self.sync_plot_source_cb = self.doc.add_next_tick_callback(
             lambda: self.sync_plot_source(fix_ranges=True)
         )
@@ -428,11 +508,11 @@ class Session:
             for name_id in plot.name_ids:
                 if name_id not in self.grpc_state.names: 
                     plot.remove_name_id(name_id)
-            plot.sync_slider()
+            plot.sync_sliders()
 
         for plot in self.plots:
             plot_updated = False
-            for key, cds in cds_map.items():
+            for key, cds in reversed(cds_map.items()):
                 if plot.key_belongs(key):
                     plot.add_data(key, cds)
                     plot_updated = True
