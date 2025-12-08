@@ -21,6 +21,22 @@ from . import util
 
 EMPTY_VAL = "EMPTY"
 
+@dataclass(frozen=True, order=True)
+class GlyphKey:
+    data_key: util.DataKey
+    level_fields: tuple[str]
+    level_values: tuple[Any]
+
+    @property
+    def id(self):
+        levels = tuple(f"{f}:{v:5.3f}" for f, v in zip(self.level_fields, self.level_values))
+        return ",".join(str(k) for k in (self.data_key.name_id, self.data_key.index, *levels))
+
+    @staticmethod
+    def split_id(glyph_id: str):
+        name_id, index, *levels = glyph_id.split(",")
+        return (int(name_id), int(index), *levels)
+
 class Plot:
     name: str
     doc: Document 
@@ -33,6 +49,7 @@ class Plot:
     full_sources: dict[str, ColumnDataSource]
     plot_sources: dict[str, ColumnDataSource]
     filter_columns: tuple[str]
+    ignore_columns: tuple[str]
     sliders: dict # filter_col => CategoricalSlider 
     slider_values: dict # filter_col => filter values
     margin: int # number of pixels of margin
@@ -46,6 +63,7 @@ class Plot:
         width_frac: float,
         height_frac: float,
         name_pat: str,
+        ignore_columns: tuple[str],
         color_key: str,
     ):
         axes_mode_to_kwargs = {
@@ -69,6 +87,7 @@ class Plot:
         self.name_pat = re.compile(name_pat)
         self.full_columns = self.plot_schema['columns']
         self.filter_columns = tuple()
+        self.ignore_columns = ignore_columns 
         self.sliders = {} 
         self.slider_values = {}
         self.full_sources = {}
@@ -95,9 +114,8 @@ class Plot:
         fig.yaxis.update(**fig_kwargs.get("yaxis", {}))
         self.figure = fig
 
-        filter_opts = self.plot_schema.get("filter_opts")
-        if filter_opts is not None:
-            self.filter_columns = tuple(filter_opts.get("columns"))
+        self.filter_columns = session_opts["filter_columns"]
+        self.ignore_columns = session_opts["ignore_columns"]
 
         controls = []
         for col in self.filter_columns:
@@ -112,10 +130,6 @@ class Plot:
             cb = lambda _, old, new, col=col: self.on_slider_change_cb(col, old, new)
             slider.on_change("value", cb)
 
-            def _raw_debug(attr, old, new, col=col):
-                print(f"RAW debug: {col} {attr} {old} {new}")
-
-            # slider.on_change("value", _raw_debug)
             self.sliders[col] = slider
             self.slider_values[col] = tuple() 
 
@@ -135,12 +149,9 @@ class Plot:
 
 
     @staticmethod
-    def make_glyph_id(name_id: int, index: int):
-        return f"{name_id},{index}"
-
-    @staticmethod
     def get_name_id(glyph_id: str):
-        return int(glyph_id.split(",")[0])
+        name_id, *_ = GlyphKey.split_id(glyph_id)
+        return name_id
 
     @staticmethod
     def to_label(label_key: tuple[Any]) -> str:
@@ -157,16 +168,16 @@ class Plot:
         pal = palettes.interp_palette(pal, num_colors)
         return pal[index]
 
-    def label_key(self, scope: pb.Scope, name: pb.Name, index: int) -> tuple[Any]:
+    def label_key(self, scope: pb.Scope, name: pb.Name, index: int, levels: tuple[Any]) -> tuple[Any]:
         """Compute the label key, defining the ordering for labels."""
         color_opts = self.plot_schema.get("color", {})
         sig = color_opts.get("key_fun", "sni")
         d = {"s": scope.scope, "n": name.name, "i": index}
-        return tuple(d[ch] for ch in sig)
+        return tuple(d[ch] for ch in sig) + levels
 
-    def label(self, scope: pb.Scope, name: pb.Name, index: int) -> str:
+    def label(self, scope: pb.Scope, name: pb.Name, index: int, levels: tuple[Any]) -> str:
         """Compute a label for this group.  Will be used to index a palette."""
-        key = self.label_key(scope, name, index)
+        key = self.label_key(scope, name, index, levels)
         return self.to_label(key)
 
     def scale_to_pagesize(self, page_width: float, page_height: float):
@@ -187,42 +198,68 @@ class Plot:
         return self.name_pat.search(key.name)
 
     def add_data(self, key: util.DataKey, cds_data: dict[str, np.array]):
-        """Adds data to the plot."""
+        """
+        Split out cds_data according to the glyph_columns.
+        """
+        glyph_columns = tuple(c for c in sorted(cds_data.keys())
+                              if c not in self.ignore_columns
+                              and c not in self.filter_columns
+                              and c not in self.plot_columns)
+
+        if len(glyph_columns) == 0:
+            glyph_key = GlyphKey(key, tuple(), tuple())
+            self.add_glyph_data(glyph_key, cds_data)
+            return
+
+        block = np.stack(tuple(cds_data[c] for c in glyph_columns), axis=1)
+        slices = np.unique(block, axis=0)
+        for slc in slices:
+            glyph_key = GlyphKey(key, glyph_columns, tuple(slc.tolist()))
+            inds = np.all(block == slc, axis=1).nonzero()[0]
+            sub_cds_data = {k: v[inds] for k, v in cds_data.items() if k not in glyph_columns}
+            self.add_glyph_data(glyph_key, sub_cds_data)
+
+
+    def add_glyph_data(self, glyph_key: GlyphKey, cds_data: dict[str, np.array]):
+        """
+        Adds data to the plot.
+        Each distinct key maps to exactly one glyph.
+        If the glyph exists, data is appended
+        """
         if any(col not in cds_data for col in self.plot_columns):
             raise RuntimeError(
                     f"Plot `{self.name}` takes columns {set(self.plot_columns)} "
                     f"but received {set(cds_data)}")
-        glyph_id = self.make_glyph_id(key.name_id, key.index)
-        if glyph_id not in self.full_sources:
+
+        if glyph_key.id not in self.full_sources:
             empty_data = {k: np.zeros_like(v, shape=(0,)) for k, v in cds_data.items()}
-            self.full_sources[glyph_id] = cds = ColumnDataSource(empty_data)
+            self.full_sources[glyph_key] = cds = ColumnDataSource(empty_data)
             if self.is_filtered:
                 empty_plot_data = {k: np.zeros_like(v, shape=(0,)) for k, v in
                         cds_data.items() if k in self.plot_columns}
-                self.plot_sources[glyph_id] = ColumnDataSource(empty_plot_data)
+                self.plot_sources[glyph_key] = ColumnDataSource(empty_plot_data)
             else:
-                self.plot_sources[glyph_id] = cds
+                self.plot_sources[glyph_key] = cds
 
             glyph_kind = self.plot_schema.get("glyph_kind")
             glyph_kwargs = self.plot_schema.get("glyph_kwargs", {})
-            plot_cds = self.plot_sources[glyph_id]
+            plot_cds = self.plot_sources[glyph_key]
             color = "white"
             if glyph_kind == "line":
                 self.figure.line(
-                    *self.plot_columns, source=plot_cds, name=glyph_id, color=color, **glyph_kwargs)
+                    *self.plot_columns, source=plot_cds, name=glyph_key.id, color=color, **glyph_kwargs)
             elif glyph_kind == "scatter":
                 self.figure.circle(
-                    *self.plot_columns, name=glyph_id, source=plot_cds, 
+                    *self.plot_columns, name=glyph_key.id, source=plot_cds, 
                     color=color, **glyph_kwargs)
             else:
                 raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
-        cds = self.full_sources[glyph_id]
-        cds.stream(cds_data)
+        self.full_sources[glyph_key].stream(cds_data)
 
     @property
     def name_ids(self):
-        return set(self.get_name_id(g) for g in self.full_sources)
+        return set(g.data_key.name_id for g in self.full_sources)
 
     def filter_values(self, filter_column: str) -> tuple[int]:
         # the set of values determined from
@@ -261,15 +298,15 @@ class Plot:
         if slider.end == len(new_categories):
             return
 
-        at_max_val = (slider.value == slider.end - 1)
-        slider.end = len(new_categories)
+        at_max_val = (slider.value == slider.end)
+        slider.end = max(len(new_categories) - 1, 1) # slider must be non-empty
         self.slider_values[filter_column] = new_categories 
 
-        # print(f"Assigned slider {filter_column} num_categories: {len(new_categories)}") 
-        if slider.end == 0:
+        print(f"Assigned slider {filter_column} num_categories: {len(new_categories)}") 
+        if slider.end == 1:
             slider.value = 0 
         if at_max_val:
-            slider.value = slider.end - 1
+            slider.value = slider.end
 
         
     def _sync_slider_old(self, filter_column: str):
@@ -364,12 +401,8 @@ class Plot:
             lambda: self.sync_plot_source(fix_ranges=True)
         )
 
-    def on_slider_change_cb_old(self, attr, old, new):
-        self.slider.value = new
-        self.sync_plot_source(fix_ranges=True)
-
     def remove_name_id(self, name_id: int):
-        remove = tuple(g for g in self.full_sources if self.get_name_id(g) == name_id)
+        remove = tuple(g for g in self.full_sources if g.data_key.name_id == name_id)
         for g in remove:
             del self.full_sources[g]
             del self.plot_sources[g]
@@ -421,6 +454,7 @@ class Session:
         self.window = req_args["window"] # whether to use window smoothing
         self.stride = req_args["stride"]
         color_keys = req_args["color_keys"]
+        ignore_columns = req_args["ignore_columns"]
 
         # hack
         z = zip(plots, name_filters, axes_modes, width_fracs, height_fracs, color_keys)
@@ -436,7 +470,7 @@ class Session:
                     f"No name '{plot_name}' found in global_schema. "
                     f"Available names: {', '.join(name for name in self.schema)}")
             plot = Plot(plot_name, doc, plot_schema, axes_mode, width_frac,
-                        height_frac, name_pat, color_key) 
+                        height_frac, name_pat, ignore_columns, color_key) 
             self.plots.append(plot)
 
 
@@ -455,16 +489,18 @@ class Session:
         label_keys = set()
         label_to_rend_map = {}
         for r in list(plot.figure.renderers):
-            name_id, index = self.split_glyph_id(r.name)
+            # name_id, index, *levels = self.split_glyph_id(r.name)
+            name_id, index, *levels = GlyphKey.split_id(r.name) 
             name = self.grpc_state.names[name_id]
             scope = self.grpc_state.scopes[name.scope_id]
-            label_key = plot.label_key(scope, name, index)
+            label_key = plot.label_key(scope, name, index, tuple(levels))
             label_keys.add(label_key)
         for r in list(plot.figure.renderers):
-            name_id, index = self.split_glyph_id(r.name)
+            # name_id, index, *levels = self.split_glyph_id(r.name)
+            name_id, index, *levels = GlyphKey.split_id(r.name) 
             name = self.grpc_state.names[name_id]
             scope = self.grpc_state.scopes[name.scope_id]
-            label = plot.label(scope, name, index)
+            label = plot.label(scope, name, index, tuple(levels))
             rs = label_to_rend_map.setdefault(label, [])
             rs.append(r)
 

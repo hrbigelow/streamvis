@@ -49,6 +49,16 @@ def get_decode(args, param, default=None):
         return default 
     return tuple(v.decode() for v in vals)
 
+def unique_ordered(elems: list[Any]):
+    out = []
+    seen = set()
+    for el in elems:
+        if el in seen:
+            continue
+        out.append(el)
+        seen.add(el)
+    return tuple(out)
+
 
 class PageLayout(BasePage):
     """Represents a browser page."""
@@ -115,6 +125,8 @@ class PageLayout(BasePage):
         
         width:  csv numbers list
         height: csv numbers list
+
+        ignore: cvs field list of data fields to ignore
 
         Exactly one of `rows` or `cols` must be given.  Both `width` and `height` are
         optional.
@@ -217,6 +229,11 @@ class PageLayout(BasePage):
             color_keys = color_arg[0].split(',')
 
         out_args["color_keys"] = color_keys
+
+        ignore_cols = get_decode(args, "ignore", tuple())
+        filter_cols = get_decode(args, "filter", tuple())
+        out_args["ignore_columns"] = unique_ordered(",".join(ignore_cols).split(","))
+        out_args["filter_columns"] = unique_ordered(",".join(filter_cols).split(","))
 
         self._set_layout(box_elems, box_part, plot_part, out_args) # update out_args
         return out_args 

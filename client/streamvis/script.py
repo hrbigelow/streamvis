@@ -158,6 +158,12 @@ def counts(grpc_uri: str, scope: str):
         shape_str = " ".join(f"{k}: {v.shape}" for k, v in cds.items())
         print(f"{s}\t{n}\t{i}\t{shape_str}")
 
+def delete_name(grpc_uri: str, scope: str, name: str):
+    channel = grpc.insecure_channel(grpc_uri)
+    stub = pb_grpc.ServiceStub(channel)
+    req = pb.DeleteTagRequest(scope=scope, names=(name,))
+    resp = stub.DeleteScopeNames(req)
+
 
 def main():
     def print_list(fn, *args):
@@ -177,6 +183,7 @@ def main():
              "scopes": partial(print_list, scopes),
              "names": partial(print_list, names),
              "counts": counts,
+             "delete": delete_name,
              "config": partial(print_dict, config),
              "liftover": liftover,
             }
