@@ -117,8 +117,7 @@ class PageLayout(BasePage):
         names:  regex pattern of names to include (use one query param per plot name,
                 in same order as the names in rows or cols is given)
         color_keys:  csv list of key functions (i.e. 'n', 'sni', etc)
-        xlog:   if present, set x axis to log-scale
-        ylog:   if present, set y axis to log-scale
+        axes:   (xlog, ylog, xylog)
 
         window: if present, use a pb.Sampler
         stride: if present, use a pb.Sampler
@@ -126,7 +125,12 @@ class PageLayout(BasePage):
         width:  csv numbers list
         height: csv numbers list
 
+        filter: csv field list of data fields to filter
         ignore: cvs field list of data fields to ignore
+
+        title: plot title
+        xaxis: x axis name
+        yaxis: y axis name
 
         Exactly one of `rows` or `cols` must be given.  Both `width` and `height` are
         optional.
@@ -232,8 +236,18 @@ class PageLayout(BasePage):
 
         ignore_cols = get_decode(args, "ignore", tuple())
         filter_cols = get_decode(args, "filter", tuple())
-        out_args["ignore_columns"] = unique_ordered(",".join(ignore_cols).split(","))
-        out_args["filter_columns"] = unique_ordered(",".join(filter_cols).split(","))
+        if len(ignore_cols) > 0:
+            ignore_cols = unique_ordered(",".join(ignore_cols).split(","))
+        if len(filter_cols) > 0:
+            filter_cols = unique_ordered(",".join(filter_cols).split(","))
+
+        out_args["filter_columns"] = filter_cols
+        out_args["ignore_columns"] = ignore_cols
+
+        # TODO: broken for multi-plot
+        out_args["title"] = get_decode(args, "title", "Plot")[0]
+        out_args["xaxis"] = get_decode(args, "xaxis", "X Axis")[0]
+        out_args["yaxis"] = get_decode(args, "yaxis", "Y Axis")[0]
 
         self._set_layout(box_elems, box_part, plot_part, out_args) # update out_args
         return out_args 

@@ -37,6 +37,7 @@ class GlyphKey:
         name_id, index, *levels = glyph_id.split(",")
         return (int(name_id), int(index), *levels)
 
+
 class Plot:
     name: str
     doc: Document 
@@ -109,6 +110,13 @@ class Plot:
         fig = figure(name=self.name, output_backend='webgl', width=w, height=h, **top_kwargs)
         legend = Legend(**fig_kwargs.get("legend", {}))
         fig.add_layout(legend)
+        if "title" in fig_kwargs:
+            fig_kwargs["title"]["text"] = session_opts["title"]
+        if "xaxis" in fig_kwargs:
+            fig_kwargs["xaxis"]["axis_label"] = session_opts["xaxis"]
+        if "yaxis" in fig_kwargs:
+            fig_kwargs["yaxis"]["axis_label"] = session_opts["yaxis"]
+
         fig.title.update(**fig_kwargs.get("title", {}))
         fig.xaxis.update(**fig_kwargs.get("xaxis", {}))
         fig.yaxis.update(**fig_kwargs.get("yaxis", {}))
@@ -226,6 +234,7 @@ class Plot:
         Each distinct key maps to exactly one glyph.
         If the glyph exists, data is appended
         """
+        # print(f"add_glyph_data: {glyph_key}")
         if any(col not in cds_data for col in self.plot_columns):
             raise RuntimeError(
                     f"Plot `{self.name}` takes columns {set(self.plot_columns)} "
@@ -302,7 +311,7 @@ class Plot:
         slider.end = max(len(new_categories) - 1, 1) # slider must be non-empty
         self.slider_values[filter_column] = new_categories 
 
-        print(f"Assigned slider {filter_column} num_categories: {len(new_categories)}") 
+        # print(f"Assigned slider {filter_column} num_categories: {len(new_categories)}") 
         if slider.end == 1:
             slider.value = 0 
         if at_max_val:
@@ -356,7 +365,7 @@ class Plot:
                            for c in self.filter_columns if c in full_cds.data}
             # print(f"sync_plot_source: filtering on settings: {filter_vals}")
             if len(vals) == 0:
-                plot_vals = full_cds.data
+                plot_vals = full_cds.data.copy()
             else:
                 mask = reduce(np.logical_and, vals)
                 plot_vals = {k: v[mask] for k, v in full_cds.data.items() if k not in self.filter_columns} 
@@ -539,6 +548,10 @@ class Session:
         if len(cds_map) == 0:
             fut.set_result(None)
             return
+
+        # for key, cds in cds_map.items():
+            # shapes = {k: v.size for k, v in cds.items()}
+            # print(f"send_patch_cb: {key}: {shapes}")
 
         for plot in self.plots:
             for name_id in plot.name_ids:
