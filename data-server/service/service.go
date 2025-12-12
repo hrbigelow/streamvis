@@ -239,8 +239,7 @@ func (s *Service) Names(
 		default:
 			// continue
 		}
-		msg := &pb.Tag{Scope: tag[0], Name: tag[1]}
-		if err := stream.Send(msg); err != nil {
+		if err := stream.Send(&tag); err != nil {
 			return status.Errorf(codes.Unavailable, "send failed: %v", err)
 		}
 	}

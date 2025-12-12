@@ -274,14 +274,14 @@ func (s *IndexStore) GetScopes(scopePat *regexp.Regexp) []string {
 	return slices.Collect(maps.Keys(scopeNames))
 }
 
-func (s *IndexStore) GetNames(scopePat, namePat *regexp.Regexp) [][2]string {
+func (s *IndexStore) GetNames(scopePat, namePat *regexp.Regexp) []pb.Tag {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	names := s.index.GetNames(scopePat, namePat)
-	tags := make(map[[2]string]struct{}, 0) // tag is (scope, name)
+	var tags []pb.Tag
 	for _, name := range names {
 		scope := s.index.scopes[name.ScopeId]
-		tags[[2]string{scope.Scope, name.Name}] = struct{}{}
+		tags = append(tags, pb.Tag{Scope: scope.Scope, Name: name.Name, Fields: name.Fields})
 	}
-	return slices.Collect(maps.Keys(tags))
+	return tags
 }

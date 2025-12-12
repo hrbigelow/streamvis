@@ -164,6 +164,7 @@ message ConfigResult {
 message Tag {
   string scope = 1;
   string name = 2;
+  repeated Field fields = 3;
 }
 
 message Streamed {

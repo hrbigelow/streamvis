@@ -1368,6 +1368,7 @@ type Tag struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Scope         string                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Fields        []*Field               `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1414,6 +1415,13 @@ func (x *Tag) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *Tag) GetFields() []*Field {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
 }
 
 type Streamed struct {
@@ -2158,10 +2166,11 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\fConfigResult\x122\n" +
 	"\x05index\x18\x01 \x01(\v2\x1a.streamvis.v1.RecordResultH\x00R\x05index\x12.\n" +
 	"\x06config\x18\x02 \x01(\v2\x14.streamvis.v1.ConfigH\x00R\x06configB\a\n" +
-	"\x05value\"/\n" +
+	"\x05value\"\\\n" +
 	"\x03Tag\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xf2\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12+\n" +
+	"\x06fields\x18\x03 \x03(\v2\x13.streamvis.v1.FieldR\x06fields\"\xf2\x01\n" +
 	"\bStreamed\x122\n" +
 	"\x05index\x18\x01 \x01(\v2\x1a.streamvis.v1.RecordResultH\x00R\x05index\x12(\n" +
 	"\x04data\x18\x02 \x01(\v2\x12.streamvis.v1.DataH\x00R\x04data\x12(\n" +
@@ -2295,42 +2304,43 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	35, // 17: streamvis.v1.RecordResult.names:type_name -> streamvis.v1.RecordResult.NamesEntry
 	15, // 18: streamvis.v1.ConfigResult.index:type_name -> streamvis.v1.RecordResult
 	11, // 19: streamvis.v1.ConfigResult.config:type_name -> streamvis.v1.Config
-	15, // 20: streamvis.v1.Streamed.index:type_name -> streamvis.v1.RecordResult
-	10, // 21: streamvis.v1.Streamed.data:type_name -> streamvis.v1.Data
-	6,  // 22: streamvis.v1.Streamed.name:type_name -> streamvis.v1.Name
-	11, // 23: streamvis.v1.Streamed.config:type_name -> streamvis.v1.Config
-	21, // 24: streamvis.v1.Streamed.tag:type_name -> streamvis.v1.Tag
-	15, // 25: streamvis.v1.DataResult.record:type_name -> streamvis.v1.RecordResult
-	10, // 26: streamvis.v1.DataResult.data:type_name -> streamvis.v1.Data
-	37, // 27: streamvis.v1.WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
-	6,  // 28: streamvis.v1.WriteNameRequest.names:type_name -> streamvis.v1.Name
-	10, // 29: streamvis.v1.WriteDataRequest.datas:type_name -> streamvis.v1.Data
-	6,  // 30: streamvis.v1.WriteNameResponse.names:type_name -> streamvis.v1.Name
-	5,  // 31: streamvis.v1.RecordResult.ScopesEntry.value:type_name -> streamvis.v1.Scope
-	6,  // 32: streamvis.v1.RecordResult.NamesEntry.value:type_name -> streamvis.v1.Name
-	14, // 33: streamvis.v1.Service.QueryData:input_type -> streamvis.v1.DataRequest
-	16, // 34: streamvis.v1.Service.Scopes:input_type -> streamvis.v1.ScopeRequest
-	18, // 35: streamvis.v1.Service.Names:input_type -> streamvis.v1.NamesRequest
-	19, // 36: streamvis.v1.Service.Configs:input_type -> streamvis.v1.ConfigRequest
-	25, // 37: streamvis.v1.Service.WriteScope:input_type -> streamvis.v1.WriteScopeRequest
-	24, // 38: streamvis.v1.Service.WriteConfig:input_type -> streamvis.v1.WriteConfigRequest
-	26, // 39: streamvis.v1.Service.WriteNames:input_type -> streamvis.v1.WriteNameRequest
-	27, // 40: streamvis.v1.Service.DeleteScopeNames:input_type -> streamvis.v1.DeleteTagRequest
-	29, // 41: streamvis.v1.Service.WriteData:input_type -> streamvis.v1.WriteDataRequest
-	23, // 42: streamvis.v1.Service.QueryData:output_type -> streamvis.v1.DataResult
-	17, // 43: streamvis.v1.Service.Scopes:output_type -> streamvis.v1.ScopeResult
-	21, // 44: streamvis.v1.Service.Names:output_type -> streamvis.v1.Tag
-	20, // 45: streamvis.v1.Service.Configs:output_type -> streamvis.v1.ConfigResult
-	31, // 46: streamvis.v1.Service.WriteScope:output_type -> streamvis.v1.WriteScopeResponse
-	33, // 47: streamvis.v1.Service.WriteConfig:output_type -> streamvis.v1.WriteConfigResponse
-	32, // 48: streamvis.v1.Service.WriteNames:output_type -> streamvis.v1.WriteNameResponse
-	28, // 49: streamvis.v1.Service.DeleteScopeNames:output_type -> streamvis.v1.DeleteTagResponse
-	30, // 50: streamvis.v1.Service.WriteData:output_type -> streamvis.v1.WriteDataResponse
-	42, // [42:51] is the sub-list for method output_type
-	33, // [33:42] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	4,  // 20: streamvis.v1.Tag.fields:type_name -> streamvis.v1.Field
+	15, // 21: streamvis.v1.Streamed.index:type_name -> streamvis.v1.RecordResult
+	10, // 22: streamvis.v1.Streamed.data:type_name -> streamvis.v1.Data
+	6,  // 23: streamvis.v1.Streamed.name:type_name -> streamvis.v1.Name
+	11, // 24: streamvis.v1.Streamed.config:type_name -> streamvis.v1.Config
+	21, // 25: streamvis.v1.Streamed.tag:type_name -> streamvis.v1.Tag
+	15, // 26: streamvis.v1.DataResult.record:type_name -> streamvis.v1.RecordResult
+	10, // 27: streamvis.v1.DataResult.data:type_name -> streamvis.v1.Data
+	37, // 28: streamvis.v1.WriteConfigRequest.attributes:type_name -> google.protobuf.Struct
+	6,  // 29: streamvis.v1.WriteNameRequest.names:type_name -> streamvis.v1.Name
+	10, // 30: streamvis.v1.WriteDataRequest.datas:type_name -> streamvis.v1.Data
+	6,  // 31: streamvis.v1.WriteNameResponse.names:type_name -> streamvis.v1.Name
+	5,  // 32: streamvis.v1.RecordResult.ScopesEntry.value:type_name -> streamvis.v1.Scope
+	6,  // 33: streamvis.v1.RecordResult.NamesEntry.value:type_name -> streamvis.v1.Name
+	14, // 34: streamvis.v1.Service.QueryData:input_type -> streamvis.v1.DataRequest
+	16, // 35: streamvis.v1.Service.Scopes:input_type -> streamvis.v1.ScopeRequest
+	18, // 36: streamvis.v1.Service.Names:input_type -> streamvis.v1.NamesRequest
+	19, // 37: streamvis.v1.Service.Configs:input_type -> streamvis.v1.ConfigRequest
+	25, // 38: streamvis.v1.Service.WriteScope:input_type -> streamvis.v1.WriteScopeRequest
+	24, // 39: streamvis.v1.Service.WriteConfig:input_type -> streamvis.v1.WriteConfigRequest
+	26, // 40: streamvis.v1.Service.WriteNames:input_type -> streamvis.v1.WriteNameRequest
+	27, // 41: streamvis.v1.Service.DeleteScopeNames:input_type -> streamvis.v1.DeleteTagRequest
+	29, // 42: streamvis.v1.Service.WriteData:input_type -> streamvis.v1.WriteDataRequest
+	23, // 43: streamvis.v1.Service.QueryData:output_type -> streamvis.v1.DataResult
+	17, // 44: streamvis.v1.Service.Scopes:output_type -> streamvis.v1.ScopeResult
+	21, // 45: streamvis.v1.Service.Names:output_type -> streamvis.v1.Tag
+	20, // 46: streamvis.v1.Service.Configs:output_type -> streamvis.v1.ConfigResult
+	31, // 47: streamvis.v1.Service.WriteScope:output_type -> streamvis.v1.WriteScopeResponse
+	33, // 48: streamvis.v1.Service.WriteConfig:output_type -> streamvis.v1.WriteConfigResponse
+	32, // 49: streamvis.v1.Service.WriteNames:output_type -> streamvis.v1.WriteNameResponse
+	28, // 50: streamvis.v1.Service.DeleteScopeNames:output_type -> streamvis.v1.DeleteTagResponse
+	30, // 51: streamvis.v1.Service.WriteData:output_type -> streamvis.v1.WriteDataResponse
+	43, // [43:52] is the sub-list for method output_type
+	34, // [34:43] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_streamvis_v1_data_proto_init() }

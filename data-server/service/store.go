@@ -36,7 +36,7 @@ type Store interface {
 
 	// GetNames retrieves the list of all (scope, name) pairs in the store
 	// matching scopePat and namePat
-	GetNames(scopePat, namePat *regexp.Regexp) [][2]string
+	GetNames(scopePat, namePat *regexp.Regexp) []pb.Tag
 
 	// AddScope adds the pb.Scope to the store
 	AddScope(scope *pb.Scope) error
