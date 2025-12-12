@@ -7,22 +7,13 @@ from bokeh.models.callbacks import CustomJS
 from .session import Session
 
 class BasePage(Handler):
-    def __init__(self, server):
-        super().__init__()
-        self.server = server
-
+    
     async def on_session_created(self, ctx: SessionContext) -> None:
-        scope_pat = ctx.token_payload.get("scope-pat")
-        name_pats = ctx.token_payload.get("name-pats")
-        ctx.custom_state = Session(
-                self.server.schema, self.server.grpc_uri, ctx, scope_pat, name_pats,
-                self.server.refresh_seconds)
-        await ctx.custom_state.__aenter__()
-        # print(f"finished on_session_created, session id: {ctx.id}")
+        ...
 
     async def on_session_destroyed(self, ctx: SessionContext) -> None:
-        await ctx.custom_state.__aexit__(None, None, None)
-        # print("on_session_destroyed")
+        ...
+
 
     def modify_document(self, doc: Document):
 
@@ -46,11 +37,10 @@ class BasePage(Handler):
             # print(f"in on_change_fun with {attr}, {old}, {new}")
             width = new["width"][0]
             height = new["height"][0]
-            for plot in session_state.plots:
-                plot.scale_to_pagesize(width, height)
+            session_state.plot.scale_to_pagesize(width, height)
 
         doc.add_root(screen_size)
-        model = self.build_page(doc.session_context, 1000, 600)
+        model = self.build_page(session_state, 1000, 600)
         doc.add_root(model)
         doc.js_on_event(DocumentReady, js_callback)
         screen_size.on_change("data", on_change_fun)

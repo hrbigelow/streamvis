@@ -1,38 +1,31 @@
 import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 if (!process.env.GRPC_URI) {
-  console.error("GRPC_URI environment variable must be set");
+  console.error("GRPC_URI and WEB_URI environment variables must be set");
   process.exit(1);
 }
 
-const target = `http://${process.env.GRPC_URI}`
+const grpc_target = `http://${process.env.GRPC_URI}`
 
 export default defineConfig({
   server: {
     port: 5173,
     proxy: {
       '/streamvis.v1.Service': {
-        target: target,
+        target: grpc_target,
         changeOrigin: true,
-      }
+      },
     },
-  },
-  optimizeDeps: {
-    exclude: ['three']  // Don't pre-bundle three.js
-  },
-  resolve: {
-    alias: {
-      'three/examples/jsm/': '/home/henry/ai/projects/three.js/examples/jsm/',
-      'three': '/home/henry/ai/projects/three.js/src/Three.js',
-    }
   },
   plugins: [
     {
       name: 'log-grpc-proxy',
       configureServer() {
-        console.log(`[vite] Creating proxy: /streamvis.v1.Service -> ${target}`);
+        console.log(`[vite] Creating proxy: /streamvis.v1.Service -> ${grpc_target}`);
       },
     },
+    svelte(),
   ]
 });
 

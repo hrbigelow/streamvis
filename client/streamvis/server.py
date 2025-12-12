@@ -7,50 +7,18 @@ import os
 import yaml
 import re
 import copy
+import grpc
+
 from bokeh.application import Application
 from bokeh.application.handlers import Handler
-from bokeh.server.server import Server as BokehServer
+from bokeh.server.server import Server
 from bokeh.core.validation import silence
 from bokeh.core.validation.warnings import EMPTY_LAYOUT, MISSING_RENDERERS
 
 from streamvis import util
 from streamvis.page import PageLayout
-from streamvis.index_page import IndexPage
 
-
-class Server:
-    def __init__(self, grpc_uri: str, refresh_seconds=2.0):
-        """
-        """
-        silence(EMPTY_LAYOUT, True)
-        silence(MISSING_RENDERERS, True)
-
-        self.schema = {} # plot_name => schema
-        self.grpc_uri = grpc_uri
-        self.refresh_seconds = refresh_seconds
-
-    @staticmethod
-    def validate_patterns(**kwargs):
-        for arg_name, arg_val in kwargs.items():
-            try:
-                re.compile(arg_val)
-            except re.error as ex:
-                raise RuntimeError(
-                    f'Received invalid regex for {arg_name}: `{arg_val}`: {ex}')
-
-    def load_schema(self, schema_file):
-        """Parses and sets the schema, determines how plots are created from data."""
-        try:
-            with open(schema_file, 'r') as fh: 
-                schema = yaml.safe_load(fh)
-        except Exception as ex:
-            raise RuntimeError(
-                    f'Server could not open or parse schema file {schema_file}. '
-                    f'Exception was: {ex}') from ex
-        # validate schema: TODO
-        self.schema = schema
-
-def make_server(web_uri, grpc_uri, schema_file, refresh_seconds=3):  
+def make_server(web_uri, grpc_uri, refresh_seconds=3):  
     """Launch a Bokeh web server
 
     web_uri:  IP:PORT format to be used for accessing pages from the browser
@@ -58,15 +26,12 @@ def make_server(web_uri, grpc_uri, schema_file, refresh_seconds=3):
     schema_file: yaml file specifying plot formats
     refresh_seconds: how frequently the server pulls newly logged data
     """
-    sv_server = Server(grpc_uri, refresh_seconds)
-    sv_server.load_schema(schema_file)
-    page_handler = PageLayout(sv_server)
-    index_handler = IndexPage(sv_server) 
+    page_handler = PageLayout(grpc_uri, refresh_seconds)
     page_app = Application(page_handler)
-    index_app = Application(index_handler)
-    apps = {"/": page_app, "/index": index_app}
+    apps = {"/": page_app}
     port = int(web_uri.split(":")[1])
-    bokeh_server = BokehServer(apps, port=port, allow_websocket_origin=[web_uri])
+    server = Server(apps, port=port, allow_websocket_origin=[web_uri])
+    server.io_loop.run_sync(page_handler.initialize_grpc)
 
     def shutdown_handler(signum, frame):
         print(f'Server received {signal.Signals(signum).name}.')
@@ -75,6 +40,6 @@ def make_server(web_uri, grpc_uri, schema_file, refresh_seconds=3):
     signal.signal(signal.SIGHUP, shutdown_handler) 
 
     print(f'Web server is running on http://localhost:{port}')
-    bokeh_server.run_until_shutdown()
+    server.run_until_shutdown()
 
 

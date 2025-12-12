@@ -203,14 +203,14 @@ def load_data(
     return content_map 
 
 # used only in client
-def get_new_data(
+async def get_new_data(
     request: pb.DataRequest,
     stub: pb_grpc.ServiceStub,
 ) -> tuple[pb.RecordResult, dict[DataKey, 'cds_data']]:
     """Given current state of index, get new data and return updated index."""
     datas = []
     record = None
-    for msg in stub.QueryData(request):
+    async for msg in stub.QueryData(request):
         match msg.WhichOneof("value"):
             case "record":
                 record = msg.record

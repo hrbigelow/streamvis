@@ -113,23 +113,24 @@ def liftover(
                             delete_existing_names=True)
 
 
-def scopes(uri: str) -> list[str]:
+def scopes(uri: str, scope_regex) -> list[str]:
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.ServiceStub(channel)
+    req = pb.ScopeRequest(scope_regex=scope_regex)
     scopes = []
-    for res in stub.Scopes(Empty()):
+    for res in stub.Scopes(req):
         scopes.append(res.scope)
 
     return scopes
 
 
-def names(uri: str, scope: str) -> list[str]:
+def names(uri: str, scope_regex: str, name_regex: str) -> list[str]:
     channel = grpc.insecure_channel(uri)
     stub = pb_grpc.ServiceStub(channel)
-    req = pb.NamesRequest(scope=scope)
+    req = pb.NamesRequest(scope_regex=scope_regex, name_regex=name_regex)
     names = []
     for tag in stub.Names(req):
-        names.append(tag.name)
+        names.append((tag.scope, tag.name, tag.fields))
     return names 
 
 def config(uri: str, scope: str) -> dict[str, Any]:
@@ -147,13 +148,13 @@ def config(uri: str, scope: str) -> dict[str, Any]:
     return util.export_configs(index.scopes, configs)
 
 
-def serve(web_uri: str, grpc_uri: str, schema_file: str, refresh_seconds: float=2.0):
+def serve(web_uri: str, grpc_uri: str, refresh_seconds: float=2.0):
     from streamvis import server
-    return server.make_server(web_uri, grpc_uri, schema_file, refresh_seconds)
+    return server.make_server(web_uri, grpc_uri, refresh_seconds)
 
 
-def counts(grpc_uri: str, scope: str):
-    res = fetch_with_patterns(grpc_uri, f"^{scope}$", ".+")
+def counts(grpc_uri: str, scope: str, name: str):
+    res = fetch_with_patterns(grpc_uri, f"^{scope}$", f"^{name}$")
     for (s, n, i), cds in res.items():
         shape_str = " ".join(f"{k}: {v.shape}" for k, v in cds.items())
         print(f"{s}\t{n}\t{i}\t{shape_str}")

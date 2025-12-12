@@ -1,3 +1,5 @@
+from pydantic import BaseModel, ValidationError, ConfigDict
+from pydantic.alias_generators import to_camel, to_snake
 from typing import Any
 from dataclasses import dataclass, field
 from functools import reduce
@@ -38,57 +40,64 @@ class GlyphKey:
         return (int(name_id), int(index), *levels)
 
 
+class SessionConfig(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+    scopes: tuple[str, ...]
+    names: tuple[str, ...]
+    plot_title: str = ''
+    x_axis_label: str = ''
+    y_axis_label: str = ''
+    x_axis_field: str
+    y_axis_field: str
+    filters: tuple[str, ...] = ()
+    groups: tuple[str, ...] = ()
+    window: int | None = None
+    stride: int | None = None
+    axes_mode: str = 'lin'
+    glyph_kind: str = 'line'
+    glyph_kwargs: dict[str, Any] = {}
+    color_opts: dict[str, Any] = {}
+
+    @property
+    def scope_filter(self):
+        return "|".join(f"^{s}$" for s in self.scopes)
+
+    @property
+    def names_filter(self):
+        return "|".join(f"^{s}$" for s in self.names)
+
+class LazyStub:
+    def __init__(self, uri):
+        self.uri = uri
+        self.stub = None
+
+    async def initialize(self):
+        chan = grpc.aio.insecure_channel(self.uri)
+        self.stub = pb_grpc.ServiceStub(chan)
+
+
 class Plot:
-    name: str
+    cfg: SessionConfig
     doc: Document 
-    plot_schema: dict 
     model: Model  # the top-level container, either is figure or contains figure 
     figure: Model # the figure contained in this plot
-    width_frac: float
-    height_frac: float
-    name_pat: re.Pattern 
     full_sources: dict[str, ColumnDataSource]
     plot_sources: dict[str, ColumnDataSource]
-    filter_columns: tuple[str]
-    ignore_columns: tuple[str]
     sliders: dict # filter_col => CategoricalSlider 
     slider_values: dict # filter_col => filter values
     margin: int # number of pixels of margin
 
     def __init__(
         self, 
-        name: str, 
         doc: Document,
-        plot_schema: dict, 
-        axis_mode: str,
-        width_frac: float,
-        height_frac: float,
-        name_pat: str,
-        ignore_columns: tuple[str],
-        color_key: str,
+        cfg: SessionConfig,
     ):
-        axes_mode_to_kwargs = {
-            "lin":  dict(x_axis_type="linear", y_axis_type="linear"),
-            "xlog": dict(x_axis_type="log",    y_axis_type="linear"),
-            "ylog": dict(x_axis_type="linear", y_axis_type="log"),
-            "xylog":dict(x_axis_type="log",    y_axis_type="log"),
-        }
-        args_update = axes_mode_to_kwargs.get(axis_mode)
-        plot_schema = copy.deepcopy(plot_schema)
-        figure_kwargs = plot_schema.setdefault("figure_kwargs", {})
-        figure_kwargs.update(**args_update)
-        if color_key is not None:
-            plot_schema["color"]["key_fun"] = color_key
-
-        self.name = name
+        self.cfg = cfg
         self.doc = doc
-        self.plot_schema = plot_schema 
-        self.width_frac = width_frac
-        self.height_frac = height_frac
-        self.name_pat = re.compile(name_pat)
-        self.full_columns = self.plot_schema['columns']
-        self.filter_columns = tuple()
-        self.ignore_columns = ignore_columns 
+        self.name_pat = re.compile(cfg.names_filter)
         self.sliders = {} 
         self.slider_values = {}
         self.full_sources = {}
@@ -98,35 +107,34 @@ class Plot:
 
     @property
     def plot_columns(self):
-        return tuple(c for c in self.full_columns if c not in self.filter_columns)
+        return (self.cfg.x_axis_field, self.cfg.y_axis_field)
 
-    def build(self, session_opts: dict, page_width: int, page_height: int) -> Model:
+    def build(self, page_width: int, page_height: int) -> Model:
         """Build the figure and optional widgets.  session_opts is from ctx.token_payload."""
-        fig_kwargs = self.plot_schema.get('figure_kwargs', {})
-        top_kwargs = { k: v for k, v in fig_kwargs.items() 
-                      if k not in ("title", "xaxis", "yaxis")}
 
-        w, h = self.get_scaled_size(page_width, page_height)
-        fig = figure(name=self.name, output_backend='webgl', width=w, height=h, **top_kwargs)
-        legend = Legend(**fig_kwargs.get("legend", {}))
+        axes_modes = {
+            "lin":  dict(x_axis_type="linear", y_axis_type="linear"),
+            "xlog": dict(x_axis_type="log",    y_axis_type="linear"),
+            "ylog": dict(x_axis_type="linear", y_axis_type="log"),
+            "xylog":dict(x_axis_type="log",    y_axis_type="log"),
+        }
+        axes_mode_kwargs = axes_modes[self.cfg.axes_mode]
+
+        fig = figure(name="plot", 
+                     output_backend='webgl', 
+                     width=page_width,
+                     height=page_height, 
+                     **axes_mode_kwargs)
+        legend = Legend()
         fig.add_layout(legend)
-        if "title" in fig_kwargs:
-            fig_kwargs["title"]["text"] = session_opts["title"]
-        if "xaxis" in fig_kwargs:
-            fig_kwargs["xaxis"]["axis_label"] = session_opts["xaxis"]
-        if "yaxis" in fig_kwargs:
-            fig_kwargs["yaxis"]["axis_label"] = session_opts["yaxis"]
 
-        fig.title.update(**fig_kwargs.get("title", {}))
-        fig.xaxis.update(**fig_kwargs.get("xaxis", {}))
-        fig.yaxis.update(**fig_kwargs.get("yaxis", {}))
+        fig.title.update(text=self.cfg.plot_title)
+        fig.xaxis.update(axis_label=self.cfg.x_axis_label)
+        fig.yaxis.update(axis_label=self.cfg.y_axis_label)
         self.figure = fig
 
-        self.filter_columns = session_opts["filter_columns"]
-        self.ignore_columns = session_opts["ignore_columns"]
-
         controls = []
-        for col in self.filter_columns:
+        for col in self.cfg.filters:
             slider = Slider(start=0, end=1, step=1, value=0,
                             sizing_mode="stretch_width", height=30)
                     
@@ -151,8 +159,11 @@ class Plot:
                     sizing_mode="stretch_width",
                     )
             controls.append(column(label, slider, sizing_mode="stretch_width"))
-        sliders_row = row(*controls, sizing_mode="stretch_width", spacing=20)
-        self.model = column(fig, sliders_row, sizing_mode="stretch_width")
+        if len(controls) > 0: 
+            sliders_row = row(*controls, sizing_mode="stretch_width", spacing=20)
+            self.model = column(fig, sliders_row, sizing_mode="stretch_width")
+        else:
+            self.model = fig
         return self.model
 
 
@@ -167,19 +178,17 @@ class Plot:
 
     @property
     def is_filtered(self):
-        return len(self.filter_columns) != 0
+        return len(self.cfg.filters) != 0
 
     def color(self, index: int, num_colors: int):
-        color_opts = self.plot_schema.get("color", {})
-        palette_name = color_opts.get("palette", "Viridis8")
+        palette_name = self.cfg.color_opts.get("palette", "Viridis8")
         pal = palettes.__dict__[palette_name]
         pal = palettes.interp_palette(pal, num_colors)
         return pal[index]
 
     def label_key(self, scope: pb.Scope, name: pb.Name, index: int, levels: tuple[Any]) -> tuple[Any]:
         """Compute the label key, defining the ordering for labels."""
-        color_opts = self.plot_schema.get("color", {})
-        sig = color_opts.get("key_fun", "sni")
+        sig = self.cfg.color_opts.get("key_fun", "sni")
         d = {"s": scope.scope, "n": name.name, "i": index}
         return tuple(d[ch] for ch in sig) + levels
 
@@ -195,11 +204,11 @@ class Plot:
 
     def get_scaled_size(self, page_width: float, page_height: float):
         if self.is_filtered:
-            one_col = self.filter_columns[0]
+            one_col = self.cfg.filters[0]
             page_height -= self.sliders[one_col].height + 20 
 
-        width = int(self.width_frac * page_width) - (self.margin * 2)
-        height = int(self.height_frac * page_height) - (self.margin * 2)
+        width = page_width - (self.margin * 2)
+        height = page_height - (self.margin * 2)
         return width, height
 
     def key_belongs(self, key: util.DataKey) -> bool:
@@ -209,10 +218,7 @@ class Plot:
         """
         Split out cds_data according to the glyph_columns.
         """
-        glyph_columns = tuple(c for c in sorted(cds_data.keys())
-                              if c not in self.ignore_columns
-                              and c not in self.filter_columns
-                              and c not in self.plot_columns)
+        glyph_columns = tuple(c for c in sorted(cds_data.keys()) if c in self.cfg.groups)
 
         if len(glyph_columns) == 0:
             glyph_key = GlyphKey(key, tuple(), tuple())
@@ -237,7 +243,7 @@ class Plot:
         # print(f"add_glyph_data: {glyph_key}")
         if any(col not in cds_data for col in self.plot_columns):
             raise RuntimeError(
-                    f"Plot `{self.name}` takes columns {set(self.plot_columns)} "
+                    f"Plot takes columns {set(self.plot_columns)} "
                     f"but received {set(cds_data)}")
 
         if glyph_key.id not in self.full_sources:
@@ -250,17 +256,17 @@ class Plot:
             else:
                 self.plot_sources[glyph_key] = cds
 
-            glyph_kind = self.plot_schema.get("glyph_kind")
-            glyph_kwargs = self.plot_schema.get("glyph_kwargs", {})
             plot_cds = self.plot_sources[glyph_key]
             color = "white"
-            if glyph_kind == "line":
+            if self.cfg.glyph_kind == "line":
                 self.figure.line(
-                    *self.plot_columns, source=plot_cds, name=glyph_key.id, color=color, **glyph_kwargs)
-            elif glyph_kind == "scatter":
+                    *self.plot_columns, source=plot_cds, name=glyph_key.id, color=color, 
+                    **self.cfg.glyph_kwargs)
+            elif self.cfg.glyph_kind == "scatter":
                 self.figure.circle(
                     *self.plot_columns, name=glyph_key.id, source=plot_cds, 
-                    color=color, **glyph_kwargs)
+                    color=color, 
+                    **self.cfg.glyph_kwargs)
             else:
                 raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
@@ -343,7 +349,7 @@ class Plot:
         # print(f"sync_slider: {len(slider.categories)} categories, value={self.slider.value}")
 
     def sync_sliders(self):
-        for filter_column in self.filter_columns:
+        for filter_column in self.cfg.filters:
             self._sync_slider(filter_column)
 
 
@@ -360,15 +366,15 @@ class Plot:
 
         for glyph_id, full_cds in self.full_sources.items():
             vals = tuple(full_cds.data[c] == self.filter_value(c) 
-                         for c in self.filter_columns if c in full_cds.data)
+                         for c in self.cfg.filters if c in full_cds.data)
             filter_vals = {c: self.filter_value(c) 
-                           for c in self.filter_columns if c in full_cds.data}
+                           for c in self.cfg.filters if c in full_cds.data}
             # print(f"sync_plot_source: filtering on settings: {filter_vals}")
             if len(vals) == 0:
                 plot_vals = full_cds.data.copy()
             else:
                 mask = reduce(np.logical_and, vals)
-                plot_vals = {k: v[mask] for k, v in full_cds.data.items() if k not in self.filter_columns} 
+                plot_vals = {k: v[mask] for k, v in full_cds.data.items() if k not in self.cfg.filters} 
 
             self.plot_sources[glyph_id].data = plot_vals 
 
@@ -427,61 +433,25 @@ class GrpcClientState:
             
 
 class Session:
-    schema: dict
-    chan: grpc.Channel
-    stub: pb_grpc.ServiceStub 
-    uri: str
-    plots: list[Plot] 
-    scope_filter: re.Pattern        # global pattern for all plots on the page
-    name_filter: re.Pattern
+    lazy: LazyStub 
+    plot: Plot 
+    cfg: SessionConfig
+    ctx: SessionContext
     grpc_state: GrpcClientState
 
     def __init__(
         self, 
-        schema: dict,
-        grpc_uri: str, 
-        session_context: SessionContext,
-        scope_filter: str, 
-        name_filters: tuple[str],
+        lazy: pb_grpc.ServiceStub,
+        cfg: SessionConfig,
+        ctx: SessionContext,
         refresh_seconds: float,
     ):
-        self.schema = schema
+        self.lazy = lazy 
+        self.cfg = cfg
+        self.ctx = ctx 
         self.refresh_seconds = refresh_seconds
-        self.chan = grpc.insecure_channel(grpc_uri)
-        self.stub = pb_grpc.ServiceStub(self.chan)
-        self.plots = []
-        self.session_context = session_context
-        self.scope_filter = scope_filter
-        self.name_filter = "|".join(name_filters)
         self.grpc_state = GrpcClientState()
-
-        req_args = session_context.token_payload
-        plots = req_args["plots"]
-        axes_modes = req_args["axes-modes"]
-        width_fracs = req_args["widths"]
-        height_fracs = req_args["heights"]
-        self.window = req_args["window"] # whether to use window smoothing
-        self.stride = req_args["stride"]
-        color_keys = req_args["color_keys"]
-        ignore_columns = req_args["ignore_columns"]
-
-        # hack
-        z = zip(plots, name_filters, axes_modes, width_fracs, height_fracs, color_keys)
-        doc = self.session_context._document
-
-        for plot_name, name_pat, axes_mode, width_frac, height_frac, color_key in z:
-            plot_schema = self.schema.get(plot_name)
-            default_schema = self.schema.get("DEFAULTS", {})
-            util.fill_defaults(default_schema, plot_schema)
-
-            if plot_schema is None:
-                raise RuntimeError(
-                    f"No name '{plot_name}' found in global_schema. "
-                    f"Available names: {', '.join(name for name in self.schema)}")
-            plot = Plot(plot_name, doc, plot_schema, axes_mode, width_frac,
-                        height_frac, name_pat, ignore_columns, color_key) 
-            self.plots.append(plot)
-
+        self.plot = Plot(self.ctx._document, self.cfg)
 
     @staticmethod
     def split_glyph_id(glyph_id):
@@ -519,16 +489,16 @@ class Session:
     # prepare a 
     def prepare_request(self) -> pb.DataRequest:
         sampling = None
-        if self.window is not None and self.stride is not None:
+        if self.cfg.window is not None and self.cfg.stride is not None:
             sampling = pb.Sampling(
-                window_size=self.window,
+                window_size=self.cfg.window,
                 reduction=pb.Reduction.REDUCTION_MEAN,
-                stride=self.stride
+                stride=self.cfg.stride
                 )
 
         return pb.DataRequest(
-            scope_pattern=self.scope_filter,
-            name_pattern=self.name_filter,
+            scope_pattern=self.cfg.scope_filter,
+            name_pattern=self.cfg.names_filter,
             file_offset=self.grpc_state.file_offset,
             sampling=sampling
         )
@@ -540,7 +510,7 @@ class Session:
 
     async def refresh_data(self):
         req = self.prepare_request()
-        record_result, cds_map = util.get_new_data(req, self.stub)
+        record_result, cds_map = await util.get_new_data(req, self.lazy.stub)
         self.process_response(record_result)
         return cds_map
 
@@ -553,37 +523,32 @@ class Session:
             # shapes = {k: v.size for k, v in cds.items()}
             # print(f"send_patch_cb: {key}: {shapes}")
 
-        for plot in self.plots:
-            for name_id in plot.name_ids:
-                if name_id not in self.grpc_state.names: 
-                    plot.remove_name_id(name_id)
-            plot.sync_sliders()
+        for name_id in self.plot.name_ids:
+            if name_id not in self.grpc_state.names: 
+                self.plot.remove_name_id(name_id)
+        self.plot.sync_sliders()
 
-        for plot in self.plots:
-            plot_updated = False
-            for key, cds in reversed(cds_map.items()):
-                if plot.key_belongs(key):
-                    plot.add_data(key, cds)
-                    plot_updated = True
-            if plot_updated:
-                plot.sync_plot_to_data()
+        plot_updated = False
+        for key, cds in reversed(cds_map.items()):
+            if self.plot.key_belongs(key):
+                self.plot.add_data(key, cds)
+                plot_updated = True
+        if plot_updated:
+            self.plot.sync_plot_to_data()
 
-        for plot in self.plots:
-            label_ord, label_to_rend_map = self.glyph_index_map(plot)
-            num_colors = len(label_ord)
-            for label, rs in label_to_rend_map.items():
-                idx = label_ord[label]
-                for r in rs:
-                    if hasattr(r.glyph, "line_color"):
-                        r.glyph.line_color = plot.color(idx, num_colors)
-                    if hasattr(r.glyph, "fill_color"):
-                        r.glyph.fill_color = plot.color(idx, num_colors)
+        label_ord, label_to_rend_map = self.glyph_index_map(self.plot)
+        num_colors = len(label_ord)
+        for label, rs in label_to_rend_map.items():
+            idx = label_ord[label]
+            for r in rs:
+                if hasattr(r.glyph, "line_color"):
+                    r.glyph.line_color = self.plot.color(idx, num_colors)
+                if hasattr(r.glyph, "fill_color"):
+                    r.glyph.fill_color = self.plot.color(idx, num_colors)
 
-            legend = plot.figure.legend[0]
-            existing_label_ord = {item.label.value: item.index for item in legend.items}
-            if label_ord == existing_label_ord:
-                # all labels are identical, nothing to update
-                continue
+        legend = self.plot.figure.legend[0]
+        existing_label_ord = {item.label.value: item.index for item in legend.items}
+        if label_ord != existing_label_ord:
             legend.items.clear()
             for label, idx in sorted(label_ord.items(), key=lambda kv: kv[1]):
                 rs = label_to_rend_map[label]
@@ -615,9 +580,9 @@ class Session:
                 done = asyncio.Future()
                 # This is necessary because session destruction happens *before*
                 # on_session_destroyed callback is called
-                if self.session_context.destroyed:
+                if self.ctx.destroyed:
                     break
-                doc = self.session_context._document
+                doc = self.ctx._document
                 doc.add_next_tick_callback(lambda: self.send_patch_cb(cds_map, done))
                 await done
                 # await ctx.with_locked_document(patch_fn)

@@ -17,6 +17,7 @@ dependencies = [
   "grpcio-tools==1.73.1",
   "vulture>=2.14",
   "fire>=0.7.1",
+  "pydantic>=2.12.5",
 ]
 
 [project.scripts]
