@@ -167,7 +167,7 @@ func (Reduction) EnumDescriptor() ([]byte, []int) {
 type Axis struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Dtype         DType                  `protobuf:"varint,1,opt,name=dtype,proto3,enum=streamvis.v1.DType" json:"dtype,omitempty"`
-	Length        uint32                 `protobuf:"varint,2,opt,name=length,proto3" json:"length,omitempty"`
+	Length        uint32                 `protobuf:"varint,2,opt,name=length,proto3" json:"length,omitempty"` // logical length of value array (= len(data) / 4 TODO: remove
 	Data          []byte                 `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1029,11 +1029,15 @@ func (x *DataRequest) GetSampling() *Sampling {
 	return nil
 }
 
-// The result returned by QueryData.  file_offset is then used for the next
-// DataRequest.  scopes and names represent the state of the index up until
-// file_offset, and filtered by the scope_pattern and name_pattern pair from
-// DataRequest.  Note that scope and/or name objects may disappear between successive
-// results if there was an intervening call to DeleteScopeNames.
+// The result returned by QueryData.  This represents the catalog of accumulated
+// contents up until this point.  The client should replace its local catalog with
+// this one.
+//
+// The new file_offset is then used for the next DataRequest.  scopes and names
+// represent the state of the index up until file_offset, and filtered by the
+// scope_pattern and name_pattern pair from DataRequest.  Note that scope and/or name
+// objects may disappear between successive results if there was an intervening call
+// to DeleteScopeNames.
 type RecordResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Scopes        map[uint32]*Scope      `protobuf:"bytes,1,rep,name=scopes,proto3" json:"scopes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -1096,6 +1100,7 @@ func (x *RecordResult) GetFileOffset() uint64 {
 
 type ScopeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	ScopeRegex    string                 `protobuf:"bytes,1,opt,name=scope_regex,json=scopeRegex,proto3" json:"scope_regex,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1128,6 +1133,13 @@ func (x *ScopeRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ScopeRequest.ProtoReflect.Descriptor instead.
 func (*ScopeRequest) Descriptor() ([]byte, []int) {
 	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ScopeRequest) GetScopeRegex() string {
+	if x != nil {
+		return x.ScopeRegex
+	}
+	return ""
 }
 
 type ScopeResult struct {
@@ -1176,7 +1188,8 @@ func (x *ScopeResult) GetScope() string {
 
 type NamesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Scope         string                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	ScopeRegex    string                 `protobuf:"bytes,1,opt,name=scope_regex,json=scopeRegex,proto3" json:"scope_regex,omitempty"`
+	NameRegex     string                 `protobuf:"bytes,2,opt,name=name_regex,json=nameRegex,proto3" json:"name_regex,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1211,9 +1224,16 @@ func (*NamesRequest) Descriptor() ([]byte, []int) {
 	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *NamesRequest) GetScope() string {
+func (x *NamesRequest) GetScopeRegex() string {
 	if x != nil {
-		return x.Scope
+		return x.ScopeRegex
+	}
+	return ""
+}
+
+func (x *NamesRequest) GetNameRegex() string {
+	if x != nil {
+		return x.NameRegex
 	}
 	return ""
 }
@@ -2122,12 +2142,17 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\n" +
 	"NamesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x12(\n" +
-	"\x05value\x18\x02 \x01(\v2\x12.streamvis.v1.NameR\x05value:\x028\x01\"\x0e\n" +
-	"\fScopeRequest\"#\n" +
+	"\x05value\x18\x02 \x01(\v2\x12.streamvis.v1.NameR\x05value:\x028\x01\"/\n" +
+	"\fScopeRequest\x12\x1f\n" +
+	"\vscope_regex\x18\x01 \x01(\tR\n" +
+	"scopeRegex\"#\n" +
 	"\vScopeResult\x12\x14\n" +
-	"\x05scope\x18\x01 \x01(\tR\x05scope\"$\n" +
-	"\fNamesRequest\x12\x14\n" +
-	"\x05scope\x18\x01 \x01(\tR\x05scope\"%\n" +
+	"\x05scope\x18\x01 \x01(\tR\x05scope\"N\n" +
+	"\fNamesRequest\x12\x1f\n" +
+	"\vscope_regex\x18\x01 \x01(\tR\n" +
+	"scopeRegex\x12\x1d\n" +
+	"\n" +
+	"name_regex\x18\x02 \x01(\tR\tnameRegex\"%\n" +
 	"\rConfigRequest\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\"{\n" +
 	"\fConfigResult\x122\n" +

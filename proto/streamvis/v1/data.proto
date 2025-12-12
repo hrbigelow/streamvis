@@ -137,14 +137,17 @@ message RecordResult {
   uint64 file_offset = 3;
 }
 
-message ScopeRequest {}
+message ScopeRequest {
+  string scope_regex = 1;
+}
 
 message ScopeResult {
   string scope = 1;
 }
 
 message NamesRequest {
-  string scope = 1;
+  string scope_regex = 1;
+  string name_regex = 2;
 }
 
 message ConfigRequest {

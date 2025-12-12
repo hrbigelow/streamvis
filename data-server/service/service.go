@@ -204,7 +204,7 @@ func (s *Service) Scopes(
 	req *pb.ScopeRequest,
 	stream *connect.ServerStream[pb.ScopeResult],
 ) error {
-	scopePat, _ := regexp.Compile(".*")
+	scopePat, _ := regexp.Compile(req.GetScopeRegex())
 	scopes := s.store.GetScopes(scopePat)
 	for _, scope := range scopes {
 		select {
@@ -226,11 +226,11 @@ func (s *Service) Names(
 	req *pb.NamesRequest,
 	stream *connect.ServerStream[pb.Tag],
 ) error {
-	scopePat, err := regexp.Compile("^" + req.GetScope() + "$")
+	scopePat, err := regexp.Compile(req.GetScopeRegex())
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "bad scope name: %v", err)
+		return status.Errorf(codes.InvalidArgument, "bad scope regex: %v", err)
 	}
-	namePat, _ := regexp.Compile(".*")
+	namePat, err := regexp.Compile(req.GetNameRegex())
 	tags := s.store.GetNames(scopePat, namePat)
 	for _, tag := range tags {
 		select {
