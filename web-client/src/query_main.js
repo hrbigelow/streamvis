@@ -4,7 +4,7 @@ import App from './App.svelte';
 const app = mount(App, { 
   target: document.getElementById('app'),
   props: {
-    streamvisUrl: "http://localhost:8080"
+    streamvisUrl: __WEB_URI__ 
   }
 });
 
