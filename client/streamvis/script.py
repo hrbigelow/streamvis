@@ -22,14 +22,17 @@ from google.protobuf.empty_pb2 import Empty
 GRPC_URI=None
 WEB_URI=None
 
-def init_globals():
-    global GRPC_URI, WEB_URI
+def init_grpc_uri():
+    global GRPC_URI
     GRPC_URI = os.getenv('STREAMVIS_GRPC_URI')
+    if GRPC_URI is None:
+        raise RuntimeError("streamvis requires STREAMVIS_GRPC_URI variable set")
+
+def init_web_uri():
+    global WEB_URI
     WEB_URI = os.getenv('STREAMVIS_WEB_URI')
-    if GRPC_URI is None or WEB_URI is None:
-        raise RuntimeError(
-            "streamvis requires STREAMVIS_GRPC_URI and STREAMVIS_WEB_URI variables set"
-        )
+    if WEB_URI is None:
+        raise RuntimeError("streamvis server requires STREAMVIS_WEB_URI variable set")
 
 def demo_sync_fn(
     scope: str, 
@@ -168,6 +171,7 @@ def config(scope: str) -> dict[str, Any]:
 
 def serve(refresh_seconds: float=2.0):
     global GRPC_URI, WEB_URI
+    init_web_uri()
     from streamvis import server
     return server.make_server(WEB_URI, GRPC_URI, refresh_seconds)
 
@@ -187,7 +191,7 @@ def delete_name(scope: str, name: str):
 
 
 def main():
-    init_globals()
+    init_grpc_uri()
 
     tasks = { 
              "web-serve": serve,
