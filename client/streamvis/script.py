@@ -1,15 +1,17 @@
+import os
 import fire
 from typing import Any
 import asyncio
 import grpc
 from grpc import aio
 from dataclasses import dataclass
-from functools import partial
+from functools import partial, update_wrapper
 import sys
 import math
 import time
 import numpy as np
 import re
+from pprint import pprint
 from streamvis import util
 from streamvis.logger import DataLogger
 from streamvis.v1 import data_pb2 as pb
@@ -17,26 +19,37 @@ from streamvis.v1 import data_pb2_grpc as pb_grpc
 from .demo import log_data, log_data_async
 from google.protobuf.empty_pb2 import Empty
 
+GRPC_URI=None
+WEB_URI=None
+
+def init_globals():
+    global GRPC_URI, WEB_URI
+    GRPC_URI = os.getenv('STREAMVIS_GRPC_URI')
+    WEB_URI = os.getenv('STREAMVIS_WEB_URI')
+    if GRPC_URI is None or WEB_URI is None:
+        raise RuntimeError(
+            "streamvis requires STREAMVIS_GRPC_URI and STREAMVIS_WEB_URI variables set"
+        )
 
 def demo_sync_fn(
-    grpc_uri: str, 
     scope: str, 
     delete_existing_names: bool=True, 
     num_steps: int=2000,
     step_sleep_ms: int=0,
 ):
+    global GRPC_URI
     num_steps = int(num_steps)
-    log_data(grpc_uri, scope, delete_existing_names, num_steps, step_sleep_ms)
+    log_data(GRPC_URI, scope, delete_existing_names, num_steps, step_sleep_ms)
 
 def demo_async_fn(
-    grpc_uri: str, 
     scope: str, 
     delete_existing_names: bool=True, 
     num_steps: int=2000,
     report_every: int=100
 ):
+    global GRPC_URI
     num_steps = int(num_steps)
-    asyncio.run(log_data_async(grpc_uri, scope, delete_existing_names, num_steps))
+    asyncio.run(log_data_async(GRPC_URI, scope, delete_existing_names, num_steps))
 
 
 """
@@ -48,19 +61,19 @@ fetch and fetch_with_patterns return a dict with:
        keys: axis names
        values: numpy array with shape [index, point]
 """
-def fetch(uri: str, scope: str, name: str) -> dict[tuple, 'cds_data']:
-    return fetch_with_patterns(uri=uri, scope_pattern=f"^{scope}$", name_pattern=f"^{name}$")
+def fetch(scope: str, name: str) -> dict[tuple, 'cds_data']:
+    return fetch_with_patterns(scope_pattern=f"^{scope}$", name_pattern=f"^{name}$")
 
 def fetch_with_patterns(
-    uri: str, 
     scope_pattern: str, 
     name_pattern: str,
     window_size: int=None,
     stride: int=None,
     flat_format: bool=True
 ) -> dict[tuple, 'cds_data']:
+    global GRPC_URI
     try:
-        channel = grpc.insecure_channel(uri)
+        channel = grpc.insecure_channel(GRPC_URI)
         stub = pb_grpc.ServiceStub(channel)
         sampling = None
         if window_size is not None and stride is not None:
@@ -113,28 +126,33 @@ def liftover(
                             delete_existing_names=True)
 
 
-def scopes(uri: str, scope_regex) -> list[str]:
-    channel = grpc.insecure_channel(uri)
+def scopes(scope_regex) -> None:
+    global GRPC_URI
+    channel = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(channel)
     req = pb.ScopeRequest(scope_regex=scope_regex)
     scopes = []
     for res in stub.Scopes(req):
         scopes.append(res.scope)
+    for line in scopes:
+        print(line)
 
-    return scopes
 
-
-def names(uri: str, scope_regex: str, name_regex: str) -> list[str]:
-    channel = grpc.insecure_channel(uri)
+def names(scope_regex: str, name_regex: str) -> None:
+    global GRPC_URI
+    channel = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(channel)
     req = pb.NamesRequest(scope_regex=scope_regex, name_regex=name_regex)
-    names = []
+    names = set() 
     for tag in stub.Names(req):
-        names.append((tag.scope, tag.name, tag.fields))
-    return names 
+        fields = ",".join(f.name for f in tag.fields)
+        names.add("\t".join((tag.scope, tag.name, fields)))
+    for line in names:
+        print(line)
 
-def config(uri: str, scope: str) -> dict[str, Any]:
-    channel = grpc.insecure_channel(uri)
+def config(scope: str) -> dict[str, Any]:
+    global GRPC_URI
+    channel = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(channel)
     req = pb.ConfigRequest(scope=scope)
     configs = []
@@ -145,47 +163,41 @@ def config(uri: str, scope: str) -> dict[str, Any]:
                 index = res.index
             case "config":
                 configs.append(res.config)
-    return util.export_configs(index.scopes, configs)
+    pprint(util.export_configs(index.scopes, configs))
 
 
-def serve(web_uri: str, grpc_uri: str, refresh_seconds: float=2.0):
+def serve(refresh_seconds: float=2.0):
+    global GRPC_URI, WEB_URI
     from streamvis import server
-    return server.make_server(web_uri, grpc_uri, refresh_seconds)
+    return server.make_server(WEB_URI, GRPC_URI, refresh_seconds)
 
 
-def counts(grpc_uri: str, scope: str, name: str):
-    res = fetch_with_patterns(grpc_uri, f"^{scope}$", f"^{name}$")
+def counts(scope_regex: str, name_regex: str):
+    res = fetch_with_patterns(scope_regex, name_regex)
     for (s, n, i), cds in res.items():
         shape_str = " ".join(f"{k}: {v.shape}" for k, v in cds.items())
         print(f"{s}\t{n}\t{i}\t{shape_str}")
 
-def delete_name(grpc_uri: str, scope: str, name: str):
-    channel = grpc.insecure_channel(grpc_uri)
+def delete_name(scope: str, name: str):
+    global GRPC_URI
+    channel = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(channel)
     req = pb.DeleteTagRequest(scope=scope, names=(name,))
     resp = stub.DeleteScopeNames(req)
 
 
 def main():
-    def print_list(fn, *args):
-        out = fn(*args)
-        for item in out:
-            print(item)
-
-    def print_dict(fn, *args):
-        out = fn(*args)
-        from pprint import pprint
-        pprint(out)
+    init_globals()
 
     tasks = { 
              "web-serve": serve,
-             "logging-demo": demo_sync_fn,
+             "logging-demo": demo_sync_fn, 
              "logging-demo-async": demo_async_fn,
-             "scopes": partial(print_list, scopes),
-             "names": partial(print_list, names),
+             "scopes": scopes,
+             "names": names,
              "counts": counts,
              "delete": delete_name,
-             "config": partial(print_dict, config),
+             "config": config,
              "liftover": liftover,
             }
     fire.Fire(tasks)

@@ -25,19 +25,19 @@ EMPTY_VAL = "EMPTY"
 
 @dataclass(frozen=True, order=True)
 class GlyphKey:
-    data_key: util.DataKey
+    scope: str
+    name: str
     level_fields: tuple[str]
     level_values: tuple[Any]
 
     @property
     def id(self):
         levels = tuple(f"{f}:{v:5.3f}" for f, v in zip(self.level_fields, self.level_values))
-        return ",".join(str(k) for k in (self.data_key.name_id, self.data_key.index, *levels))
+        return ",".join(str(k) for k in (self.scope, self.name, *levels))
 
     @staticmethod
     def split_id(glyph_id: str):
-        name_id, index, *levels = glyph_id.split(",")
-        return (int(name_id), int(index), *levels)
+        return glyph_id.split(",")
 
 
 class SessionConfig(BaseModel):
@@ -52,6 +52,7 @@ class SessionConfig(BaseModel):
     y_axis_label: str = ''
     x_axis_field: str
     y_axis_field: str
+    order_field: str | None = None
     filters: tuple[str, ...] = ()
     groups: tuple[str, ...] = ()
     window: int | None = None
@@ -68,6 +69,12 @@ class SessionConfig(BaseModel):
     @property
     def names_filter(self):
         return "|".join(f"^{s}$" for s in self.names)
+
+@dataclass
+class GrpcClientState:
+    scopes: dict[int, pb.Scope] = field(default_factory=dict)
+    names: dict[int, pb.Name] = field(default_factory=dict)
+    file_offset: int = field(default_factory=int)
 
 class LazyStub:
     def __init__(self, uri):
@@ -100,6 +107,7 @@ class Plot:
         self.name_pat = re.compile(cfg.names_filter)
         self.sliders = {} 
         self.slider_values = {}
+        self.source_names = {} # GlyphKey => {name_id, ...}
         self.full_sources = {}
         self.plot_sources = {}
         self.sync_plot_source_cb = None
@@ -121,12 +129,13 @@ class Plot:
         axes_mode_kwargs = axes_modes[self.cfg.axes_mode]
 
         fig = figure(name="plot", 
-                     output_backend='webgl', 
+                     # output_backend='webgl', 
                      width=page_width,
                      height=page_height, 
                      **axes_mode_kwargs)
-        legend = Legend()
-        fig.add_layout(legend)
+        legend = Legend(location="top_right")
+        assert legend.visible, "Legend is not marked visible"
+        fig.add_layout(legend, "center")
 
         fig.title.update(text=self.cfg.plot_title)
         fig.xaxis.update(axis_label=self.cfg.x_axis_label)
@@ -159,18 +168,14 @@ class Plot:
                     sizing_mode="stretch_width",
                     )
             controls.append(column(label, slider, sizing_mode="stretch_width"))
+        content = [fig]
         if len(controls) > 0: 
             sliders_row = row(*controls, sizing_mode="stretch_width", spacing=20)
-            self.model = column(fig, sliders_row, sizing_mode="stretch_width")
-        else:
-            self.model = fig
+            content.append(sliders_row)
+
+        self.model = column(*content, sizing_mode="stretch_width")
         return self.model
 
-
-    @staticmethod
-    def get_name_id(glyph_id: str):
-        name_id, *_ = GlyphKey.split_id(glyph_id)
-        return name_id
 
     @staticmethod
     def to_label(label_key: tuple[Any]) -> str:
@@ -186,15 +191,15 @@ class Plot:
         pal = palettes.interp_palette(pal, num_colors)
         return pal[index]
 
-    def label_key(self, scope: pb.Scope, name: pb.Name, index: int, levels: tuple[Any]) -> tuple[Any]:
+    def label_key(self, scope: str, name: str, levels: tuple[Any]) -> tuple[Any]:
         """Compute the label key, defining the ordering for labels."""
-        sig = self.cfg.color_opts.get("key_fun", "sni")
-        d = {"s": scope.scope, "n": name.name, "i": index}
+        sig = self.cfg.color_opts.get("key_fun", "sn")
+        d = {"s": scope, "n": name}
         return tuple(d[ch] for ch in sig) + levels
 
-    def label(self, scope: pb.Scope, name: pb.Name, index: int, levels: tuple[Any]) -> str:
+    def label(self, scope: str, name: str, levels: tuple[Any]) -> str:
         """Compute a label for this group.  Will be used to index a palette."""
-        key = self.label_key(scope, name, index, levels)
+        key = self.label_key(scope, name, levels)
         return self.to_label(key)
 
     def scale_to_pagesize(self, page_width: float, page_height: float):
@@ -205,7 +210,7 @@ class Plot:
     def get_scaled_size(self, page_width: float, page_height: float):
         if self.is_filtered:
             one_col = self.cfg.filters[0]
-            page_height -= self.sliders[one_col].height + 20 
+            page_height -= (self.sliders[one_col].height + 20)
 
         width = page_width - (self.margin * 2)
         height = page_height - (self.margin * 2)
@@ -221,32 +226,36 @@ class Plot:
         glyph_columns = tuple(c for c in sorted(cds_data.keys()) if c in self.cfg.groups)
 
         if len(glyph_columns) == 0:
-            glyph_key = GlyphKey(key, tuple(), tuple())
-            self.add_glyph_data(glyph_key, cds_data)
+            glyph_key = GlyphKey(key.scope, key.name, tuple(), tuple())
+            self.add_glyph_data(glyph_key, cds_data, key.name_id)
             return
 
         block = np.stack(tuple(cds_data[c] for c in glyph_columns), axis=1)
         slices = np.unique(block, axis=0)
         for slc in slices:
-            glyph_key = GlyphKey(key, glyph_columns, tuple(slc.tolist()))
+            glyph_key = GlyphKey(key.scope, key.name, glyph_columns, tuple(slc.tolist()))
             inds = np.all(block == slc, axis=1).nonzero()[0]
             sub_cds_data = {k: v[inds] for k, v in cds_data.items() if k not in glyph_columns}
-            self.add_glyph_data(glyph_key, sub_cds_data)
+            self.add_glyph_data(glyph_key, sub_cds_data, key.name_id)
 
 
-    def add_glyph_data(self, glyph_key: GlyphKey, cds_data: dict[str, np.array]):
+    def add_glyph_data(
+        self, glyph_key: GlyphKey, cds_data: dict[str, np.array], name_id: int):
         """
-        Adds data to the plot.
+        Adds cds_data to the plot.
         Each distinct key maps to exactly one glyph.
-        If the glyph exists, data is appended
+        If the glyph exists, it is augmented with the data.
+        Data in a glyph is re-ordered according to order_field if it exists.
         """
         # print(f"add_glyph_data: {glyph_key}")
         if any(col not in cds_data for col in self.plot_columns):
             raise RuntimeError(
                     f"Plot takes columns {set(self.plot_columns)} "
                     f"but received {set(cds_data)}")
+        if self.cfg.order_field is not None and self.cfg.order_field not in cds_data:
+            raise RuntimeError(f"new data lacks order field {self.cfg.order_field}")
 
-        if glyph_key.id not in self.full_sources:
+        if glyph_key not in self.full_sources:
             empty_data = {k: np.zeros_like(v, shape=(0,)) for k, v in cds_data.items()}
             self.full_sources[glyph_key] = cds = ColumnDataSource(empty_data)
             if self.is_filtered:
@@ -270,11 +279,35 @@ class Plot:
             else:
                 raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
-        self.full_sources[glyph_key].stream(cds_data)
+        if self.cfg.order_field is not None:
+            # replace data with augmented, sorted data
+            cur_data = self.full_sources[glyph_key].data
+            aug = { k: np.concatenate((cur, cds_data[k])) for k, cur in cur_data.items() }
+            inds = np.argsort(aug[self.cfg.order_field])
+            ordered = { k: v[inds] for k, v in aug.items() }
+            self.full_sources[glyph_key].data = ordered
+        else:
+            self.full_sources[glyph_key].stream(cds_data)
 
-    @property
-    def name_ids(self):
-        return set(g.data_key.name_id for g in self.full_sources)
+        self.source_names.setdefault(glyph_key, set()).add(name_id)
+
+    def remove_stale_data(self, grpc_state: GrpcClientState):
+        """
+        Checks if any glyphs contain data that was deleted
+        """
+        remove = set()
+        for key in self.full_sources:
+            name_ids = self.source_names[key]
+            if any(n not in grpc_state.names for n in name_ids):  
+                remove.add(key)
+                del self.source_names[key]
+
+        for key in remove:
+            del self.full_sources[key]
+            del self.plot_sources[key]
+            for rend in list(self.figure.renderers):
+                if rend.name == key.id:
+                    self.figure.renderers.remove(rend)
 
     def filter_values(self, filter_column: str) -> tuple[int]:
         # the set of values determined from
@@ -416,22 +449,6 @@ class Plot:
             lambda: self.sync_plot_source(fix_ranges=True)
         )
 
-    def remove_name_id(self, name_id: int):
-        remove = tuple(g for g in self.full_sources if g.data_key.name_id == name_id)
-        for g in remove:
-            del self.full_sources[g]
-            del self.plot_sources[g]
-        for rend in list(self.figure.renderers):
-            if rend.name in remove:
-                self.figure.renderers.remove(rend)
-
-@dataclass
-class GrpcClientState:
-    scopes: dict[int, pb.Scope] = field(default_factory=dict)
-    names: dict[int, pb.Name] = field(default_factory=dict)
-    file_offset: int = field(default_factory=int)
-            
-
 class Session:
     lazy: LazyStub 
     plot: Plot 
@@ -468,18 +485,12 @@ class Session:
         label_keys = set()
         label_to_rend_map = {}
         for r in list(plot.figure.renderers):
-            # name_id, index, *levels = self.split_glyph_id(r.name)
-            name_id, index, *levels = GlyphKey.split_id(r.name) 
-            name = self.grpc_state.names[name_id]
-            scope = self.grpc_state.scopes[name.scope_id]
-            label_key = plot.label_key(scope, name, index, tuple(levels))
+            scope, name, *levels = GlyphKey.split_id(r.name) 
+            label_key = plot.label_key(scope, name, tuple(levels))
             label_keys.add(label_key)
         for r in list(plot.figure.renderers):
-            # name_id, index, *levels = self.split_glyph_id(r.name)
-            name_id, index, *levels = GlyphKey.split_id(r.name) 
-            name = self.grpc_state.names[name_id]
-            scope = self.grpc_state.scopes[name.scope_id]
-            label = plot.label(scope, name, index, tuple(levels))
+            scope, name, *levels = GlyphKey.split_id(r.name) 
+            label = plot.label(scope, name, tuple(levels))
             rs = label_to_rend_map.setdefault(label, [])
             rs.append(r)
 
@@ -523,9 +534,7 @@ class Session:
             # shapes = {k: v.size for k, v in cds.items()}
             # print(f"send_patch_cb: {key}: {shapes}")
 
-        for name_id in self.plot.name_ids:
-            if name_id not in self.grpc_state.names: 
-                self.plot.remove_name_id(name_id)
+        self.plot.remove_stale_data(self.grpc_state)
         self.plot.sync_sliders()
 
         plot_updated = False
@@ -552,7 +561,8 @@ class Session:
             legend.items.clear()
             for label, idx in sorted(label_ord.items(), key=lambda kv: kv[1]):
                 rs = label_to_rend_map[label]
-                legend_item = LegendItem(index=idx, label=label, renderers=rs)
+                assert len(rs) > 0, "Empty renderers list for legend item"
+                legend_item = LegendItem(label=label, renderers=rs)
                 legend.items.append(legend_item)
 
         fut.set_result(None)
