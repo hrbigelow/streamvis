@@ -59,7 +59,8 @@ class SessionConfig(BaseModel):
     stride: int | None = None
     axes_mode: str = 'lin'
     glyph_kind: str = 'line'
-    glyph_kwargs: dict[str, Any] = {}
+    circle_kwargs: dict[str, Any] = { "radius": 0.006 }
+    line_kwargs: dict[str, Any] = { "line_width": 2.0 }
     color_opts: dict[str, Any] = {}
 
     @property
@@ -270,12 +271,11 @@ class Plot:
             if self.cfg.glyph_kind == "line":
                 self.figure.line(
                     *self.plot_columns, source=plot_cds, name=glyph_key.id, color=color, 
-                    **self.cfg.glyph_kwargs)
+                    **self.cfg.line_kwargs)
             elif self.cfg.glyph_kind == "scatter":
                 self.figure.circle(
                     *self.plot_columns, name=glyph_key.id, source=plot_cds, 
-                    color=color, 
-                    **self.cfg.glyph_kwargs)
+                    color=color, **self.cfg.circle_kwargs)
             else:
                 raise RuntimeError(f"Unsupported glyph_kind: {glyph_kind}")
 
