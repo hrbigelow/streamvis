@@ -1,13 +1,13 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-if (!process.env.GRPC_URI || !process.env.WEB_URI) {
-  console.error("GRPC_URI and WEB_URI environment variables must be set");
+if (!process.env.STREAMVIS_GRPC_URI || !process.env.STREAMVIS_WEB_URI) {
+  console.error("STREAMVIS_GRPC_URI and STREAMVIS_WEB_URI environment variables must be set");
   process.exit(1);
 }
 
-const grpc_target = `http://${process.env.GRPC_URI}`
-const web_uri = `http://${process.env.WEB_URI}`
+const grpc_target = `http://${process.env.STREAMVIS_GRPC_URI}`
+const web_uri = `http://${process.env.STREAMVIS_WEB_URI}`
 
 export default defineConfig({
   define: {
