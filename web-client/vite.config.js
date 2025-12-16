@@ -14,6 +14,7 @@ export default defineConfig({
     __WEB_URI__: JSON.stringify(web_uri),
   },
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/streamvis.v1.Service': {
