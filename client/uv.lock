@@ -23,7 +23,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d
 
 [[package]]
 name = "bokeh"
-version = "3.7.1"
+version = "3.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "contourpy" },
@@ -37,9 +37,9 @@ dependencies = [
     { name = "tornado", marker = "sys_platform != 'emscripten'" },
     { name = "xyzservices" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/7a/b9d42ac9c58e997fb7f18d35ff971ad31c27b4ffb38a36757216b3db1e80/bokeh-3.7.1.tar.gz", hash = "sha256:4a96b08d88a3dc648bcfc209a9dee216cff6931eb787d84aa90298c8e06a5efe", size = 6363813, upload-time = "2025-03-25T22:00:54.043Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/42/777c0627dbd78a2a7c6c6a1c3327e8a787ec99a4b84ae93245ce49c96af7/bokeh-3.8.1.tar.gz", hash = "sha256:40df8e632de367399d06979cbd76c9e68a133a3138e1adde37c4a4715ecb4d6e", size = 6529791, upload-time = "2025-11-07T20:50:59.565Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/4b/e6a1f2da1c38bdebe27787bb2bd2782e97a379703ce6442806afd987b23d/bokeh-3.7.1-py3-none-any.whl", hash = "sha256:bba8aa584c9c9e76e5bb59f0156f9bc7b2c6ba9c4038e634455fd707bb56f920", size = 7026818, upload-time = "2025-03-25T22:00:52.204Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/e7/b18bee0772d49c0f78d57f15a68e85257abf7224d9b910706abe8bd1dc0f/bokeh-3.8.1-py3-none-any.whl", hash = "sha256:89a66cb8bfe85e91bce144e3ccf3c4a6f0f1347e7006282972568ea0ecacbb00", size = 7206137, upload-time = "2025-11-07T20:50:58.108Z" },
 ]
 
 [[package]]
@@ -776,7 +776,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bokeh", specifier = "==3.7.1" },
+    { name = "bokeh", specifier = "==3.8.1" },
     { name = "fire", specifier = ">=0.7.1" },
     { name = "google-cloud-storage" },
     { name = "grpcio-tools", specifier = "==1.73.1" },
