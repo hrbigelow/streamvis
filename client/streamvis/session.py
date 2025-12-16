@@ -71,6 +71,15 @@ class SessionConfig(BaseModel):
     def names_filter(self):
         return "|".join(f"^{s}$" for s in self.names)
 
+    @property
+    def xaxis_log_mode(self) -> bool:
+        return self.axes_mode in ('xlog', 'xylog')
+
+    @property
+    def yaxis_log_mode(self) -> bool:
+        return self.axes_mode in ('ylog', 'xylog')
+
+
 @dataclass
 class GrpcClientState:
     scopes: dict[int, pb.Scope] = field(default_factory=dict)
@@ -109,8 +118,8 @@ class Plot:
         self.sliders = {} 
         self.slider_values = {}
         self.source_names = {} # GlyphKey => {name_id, ...}
-        self.full_sources = {}
-        self.plot_sources = {}
+        self.full_sources = {} # GlyphKey => ColumnDataSource
+        self.plot_sources = {} # GlyphKey => ColumnDataSource
         self.sync_plot_source_cb = None
         self.margin = 10
 
@@ -141,6 +150,8 @@ class Plot:
         fig.title.update(text=self.cfg.plot_title)
         fig.xaxis.update(axis_label=self.cfg.x_axis_label)
         fig.yaxis.update(axis_label=self.cfg.y_axis_label)
+        fig.x_range = Range1d()
+        fig.y_range = Range1d()
         self.figure = fig
 
         controls = []
@@ -225,6 +236,40 @@ class Plot:
         Split out cds_data according to the glyph_columns.
         """
         glyph_columns = tuple(c for c in sorted(cds_data.keys()) if c in self.cfg.groups)
+
+        def get_range(arr, log_mode):
+            if log_mode:
+                idx = np.logical_and(np.greater(arr, 0), np.isfinite(arr))
+            else:
+                idx = np.isfinite(arr) 
+
+            safe = arr[idx]
+            return safe.min().item(), safe.max().item()
+
+        def set_range(range_widget, min_val, max_val, log_mode, pad_fraction=0.03):
+            if log_mode:
+                log_min_val = math.log(min_val)
+                log_max_val = math.log(max_val)
+                log_pad = pad_fraction * (log_max_val - log_min_val) 
+                min_val = math.exp(log_min_val - log_pad)
+                max_val = math.exp(log_max_val + log_pad)
+
+            else:
+                pad = pad_fraction * (max_val - min_val)
+                min_val -= pad
+                max_val += pad
+
+            if log_mode and range_widget.start == 0:
+                range_widget.start = min_val
+            else:
+                range_widget.start = min(range_widget.start, min_val)
+            range_widget.end = max(range_widget.end, max_val)
+
+        x_range = get_range(cds_data[self.plot_columns[0]], self.cfg.xaxis_log_mode)
+        y_range = get_range(cds_data[self.plot_columns[1]], self.cfg.yaxis_log_mode)
+
+        set_range(self.figure.x_range, *x_range, self.cfg.xaxis_log_mode)
+        set_range(self.figure.y_range, *y_range, self.cfg.yaxis_log_mode)
 
         if len(glyph_columns) == 0:
             glyph_key = GlyphKey(key.scope, key.name, tuple(), tuple())
@@ -396,7 +441,6 @@ class Plot:
         if not self.is_filtered:
             return
 
-
         for glyph_id, full_cds in self.full_sources.items():
             vals = tuple(full_cds.data[c] == self.filter_value(c) 
                          for c in self.cfg.filters if c in full_cds.data)
@@ -411,11 +455,16 @@ class Plot:
 
             self.plot_sources[glyph_id].data = plot_vals 
 
+
+        """
         if fix_ranges:
             self._fix_ranges()
         else:
             self._unfix_ranges()
+        """
+
         self.sync_plot_source_cb = None
+
             
 
     def _fix_ranges(self):
@@ -446,7 +495,7 @@ class Plot:
         # if self.sync_plot_source_cb is not None:
          #    self.doc.remove_next_tick_callback(self.sync_plot_source_cb)
         self.sync_plot_source_cb = self.doc.add_next_tick_callback(
-            lambda: self.sync_plot_source(fix_ranges=True)
+            lambda: self.sync_plot_source(fix_ranges=False)
         )
 
 class Session:
