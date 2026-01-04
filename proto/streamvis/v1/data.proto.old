@@ -1,0 +1,246 @@
+syntax = "proto3";
+package streamvis.v1;
+
+option go_package = "data-server/pb/streamvis/v1;streamvis_v1";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+enum DType {
+  D_TYPE_UNSPECIFIED = 0;
+  D_TYPE_F32 = 1;
+  D_TYPE_I32 = 2;
+}
+
+message Axis {
+  DType dtype = 1;
+  uint32 length = 2; // logical length of value array (= len(data) / 4 TODO: remove 
+  bytes data = 3;
+}
+
+message Field {
+  string name = 1;
+  DType dtype = 2;
+  // FieldType type = 2;
+}
+
+// Scope, Name, Control, DataEntry, ConfigEntry stored in .idx file
+// This message will be logged once per program run
+message Scope {
+  uint32 scope_id = 1; // globally unique key equal to hash(scope, time) % UINT32_MAX
+  string scope = 2;
+  google.protobuf.Timestamp time = 3;
+}
+
+// Corresponds to the 'name' field of a logger.write command
+// globally unique key is (scope_id, name)
+message Name {
+  uint32 name_id = 1;  // equal to hash(scope_id, name) % UINT32_MAX
+  uint32 scope_id = 2;
+  string name = 3;
+  repeated Field fields = 4;
+}
+
+enum Action {
+  ACTION_UNSPECIFIED = 0;
+  ACTION_DELETE_SCOPE = 1;
+  ACTION_DELETE_NAME = 2;
+}
+
+message Control {
+  string scope = 1;
+  string name = 2;
+  Action action = 3;
+}
+
+
+// Describes one Data entry in data file 
+message DataEntry {
+  uint32 entry_id = 1; // globally unqiue 
+  uint32 name_id = 2; // foreign key to Name message
+  uint64 beg_offset = 3; // file offset of begin of Data message
+  uint64 end_offset = 4; // file offset of end of Data message
+}
+
+// Describes one Config entry in data file
+message ConfigEntry {
+  uint32 entry_id = 1; // globally unique
+  uint32 scope_id = 2;
+  uint64 beg_offset = 3;
+  uint64 end_offset = 4;
+}
+
+// Data, Config are stored in .log file 
+
+message Data {
+  uint32 entry_id = 1; // foreign key to Entry message
+  uint32 index = 2; // 
+  repeated Axis axes = 3;
+  uint32 name_id = 4; // not stored on disk - used in join logic for RPC
+}
+
+message Config {
+  uint32 entry_id = 1;
+  google.protobuf.Struct attributes = 2;
+  uint32 scope_id = 3; // not stored on disk
+}
+
+
+message Stored {
+  oneof value {
+    Scope scope = 1;
+    Name name = 2;
+    Control control = 3;
+    DataEntry data_entry = 4;
+    ConfigEntry config_entry = 5;
+    Data data = 6;
+    Config config = 7;
+  }
+}
+
+enum Reduction {
+  REDUCTION_MEAN = 0;
+}
+
+message Sampling {
+  uint32 stride = 1;
+  Reduction reduction = 2;
+  uint32 window_size = 3;
+}
+
+/* The request object for QueryData.  A given client is expected to make the first
+ * request with file_offset=0, and subsequent requests using the file_offset returned
+ * by RecordResult.  scope_pattern and name_pattern should be the same for the whole
+ * series of requests for the lifetime of the client.  If sampling is provided, this
+ * defines how data are further transformed before being returned.
+ */
+message DataRequest {
+  string scope_pattern = 1;
+  string name_pattern = 2;
+  uint64 file_offset = 3;
+  Sampling sampling = 4;
+}
+
+/* The result returned by QueryData.  This represents the catalog of accumulated
+ * contents up until this point.  The client should replace its local catalog with
+ * this one.  
+ *
+ * The new file_offset is then used for the next DataRequest.  scopes and names
+ * represent the state of the index up until file_offset, and filtered by the
+ * scope_pattern and name_pattern pair from DataRequest.  Note that scope and/or name
+ * objects may disappear between successive results if there was an intervening call
+ * to DeleteScopeNames.
+ */
+message RecordResult {
+  map<uint32, Scope> scopes = 1;
+  map<uint32, Name> names = 2;
+  uint64 file_offset = 3;
+}
+
+message ScopeRequest {
+  string scope_regex = 1;
+}
+
+message ScopeResult {
+  string scope = 1;
+}
+
+message NamesRequest {
+  string scope_regex = 1;
+  string name_regex = 2;
+}
+
+message ConfigRequest {
+  string scope = 1;
+}
+
+message ConfigResult {
+  oneof value {
+    RecordResult index = 1;
+    Config config = 2;
+  }
+}
+
+message Tag {
+  string scope = 1;
+  string name = 2;
+  repeated Field fields = 3;
+}
+
+message Streamed {
+  oneof value {
+    RecordResult index = 1;
+    Data data = 2;
+    Name name = 3;
+    Config config = 4;
+    Tag tag = 5;
+  }
+}
+
+message DataResult {
+  oneof value {
+    RecordResult record = 1;
+    Data data = 2;
+  }
+}
+
+
+message WriteConfigRequest {
+  uint32 scope_id = 1;
+  google.protobuf.Struct attributes = 2;
+}
+
+
+message WriteScopeRequest {
+  string scope = 1;
+}
+
+
+message WriteNameRequest {
+  repeated Name names = 1;
+}
+
+message DeleteTagRequest {
+  string scope = 1;
+  repeated string names = 2;
+}
+
+message DeleteTagResponse {} 
+
+
+message WriteDataRequest {
+  repeated Data datas = 1;
+}
+
+message WriteDataResponse {}
+
+message WriteScopeResponse {
+  uint32 scope_id = 1;
+}
+
+message WriteNameResponse {
+  repeated Name names = 1;
+}
+
+message WriteConfigResponse {}
+
+
+service Service {
+  /*
+   * QueryData is periodically run by the client, using a monotonically increasing
+   * fileOffset to get new data.  The DataRequest includes the current fileOffset,
+   * and the DataResult returns the new fileOffset and current catalog of Scope and
+   * Name objects logically present in the index for the history of queries.
+   */
+  rpc QueryData (DataRequest) returns (stream DataResult);
+  rpc Scopes (ScopeRequest) returns (stream ScopeResult);
+  rpc Names (NamesRequest) returns (stream Tag);
+  rpc Configs (ConfigRequest) returns (stream ConfigResult);
+  rpc WriteScope (WriteScopeRequest) returns (WriteScopeResponse);
+  rpc WriteConfig (WriteConfigRequest) returns (WriteConfigResponse);
+  rpc WriteNames (WriteNameRequest) returns (WriteNameResponse);
+  rpc DeleteScopeNames (DeleteTagRequest) returns (DeleteTagResponse); 
+  rpc WriteData (WriteDataRequest) returns (WriteDataResponse);
+}
+
+

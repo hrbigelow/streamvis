@@ -10,17 +10,17 @@
   "author": "Henry Bigelow",
   "license": "ISC",
   "devDependencies": {
-    "@bufbuild/buf": "1.58.0",
-    "@bufbuild/protoc-gen-es": "2.9.0",
+    "@bufbuild/buf": "^1.62.1",
+    "@bufbuild/protoc-gen-es": "^2.10.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "grpc-web": "^2.0.2",
     "svelte": "^5.45.9",
     "vite": "^7.1.12"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "2.9.0",
-    "@connectrpc/connect": "2.1.0",
-    "@connectrpc/connect-web": "2.1.0",
+    "@bufbuild/protobuf": "^2.9.0",
+    "@connectrpc/connect": "^2.1.1",
+    "@connectrpc/connect-web": "^2.1.1",
     "commander": "^14.0.2",
     "google-protobuf": "^4.0.0",
     "three": "^0.180.0"

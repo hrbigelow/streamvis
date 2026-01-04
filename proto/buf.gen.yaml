@@ -1,17 +1,19 @@
 version: v2
 plugins: 
   - local: protoc-gen-go
-    out: ../data-server/pb 
+    out: ../pier/pb 
     opt: [paths=source_relative]
 
   - local: protoc-gen-connect-go
-    out: ../data-server/pb 
+    out: ../pier/pb 
     opt: 
       - paths=source_relative
       - simple
 
-  - local: protoc-gen-es
-    out: ../web-client
+  - remote: buf.build/bufbuild/es
+    out: ../web-client/src/gen
     include_imports: true
-    opt: [target=js]
+    opt: 
+      - target=js
+      - import_extension=none
 
