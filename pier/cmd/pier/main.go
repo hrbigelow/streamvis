@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -18,13 +19,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Please define STREAMVIS_DB_URI\n")
 		os.Exit(1)
 	}
+	port := flag.Int("port", 8001, "Port to listen on")
+	flag.Parse()
 
 	store, err := service.NewStore(context.Background(), dbUri)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create Store: %v\n", err)
 		os.Exit(1)
 	}
-	dbService := service.New(store)
+	dbService := service.NewService(store)
 
 	mux := http.NewServeMux()
 	path, serviceHandler := streamvis_v1connect.NewServiceHandler(dbService)
@@ -49,13 +52,15 @@ func main() {
 	}
 	s.ListenAndServe()
 
-	var greeting string
-	err = dbpool.QueryRow(context.Background(), "SELECT 'Hello, World!'").Scan(&greeting)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
-		os.Exit(1)
-	}
+	/*
+		var greeting string
+		err = dbpool.QueryRow(context.Background(), "SELECT 'Hello, World!'").Scan(&greeting)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+			os.Exit(1)
+		}
 
-	fmt.Println(greeting)
+		fmt.Println(greeting)
+	*/
 
 }

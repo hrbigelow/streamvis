@@ -15,7 +15,7 @@ from bokeh.models import ColumnDataSource, Legend, LegendItem, Slider, Categoric
 from bokeh.application.application import SessionContext, Document
 from bokeh.model.model import Model
 from bokeh.layouts import column, row
-from bokeh.models.ranges import Range1d, DataRange1d
+from bokeh.models.ranges import Range1d, DataRange1d 
 from bokeh.models import glyphs
 from bokeh import palettes
 from bokeh.plotting import figure

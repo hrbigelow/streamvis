@@ -77,6 +77,9 @@ class BaseLogger:
                 self.to_numpy = lambda ary: np.array(ary)
                 self.broadcast_arrays = jnp.broadcast_arrays
                 self.tensor_size = jnp.size
+                self.tensor_shape = jnp.shape
+                self.is_float = lambda ary: jnp.issubdtype(ary.dtype, jnp.floating)
+                           
             case "numpy":
                 def downcast(ary):
                     if np.issubdtype(ary.dtype, np.integer):
@@ -91,6 +94,8 @@ class BaseLogger:
                 self.to_numpy = lambda x: x
                 self.broadcast_arrays = np.broadcast_arrays
                 self.tensor_size = np.size
+                self.tensor_shape = np.shape
+                self.is_float = lambda ary: np.issubdtype(ary.dtype, np.floating)
             case "torch":
                 import torch
                 self.to_array = torch.tensor
@@ -98,6 +103,8 @@ class BaseLogger:
                 self.to_numpy = lambda ary: ary.detach().numpy()
                 self.broadcast_arrays = torch.broadcast_tensors 
                 self.tensor_size = torch.numel
+                self.tensor_shape = lambda ary: tuple(ary.shape)
+                self.is_float = lambda ary: ary.is_floating_point() 
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 

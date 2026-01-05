@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"time"
 
+	pb "pier/pb/streamvis/v1"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Store struct {
-	pool pgxpool.Pool
+	pool *pgxpool.Pool
 }
 
-func NewStore(ctx context.Context, dbUri string) (*pgxpool.Pool, error) {
+func NewStore(ctx context.Context, dbUri string) (*Store, error) {
 	config, err := pgxpool.ParseConfig(dbUri)
 	if err != nil {
 		return nil, err
@@ -25,18 +27,22 @@ func NewStore(ctx context.Context, dbUri string) (*pgxpool.Pool, error) {
 	config.MaxConnLifetime = 1 * time.Hour
 
 	config.AfterConnect = registerCustomTypes
-	return pgxpool.NewWithConfig(ctx, config)
+	pool, err2 := pgxpool.NewWithConfig(ctx, config)
+	if err2 != nil {
+		return nil, err2
+	}
+	return &Store{pool: pool}, nil
 }
 
 func registerCustomTypes(
 	ctx context.Context,
 	conn *pgx.Conn,
 ) error {
-	dataType, err := conn.LoadType(ctx, "enc_typ")
+	dbType, err := conn.LoadType(ctx, "enc_typ")
 	if err != nil {
 		return err
 	}
-	conn.TypeMap().RegisterType(dataType)
+	conn.TypeMap().RegisterType(dbType)
 	return nil
 }
 
@@ -97,12 +103,18 @@ func (st *Store) AppendToSeries(
 	ctx context.Context,
 	seriesHandle uuid.UUID,
 	fieldName []string,
-	fieldVals []EncTyp,
+	fieldVals []*pb.EncTyp,
 ) (bool, error) {
+	wrapped := make([]*EncTypValue, len(fieldVals))
+	for i, et := range fieldVals {
+		wrapped[i] = &EncTypValue{et}
+	}
+
 	var success bool
 	sql := `CALL append_to_series($1, $2, $3, $4)`
+
 	err := st.pool.QueryRow(
-		ctx, sql, seriesHandle, fieldName, fieldVals, nil,
+		ctx, sql, seriesHandle, fieldName, wrapped, nil,
 	).Scan(&success)
 
 	if err != nil {

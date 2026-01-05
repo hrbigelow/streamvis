@@ -22,94 +22,42 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
-from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17streamvis/v1/data.proto\x12\x0cstreamvis.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"H\n\x04\x41xis\x12\"\n\x05\x64type\x18\x01 \x01(\x0e\x32\x13.streamvis.v1.DType\x12\x0e\n\x06length\x18\x02 \x01(\r\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"9\n\x05\x46ield\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\"\n\x05\x64type\x18\x02 \x01(\x0e\x32\x13.streamvis.v1.DType\"R\n\x05Scope\x12\x10\n\x08scope_id\x18\x01 \x01(\r\x12\r\n\x05scope\x18\x02 \x01(\t\x12(\n\x04time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\\\n\x04Name\x12\x0f\n\x07name_id\x18\x01 \x01(\r\x12\x10\n\x08scope_id\x18\x02 \x01(\r\x12\x0c\n\x04name\x18\x03 \x01(\t\x12#\n\x06\x66ields\x18\x04 \x03(\x0b\x32\x13.streamvis.v1.Field\"L\n\x07\x43ontrol\x12\r\n\x05scope\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12$\n\x06\x61\x63tion\x18\x03 \x01(\x0e\x32\x14.streamvis.v1.Action\"V\n\tDataEntry\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\x0f\n\x07name_id\x18\x02 \x01(\r\x12\x12\n\nbeg_offset\x18\x03 \x01(\x04\x12\x12\n\nend_offset\x18\x04 \x01(\x04\"Y\n\x0b\x43onfigEntry\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\x10\n\x08scope_id\x18\x02 \x01(\r\x12\x12\n\nbeg_offset\x18\x03 \x01(\x04\x12\x12\n\nend_offset\x18\x04 \x01(\x04\"Z\n\x04\x44\x61ta\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12\r\n\x05index\x18\x02 \x01(\r\x12 \n\x04\x61xes\x18\x03 \x03(\x0b\x32\x12.streamvis.v1.Axis\x12\x0f\n\x07name_id\x18\x04 \x01(\r\"Y\n\x06\x43onfig\x12\x10\n\x08\x65ntry_id\x18\x01 \x01(\r\x12+\n\nattributes\x18\x02 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x10\n\x08scope_id\x18\x03 \x01(\r\"\xb3\x02\n\x06Stored\x12$\n\x05scope\x18\x01 \x01(\x0b\x32\x13.streamvis.v1.ScopeH\x00\x12\"\n\x04name\x18\x02 \x01(\x0b\x32\x12.streamvis.v1.NameH\x00\x12(\n\x07\x63ontrol\x18\x03 \x01(\x0b\x32\x15.streamvis.v1.ControlH\x00\x12-\n\ndata_entry\x18\x04 \x01(\x0b\x32\x17.streamvis.v1.DataEntryH\x00\x12\x31\n\x0c\x63onfig_entry\x18\x05 \x01(\x0b\x32\x19.streamvis.v1.ConfigEntryH\x00\x12\"\n\x04\x64\x61ta\x18\x06 \x01(\x0b\x32\x12.streamvis.v1.DataH\x00\x12&\n\x06\x63onfig\x18\x07 \x01(\x0b\x32\x14.streamvis.v1.ConfigH\x00\x42\x07\n\x05value\"[\n\x08Sampling\x12\x0e\n\x06stride\x18\x01 \x01(\r\x12*\n\treduction\x18\x02 \x01(\x0e\x32\x17.streamvis.v1.Reduction\x12\x13\n\x0bwindow_size\x18\x03 \x01(\r\"y\n\x0b\x44\x61taRequest\x12\x15\n\rscope_pattern\x18\x01 \x01(\t\x12\x14\n\x0cname_pattern\x18\x02 \x01(\t\x12\x13\n\x0b\x66ile_offset\x18\x03 \x01(\x04\x12(\n\x08sampling\x18\x04 \x01(\x0b\x32\x16.streamvis.v1.Sampling\"\x97\x02\n\x0cRecordResult\x12\x36\n\x06scopes\x18\x01 \x03(\x0b\x32&.streamvis.v1.RecordResult.ScopesEntry\x12\x34\n\x05names\x18\x02 \x03(\x0b\x32%.streamvis.v1.RecordResult.NamesEntry\x12\x13\n\x0b\x66ile_offset\x18\x03 \x01(\x04\x1a\x42\n\x0bScopesEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\"\n\x05value\x18\x02 \x01(\x0b\x32\x13.streamvis.v1.Scope:\x02\x38\x01\x1a@\n\nNamesEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12!\n\x05value\x18\x02 \x01(\x0b\x32\x12.streamvis.v1.Name:\x02\x38\x01\"#\n\x0cScopeRequest\x12\x13\n\x0bscope_regex\x18\x01 \x01(\t\"\x1c\n\x0bScopeResult\x12\r\n\x05scope\x18\x01 \x01(\t\"7\n\x0cNamesRequest\x12\x13\n\x0bscope_regex\x18\x01 \x01(\t\x12\x12\n\nname_regex\x18\x02 \x01(\t\"\x1e\n\rConfigRequest\x12\r\n\x05scope\x18\x01 \x01(\t\"l\n\x0c\x43onfigResult\x12+\n\x05index\x18\x01 \x01(\x0b\x32\x1a.streamvis.v1.RecordResultH\x00\x12&\n\x06\x63onfig\x18\x02 \x01(\x0b\x32\x14.streamvis.v1.ConfigH\x00\x42\x07\n\x05value\"G\n\x03Tag\x12\r\n\x05scope\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12#\n\x06\x66ields\x18\x03 \x03(\x0b\x32\x13.streamvis.v1.Field\"\xd2\x01\n\x08Streamed\x12+\n\x05index\x18\x01 \x01(\x0b\x32\x1a.streamvis.v1.RecordResultH\x00\x12\"\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x12.streamvis.v1.DataH\x00\x12\"\n\x04name\x18\x03 \x01(\x0b\x32\x12.streamvis.v1.NameH\x00\x12&\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x14.streamvis.v1.ConfigH\x00\x12 \n\x03tag\x18\x05 \x01(\x0b\x32\x11.streamvis.v1.TagH\x00\x42\x07\n\x05value\"g\n\nDataResult\x12,\n\x06record\x18\x01 \x01(\x0b\x32\x1a.streamvis.v1.RecordResultH\x00\x12\"\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x12.streamvis.v1.DataH\x00\x42\x07\n\x05value\"S\n\x12WriteConfigRequest\x12\x10\n\x08scope_id\x18\x01 \x01(\r\x12+\n\nattributes\x18\x02 \x01(\x0b\x32\x17.google.protobuf.Struct\"\"\n\x11WriteScopeRequest\x12\r\n\x05scope\x18\x01 \x01(\t\"5\n\x10WriteNameRequest\x12!\n\x05names\x18\x01 \x03(\x0b\x32\x12.streamvis.v1.Name\"0\n\x10\x44\x65leteTagRequest\x12\r\n\x05scope\x18\x01 \x01(\t\x12\r\n\x05names\x18\x02 \x03(\t\"\x13\n\x11\x44\x65leteTagResponse\"5\n\x10WriteDataRequest\x12!\n\x05\x64\x61tas\x18\x01 \x03(\x0b\x32\x12.streamvis.v1.Data\"\x13\n\x11WriteDataResponse\"&\n\x12WriteScopeResponse\x12\x10\n\x08scope_id\x18\x01 \x01(\r\"6\n\x11WriteNameResponse\x12!\n\x05names\x18\x01 \x03(\x0b\x32\x12.streamvis.v1.Name\"\x15\n\x13WriteConfigResponse*?\n\x05\x44Type\x12\x16\n\x12\x44_TYPE_UNSPECIFIED\x10\x00\x12\x0e\n\nD_TYPE_F32\x10\x01\x12\x0e\n\nD_TYPE_I32\x10\x02*Q\n\x06\x41\x63tion\x12\x16\n\x12\x41\x43TION_UNSPECIFIED\x10\x00\x12\x17\n\x13\x41\x43TION_DELETE_SCOPE\x10\x01\x12\x16\n\x12\x41\x43TION_DELETE_NAME\x10\x02*\x1f\n\tReduction\x12\x12\n\x0eREDUCTION_MEAN\x10\x00\x32\xa7\x05\n\x07Service\x12\x42\n\tQueryData\x12\x19.streamvis.v1.DataRequest\x1a\x18.streamvis.v1.DataResult0\x01\x12\x41\n\x06Scopes\x12\x1a.streamvis.v1.ScopeRequest\x1a\x19.streamvis.v1.ScopeResult0\x01\x12\x38\n\x05Names\x12\x1a.streamvis.v1.NamesRequest\x1a\x11.streamvis.v1.Tag0\x01\x12\x44\n\x07\x43onfigs\x12\x1b.streamvis.v1.ConfigRequest\x1a\x1a.streamvis.v1.ConfigResult0\x01\x12O\n\nWriteScope\x12\x1f.streamvis.v1.WriteScopeRequest\x1a .streamvis.v1.WriteScopeResponse\x12R\n\x0bWriteConfig\x12 .streamvis.v1.WriteConfigRequest\x1a!.streamvis.v1.WriteConfigResponse\x12M\n\nWriteNames\x12\x1e.streamvis.v1.WriteNameRequest\x1a\x1f.streamvis.v1.WriteNameResponse\x12S\n\x10\x44\x65leteScopeNames\x12\x1e.streamvis.v1.DeleteTagRequest\x1a\x1f.streamvis.v1.DeleteTagResponse\x12L\n\tWriteData\x12\x1e.streamvis.v1.WriteDataRequest\x1a\x1f.streamvis.v1.WriteDataResponseB*Z(data-server/pb/streamvis/v1;streamvis_v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17streamvis/v1/data.proto\x12\x0cstreamvis.v1\">\n\x0fGetScopeRequest\x12\x12\n\nscope_name\x18\x01 \x01(\t\x12\x17\n\x0f\x64\x65lete_existing\x18\x02 \x01(\x08\"(\n\x10GetScopeResponse\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\"*\n\x12\x44\x65leteScopeRequest\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\"&\n\x13\x44\x65leteScopeResponse\x12\x0f\n\x07\x64\x65leted\x18\x01 \x01(\x08\"\xca\x01\n\x10GetSeriesRequest\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\x12\x13\n\x0bseries_name\x18\x02 \x01(\t\x12@\n\tstructure\x18\x03 \x03(\x0b\x32-.streamvis.v1.GetSeriesRequest.StructureEntry\x12\x17\n\x0f\x64\x65lete_existing\x18\x04 \x01(\x08\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"*\n\x11GetSeriesResponse\x12\x15\n\rseries_handle\x18\x01 \x01(\t\"\x82\x01\n\x06\x45ncTyp\x12\x0c\n\x04\x62\x61se\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\r\x12\'\n\x04ival\x18\x03 \x01(\x0b\x32\x17.streamvis.v1.IntValuesH\x00\x12)\n\x04\x66val\x18\x04 \x01(\x0b\x32\x19.streamvis.v1.FloatValuesH\x00\x42\x07\n\x05spans\"\x1b\n\tIntValues\x12\x0e\n\x06values\x18\x01 \x03(\r\"\x1d\n\x0b\x46loatValues\x12\x0e\n\x06values\x18\x01 \x03(\x02\"m\n\x15\x41ppendToSeriesRequest\x12\x15\n\rseries_handle\x18\x01 \x01(\t\x12\x13\n\x0b\x66ield_names\x18\x02 \x03(\t\x12(\n\nfield_vals\x18\x03 \x03(\x0b\x32\x14.streamvis.v1.EncTyp\")\n\x16\x41ppendToSeriesResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x32\xdf\x02\n\x07Service\x12O\n\x0eMakeOrGetScope\x12\x1d.streamvis.v1.GetScopeRequest\x1a\x1e.streamvis.v1.GetScopeResponse\x12R\n\x0b\x44\x65leteScope\x12 .streamvis.v1.DeleteScopeRequest\x1a!.streamvis.v1.DeleteScopeResponse\x12R\n\x0fMakeOrGetSeries\x12\x1e.streamvis.v1.GetSeriesRequest\x1a\x1f.streamvis.v1.GetSeriesResponse\x12[\n\x0e\x41ppendToSeries\x12#.streamvis.v1.AppendToSeriesRequest\x1a$.streamvis.v1.AppendToSeriesResponseB#Z!pier/pb/streamvis/v1;streamvis_v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'streamvis.v1.data_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'Z(data-server/pb/streamvis/v1;streamvis_v1'
-  _globals['_RECORDRESULT_SCOPESENTRY']._loaded_options = None
-  _globals['_RECORDRESULT_SCOPESENTRY']._serialized_options = b'8\001'
-  _globals['_RECORDRESULT_NAMESENTRY']._loaded_options = None
-  _globals['_RECORDRESULT_NAMESENTRY']._serialized_options = b'8\001'
-  _globals['_DTYPE']._serialized_start=2762
-  _globals['_DTYPE']._serialized_end=2825
-  _globals['_ACTION']._serialized_start=2827
-  _globals['_ACTION']._serialized_end=2908
-  _globals['_REDUCTION']._serialized_start=2910
-  _globals['_REDUCTION']._serialized_end=2941
-  _globals['_AXIS']._serialized_start=104
-  _globals['_AXIS']._serialized_end=176
-  _globals['_FIELD']._serialized_start=178
-  _globals['_FIELD']._serialized_end=235
-  _globals['_SCOPE']._serialized_start=237
-  _globals['_SCOPE']._serialized_end=319
-  _globals['_NAME']._serialized_start=321
-  _globals['_NAME']._serialized_end=413
-  _globals['_CONTROL']._serialized_start=415
-  _globals['_CONTROL']._serialized_end=491
-  _globals['_DATAENTRY']._serialized_start=493
-  _globals['_DATAENTRY']._serialized_end=579
-  _globals['_CONFIGENTRY']._serialized_start=581
-  _globals['_CONFIGENTRY']._serialized_end=670
-  _globals['_DATA']._serialized_start=672
-  _globals['_DATA']._serialized_end=762
-  _globals['_CONFIG']._serialized_start=764
-  _globals['_CONFIG']._serialized_end=853
-  _globals['_STORED']._serialized_start=856
-  _globals['_STORED']._serialized_end=1163
-  _globals['_SAMPLING']._serialized_start=1165
-  _globals['_SAMPLING']._serialized_end=1256
-  _globals['_DATAREQUEST']._serialized_start=1258
-  _globals['_DATAREQUEST']._serialized_end=1379
-  _globals['_RECORDRESULT']._serialized_start=1382
-  _globals['_RECORDRESULT']._serialized_end=1661
-  _globals['_RECORDRESULT_SCOPESENTRY']._serialized_start=1529
-  _globals['_RECORDRESULT_SCOPESENTRY']._serialized_end=1595
-  _globals['_RECORDRESULT_NAMESENTRY']._serialized_start=1597
-  _globals['_RECORDRESULT_NAMESENTRY']._serialized_end=1661
-  _globals['_SCOPEREQUEST']._serialized_start=1663
-  _globals['_SCOPEREQUEST']._serialized_end=1698
-  _globals['_SCOPERESULT']._serialized_start=1700
-  _globals['_SCOPERESULT']._serialized_end=1728
-  _globals['_NAMESREQUEST']._serialized_start=1730
-  _globals['_NAMESREQUEST']._serialized_end=1785
-  _globals['_CONFIGREQUEST']._serialized_start=1787
-  _globals['_CONFIGREQUEST']._serialized_end=1817
-  _globals['_CONFIGRESULT']._serialized_start=1819
-  _globals['_CONFIGRESULT']._serialized_end=1927
-  _globals['_TAG']._serialized_start=1929
-  _globals['_TAG']._serialized_end=2000
-  _globals['_STREAMED']._serialized_start=2003
-  _globals['_STREAMED']._serialized_end=2213
-  _globals['_DATARESULT']._serialized_start=2215
-  _globals['_DATARESULT']._serialized_end=2318
-  _globals['_WRITECONFIGREQUEST']._serialized_start=2320
-  _globals['_WRITECONFIGREQUEST']._serialized_end=2403
-  _globals['_WRITESCOPEREQUEST']._serialized_start=2405
-  _globals['_WRITESCOPEREQUEST']._serialized_end=2439
-  _globals['_WRITENAMEREQUEST']._serialized_start=2441
-  _globals['_WRITENAMEREQUEST']._serialized_end=2494
-  _globals['_DELETETAGREQUEST']._serialized_start=2496
-  _globals['_DELETETAGREQUEST']._serialized_end=2544
-  _globals['_DELETETAGRESPONSE']._serialized_start=2546
-  _globals['_DELETETAGRESPONSE']._serialized_end=2565
-  _globals['_WRITEDATAREQUEST']._serialized_start=2567
-  _globals['_WRITEDATAREQUEST']._serialized_end=2620
-  _globals['_WRITEDATARESPONSE']._serialized_start=2622
-  _globals['_WRITEDATARESPONSE']._serialized_end=2641
-  _globals['_WRITESCOPERESPONSE']._serialized_start=2643
-  _globals['_WRITESCOPERESPONSE']._serialized_end=2681
-  _globals['_WRITENAMERESPONSE']._serialized_start=2683
-  _globals['_WRITENAMERESPONSE']._serialized_end=2737
-  _globals['_WRITECONFIGRESPONSE']._serialized_start=2739
-  _globals['_WRITECONFIGRESPONSE']._serialized_end=2760
-  _globals['_SERVICE']._serialized_start=2944
-  _globals['_SERVICE']._serialized_end=3623
+  _globals['DESCRIPTOR']._serialized_options = b'Z!pier/pb/streamvis/v1;streamvis_v1'
+  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._loaded_options = None
+  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_options = b'8\001'
+  _globals['_GETSCOPEREQUEST']._serialized_start=41
+  _globals['_GETSCOPEREQUEST']._serialized_end=103
+  _globals['_GETSCOPERESPONSE']._serialized_start=105
+  _globals['_GETSCOPERESPONSE']._serialized_end=145
+  _globals['_DELETESCOPEREQUEST']._serialized_start=147
+  _globals['_DELETESCOPEREQUEST']._serialized_end=189
+  _globals['_DELETESCOPERESPONSE']._serialized_start=191
+  _globals['_DELETESCOPERESPONSE']._serialized_end=229
+  _globals['_GETSERIESREQUEST']._serialized_start=232
+  _globals['_GETSERIESREQUEST']._serialized_end=434
+  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_start=386
+  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_end=434
+  _globals['_GETSERIESRESPONSE']._serialized_start=436
+  _globals['_GETSERIESRESPONSE']._serialized_end=478
+  _globals['_ENCTYP']._serialized_start=481
+  _globals['_ENCTYP']._serialized_end=611
+  _globals['_INTVALUES']._serialized_start=613
+  _globals['_INTVALUES']._serialized_end=640
+  _globals['_FLOATVALUES']._serialized_start=642
+  _globals['_FLOATVALUES']._serialized_end=671
+  _globals['_APPENDTOSERIESREQUEST']._serialized_start=673
+  _globals['_APPENDTOSERIESREQUEST']._serialized_end=782
+  _globals['_APPENDTOSERIESRESPONSE']._serialized_start=784
+  _globals['_APPENDTOSERIESRESPONSE']._serialized_end=825
+  _globals['_SERVICE']._serialized_start=828
+  _globals['_SERVICE']._serialized_end=1179
 # @@protoc_insertion_point(module_scope)

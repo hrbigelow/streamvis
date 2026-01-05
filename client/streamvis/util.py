@@ -45,6 +45,10 @@ PROTO_TO_DTYPE = {
     pb.DType.D_TYPE_F32: np.dtype('<f4'),
 }
 
+PROTO_TO_STRING = {
+    pb.DType.D_TYPE_I32: "i32",
+    pb.DType.D_TYPE_F32: "f32",
+}
 
 def pack_message(message):
     """Create a delimited protobuf message as bytes."""
