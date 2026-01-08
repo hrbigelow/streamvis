@@ -54,6 +54,11 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.FromString,
                 _registered_method=True)
+        self.ListScopes = channel.unary_stream(
+                '/streamvis.v1.Service/ListScopes',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListScopesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListScopesResponse.FromString,
+                _registered_method=True)
 
 
 class ServiceServicer(object):
@@ -83,6 +88,14 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListScopes(self, request, context):
+        """rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
+        rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -105,6 +118,11 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.AppendToSeries,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.SerializeToString,
+            ),
+            'ListScopes': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListScopes,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListScopesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListScopesResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -215,6 +233,33 @@ class Service(object):
             '/streamvis.v1.Service/AppendToSeries',
             streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListScopes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListScopes',
+            streamvis_dot_v1_dot_data__pb2.ListScopesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.ListScopesResponse.FromString,
             options,
             channel_credentials,
             insecure,

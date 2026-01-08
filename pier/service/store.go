@@ -43,6 +43,12 @@ func registerCustomTypes(
 		return err
 	}
 	conn.TypeMap().RegisterType(dbType)
+
+	arrayType, err := conn.LoadType(ctx, "enc_typ[]")
+	if err != nil {
+		return err
+	}
+	conn.TypeMap().RegisterType(arrayType)
 	return nil
 }
 
@@ -92,13 +98,6 @@ func (st *Store) MakeOrGetSeries(
 	return seriesHandle, nil
 }
 
-type EncTyp struct {
-	Base     []byte    `db:"base"`
-	Shape    []int32   `db:"shape"`
-	I32Spans []int32   `db:"i32_spans"`
-	F32Spans []float32 `db:"f32_spans"`
-}
-
 func (st *Store) AppendToSeries(
 	ctx context.Context,
 	seriesHandle uuid.UUID,
@@ -107,11 +106,12 @@ func (st *Store) AppendToSeries(
 ) (bool, error) {
 	wrapped := make([]*EncTypValue, len(fieldVals))
 	for i, et := range fieldVals {
-		wrapped[i] = &EncTypValue{et}
+		wrapped[i] = NewEncTypValue(et)
 	}
 
 	var success bool
 	sql := `CALL append_to_series($1, $2, $3, $4)`
+	// stmt, err := st.pool.Prepare(ctx, "append_to_series", sql)
 
 	err := st.pool.QueryRow(
 		ctx, sql, seriesHandle, fieldName, wrapped, nil,
@@ -121,4 +121,49 @@ func (st *Store) AppendToSeries(
 		return false, fmt.Errorf("failed to call append_to_series: %w\n", err)
 	}
 	return success, nil
+}
+
+type Scope struct {
+	ScopeHandle string `db:"scope_handle"`
+	ScopeName   string `db:"scope_name"`
+}
+
+func (st *Store) ListScopes(
+	ctx context.Context,
+	scopeRegex string,
+	seriesRegex string,
+	withStats bool,
+) (<-chan *pb.Scope, <-chan error) {
+	dataChan := make(chan *pb.Scope, 10)
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer close(dataChan)
+
+		sql := `SELECT scope_handle, scope_name FROM scope WHERE scope_name ~* $1`
+		rows, err := st.pool.Query(ctx, sql, scopeRegex)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var handle, name string
+			if err := rows.Scan(&handle, &name); err != nil {
+				errChan <- err
+				return
+			}
+
+			msg := &pb.Scope{ScopeHandle: handle, ScopeName: name}
+
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			case dataChan <- msg:
+			}
+		}
+	}()
+	return dataChan, errChan
 }

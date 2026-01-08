@@ -3,8 +3,8 @@ package streamvis.v1;
 
 option go_package = "pier/pb/streamvis/v1;streamvis_v1";
 
-/*
 import "google/protobuf/struct.proto";
+/*
 import "google/protobuf/timestamp.proto";
 */
 
@@ -47,13 +47,20 @@ message EncTyp {
 }
 
 message IntValues {
-  repeated uint32 values = 1;
+  repeated OptionalInt values = 1;
+}
+
+message OptionalInt {
+  optional int32 value = 1;
 }
 
 message FloatValues {
-  repeated float values = 1;
+  repeated OptionalFloat values = 1;
 }
 
+message OptionalFloat {
+  optional float value = 1;
+}
 
 message AppendToSeriesRequest {
   string series_handle = 1;
@@ -65,10 +72,49 @@ message AppendToSeriesResponse {
   bool success = 1;
 }
 
+message ListScopesRequest {
+  string scope_regex = 1;
+  string series_regex = 2;
+  bool with_stats = 3;
+}
+
+message Scope {
+  string scope_handle = 1;
+  string scope_name = 2;
+  repeated Series series_list = 3;
+}
+
+message Series {
+  string series_handle = 1;
+  string series_name = 2;
+  google.protobuf.Struct structure = 3;
+  repeated Field fields = 4;
+  Stats stats = 5;
+}
+
+message Field {
+  string field_handle = 1;
+  string field_name = 2;
+  string field_type = 3;
+}
+
+message Stats {
+  uint32 num_points = 1;
+  uint32 num_chunks = 2;
+}
+
+message ListScopesResponse {
+    Scope scope = 1;
+}
+
+
 
 service Service {
   rpc MakeOrGetScope (GetScopeRequest) returns (GetScopeResponse);
   rpc DeleteScope (DeleteScopeRequest) returns (DeleteScopeResponse);
   rpc MakeOrGetSeries (GetSeriesRequest) returns (GetSeriesResponse);
   rpc AppendToSeries (AppendToSeriesRequest) returns (AppendToSeriesResponse);
+  rpc ListScopes (ListScopesRequest) returns (stream ListScopesResponse);
+  // rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
+  // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
 }

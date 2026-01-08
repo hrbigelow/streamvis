@@ -3,12 +3,13 @@
 /* eslint-disable */
 
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_google_protobuf_struct } from "@bufbuild/protobuf/wkt";
 
 /**
  * Describes the file streamvis/v1/data.proto.
  */
 export const file_streamvis_v1_data = /*@__PURE__*/
-  fileDesc("ChdzdHJlYW12aXMvdjEvZGF0YS5wcm90bxIMc3RyZWFtdmlzLnYxIj4KD0dldFNjb3BlUmVxdWVzdBISCgpzY29wZV9uYW1lGAEgASgJEhcKD2RlbGV0ZV9leGlzdGluZxgCIAEoCCIoChBHZXRTY29wZVJlc3BvbnNlEhQKDHNjb3BlX2hhbmRsZRgBIAEoCSIqChJEZWxldGVTY29wZVJlcXVlc3QSFAoMc2NvcGVfaGFuZGxlGAEgASgJIiYKE0RlbGV0ZVNjb3BlUmVzcG9uc2USDwoHZGVsZXRlZBgBIAEoCCLKAQoQR2V0U2VyaWVzUmVxdWVzdBIUCgxzY29wZV9oYW5kbGUYASABKAkSEwoLc2VyaWVzX25hbWUYAiABKAkSQAoJc3RydWN0dXJlGAMgAygLMi0uc3RyZWFtdmlzLnYxLkdldFNlcmllc1JlcXVlc3QuU3RydWN0dXJlRW50cnkSFwoPZGVsZXRlX2V4aXN0aW5nGAQgASgIGjAKDlN0cnVjdHVyZUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiKgoRR2V0U2VyaWVzUmVzcG9uc2USFQoNc2VyaWVzX2hhbmRsZRgBIAEoCSKCAQoGRW5jVHlwEgwKBGJhc2UYASABKAwSDQoFc2hhcGUYAiADKA0SJwoEaXZhbBgDIAEoCzIXLnN0cmVhbXZpcy52MS5JbnRWYWx1ZXNIABIpCgRmdmFsGAQgASgLMhkuc3RyZWFtdmlzLnYxLkZsb2F0VmFsdWVzSABCBwoFc3BhbnMiGwoJSW50VmFsdWVzEg4KBnZhbHVlcxgBIAMoDSIdCgtGbG9hdFZhbHVlcxIOCgZ2YWx1ZXMYASADKAIibQoVQXBwZW5kVG9TZXJpZXNSZXF1ZXN0EhUKDXNlcmllc19oYW5kbGUYASABKAkSEwoLZmllbGRfbmFtZXMYAiADKAkSKAoKZmllbGRfdmFscxgDIAMoCzIULnN0cmVhbXZpcy52MS5FbmNUeXAiKQoWQXBwZW5kVG9TZXJpZXNSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIMt8CCgdTZXJ2aWNlEk8KDk1ha2VPckdldFNjb3BlEh0uc3RyZWFtdmlzLnYxLkdldFNjb3BlUmVxdWVzdBoeLnN0cmVhbXZpcy52MS5HZXRTY29wZVJlc3BvbnNlElIKC0RlbGV0ZVNjb3BlEiAuc3RyZWFtdmlzLnYxLkRlbGV0ZVNjb3BlUmVxdWVzdBohLnN0cmVhbXZpcy52MS5EZWxldGVTY29wZVJlc3BvbnNlElIKD01ha2VPckdldFNlcmllcxIeLnN0cmVhbXZpcy52MS5HZXRTZXJpZXNSZXF1ZXN0Gh8uc3RyZWFtdmlzLnYxLkdldFNlcmllc1Jlc3BvbnNlElsKDkFwcGVuZFRvU2VyaWVzEiMuc3RyZWFtdmlzLnYxLkFwcGVuZFRvU2VyaWVzUmVxdWVzdBokLnN0cmVhbXZpcy52MS5BcHBlbmRUb1Nlcmllc1Jlc3BvbnNlQiNaIXBpZXIvcGIvc3RyZWFtdmlzL3YxO3N0cmVhbXZpc192MWIGcHJvdG8z");
+  fileDesc("ChdzdHJlYW12aXMvdjEvZGF0YS5wcm90bxIMc3RyZWFtdmlzLnYxIj4KD0dldFNjb3BlUmVxdWVzdBISCgpzY29wZV9uYW1lGAEgASgJEhcKD2RlbGV0ZV9leGlzdGluZxgCIAEoCCIoChBHZXRTY29wZVJlc3BvbnNlEhQKDHNjb3BlX2hhbmRsZRgBIAEoCSIqChJEZWxldGVTY29wZVJlcXVlc3QSFAoMc2NvcGVfaGFuZGxlGAEgASgJIiYKE0RlbGV0ZVNjb3BlUmVzcG9uc2USDwoHZGVsZXRlZBgBIAEoCCLKAQoQR2V0U2VyaWVzUmVxdWVzdBIUCgxzY29wZV9oYW5kbGUYASABKAkSEwoLc2VyaWVzX25hbWUYAiABKAkSQAoJc3RydWN0dXJlGAMgAygLMi0uc3RyZWFtdmlzLnYxLkdldFNlcmllc1JlcXVlc3QuU3RydWN0dXJlRW50cnkSFwoPZGVsZXRlX2V4aXN0aW5nGAQgASgIGjAKDlN0cnVjdHVyZUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiKgoRR2V0U2VyaWVzUmVzcG9uc2USFQoNc2VyaWVzX2hhbmRsZRgBIAEoCSKCAQoGRW5jVHlwEgwKBGJhc2UYASABKAwSDQoFc2hhcGUYAiADKA0SJwoEaXZhbBgDIAEoCzIXLnN0cmVhbXZpcy52MS5JbnRWYWx1ZXNIABIpCgRmdmFsGAQgASgLMhkuc3RyZWFtdmlzLnYxLkZsb2F0VmFsdWVzSABCBwoFc3BhbnMiNgoJSW50VmFsdWVzEikKBnZhbHVlcxgBIAMoCzIZLnN0cmVhbXZpcy52MS5PcHRpb25hbEludCIrCgtPcHRpb25hbEludBISCgV2YWx1ZRgBIAEoBUgAiAEBQggKBl92YWx1ZSI6CgtGbG9hdFZhbHVlcxIrCgZ2YWx1ZXMYASADKAsyGy5zdHJlYW12aXMudjEuT3B0aW9uYWxGbG9hdCItCg1PcHRpb25hbEZsb2F0EhIKBXZhbHVlGAEgASgCSACIAQFCCAoGX3ZhbHVlIm0KFUFwcGVuZFRvU2VyaWVzUmVxdWVzdBIVCg1zZXJpZXNfaGFuZGxlGAEgASgJEhMKC2ZpZWxkX25hbWVzGAIgAygJEigKCmZpZWxkX3ZhbHMYAyADKAsyFC5zdHJlYW12aXMudjEuRW5jVHlwIikKFkFwcGVuZFRvU2VyaWVzUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCCJSChFMaXN0U2NvcGVzUmVxdWVzdBITCgtzY29wZV9yZWdleBgBIAEoCRIUCgxzZXJpZXNfcmVnZXgYAiABKAkSEgoKd2l0aF9zdGF0cxgDIAEoCCJcCgVTY29wZRIUCgxzY29wZV9oYW5kbGUYASABKAkSEgoKc2NvcGVfbmFtZRgCIAEoCRIpCgtzZXJpZXNfbGlzdBgDIAMoCzIULnN0cmVhbXZpcy52MS5TZXJpZXMiqQEKBlNlcmllcxIVCg1zZXJpZXNfaGFuZGxlGAEgASgJEhMKC3Nlcmllc19uYW1lGAIgASgJEioKCXN0cnVjdHVyZRgDIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QSIwoGZmllbGRzGAQgAygLMhMuc3RyZWFtdmlzLnYxLkZpZWxkEiIKBXN0YXRzGAUgASgLMhMuc3RyZWFtdmlzLnYxLlN0YXRzIkUKBUZpZWxkEhQKDGZpZWxkX2hhbmRsZRgBIAEoCRISCgpmaWVsZF9uYW1lGAIgASgJEhIKCmZpZWxkX3R5cGUYAyABKAkiLwoFU3RhdHMSEgoKbnVtX3BvaW50cxgBIAEoDRISCgpudW1fY2h1bmtzGAIgASgNIjgKEkxpc3RTY29wZXNSZXNwb25zZRIiCgVzY29wZRgBIAEoCzITLnN0cmVhbXZpcy52MS5TY29wZTKyAwoHU2VydmljZRJPCg5NYWtlT3JHZXRTY29wZRIdLnN0cmVhbXZpcy52MS5HZXRTY29wZVJlcXVlc3QaHi5zdHJlYW12aXMudjEuR2V0U2NvcGVSZXNwb25zZRJSCgtEZWxldGVTY29wZRIgLnN0cmVhbXZpcy52MS5EZWxldGVTY29wZVJlcXVlc3QaIS5zdHJlYW12aXMudjEuRGVsZXRlU2NvcGVSZXNwb25zZRJSCg9NYWtlT3JHZXRTZXJpZXMSHi5zdHJlYW12aXMudjEuR2V0U2VyaWVzUmVxdWVzdBofLnN0cmVhbXZpcy52MS5HZXRTZXJpZXNSZXNwb25zZRJbCg5BcHBlbmRUb1NlcmllcxIjLnN0cmVhbXZpcy52MS5BcHBlbmRUb1Nlcmllc1JlcXVlc3QaJC5zdHJlYW12aXMudjEuQXBwZW5kVG9TZXJpZXNSZXNwb25zZRJRCgpMaXN0U2NvcGVzEh8uc3RyZWFtdmlzLnYxLkxpc3RTY29wZXNSZXF1ZXN0GiAuc3RyZWFtdmlzLnYxLkxpc3RTY29wZXNSZXNwb25zZTABQiNaIXBpZXIvcGIvc3RyZWFtdmlzL3YxO3N0cmVhbXZpc192MWIGcHJvdG8z", [file_google_protobuf_struct]);
 
 /**
  * Describes the message streamvis.v1.GetScopeRequest.
@@ -67,25 +68,81 @@ export const IntValuesSchema = /*@__PURE__*/
   messageDesc(file_streamvis_v1_data, 7);
 
 /**
+ * Describes the message streamvis.v1.OptionalInt.
+ * Use `create(OptionalIntSchema)` to create a new message.
+ */
+export const OptionalIntSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 8);
+
+/**
  * Describes the message streamvis.v1.FloatValues.
  * Use `create(FloatValuesSchema)` to create a new message.
  */
 export const FloatValuesSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 8);
+  messageDesc(file_streamvis_v1_data, 9);
+
+/**
+ * Describes the message streamvis.v1.OptionalFloat.
+ * Use `create(OptionalFloatSchema)` to create a new message.
+ */
+export const OptionalFloatSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 10);
 
 /**
  * Describes the message streamvis.v1.AppendToSeriesRequest.
  * Use `create(AppendToSeriesRequestSchema)` to create a new message.
  */
 export const AppendToSeriesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 9);
+  messageDesc(file_streamvis_v1_data, 11);
 
 /**
  * Describes the message streamvis.v1.AppendToSeriesResponse.
  * Use `create(AppendToSeriesResponseSchema)` to create a new message.
  */
 export const AppendToSeriesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 10);
+  messageDesc(file_streamvis_v1_data, 12);
+
+/**
+ * Describes the message streamvis.v1.ListScopesRequest.
+ * Use `create(ListScopesRequestSchema)` to create a new message.
+ */
+export const ListScopesRequestSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 13);
+
+/**
+ * Describes the message streamvis.v1.Scope.
+ * Use `create(ScopeSchema)` to create a new message.
+ */
+export const ScopeSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 14);
+
+/**
+ * Describes the message streamvis.v1.Series.
+ * Use `create(SeriesSchema)` to create a new message.
+ */
+export const SeriesSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 15);
+
+/**
+ * Describes the message streamvis.v1.Field.
+ * Use `create(FieldSchema)` to create a new message.
+ */
+export const FieldSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 16);
+
+/**
+ * Describes the message streamvis.v1.Stats.
+ * Use `create(StatsSchema)` to create a new message.
+ */
+export const StatsSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 17);
+
+/**
+ * Describes the message streamvis.v1.ListScopesResponse.
+ * Use `create(ListScopesResponseSchema)` to create a new message.
+ */
+export const ListScopesResponseSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 18);
 
 /**
  * @generated from service streamvis.v1.Service

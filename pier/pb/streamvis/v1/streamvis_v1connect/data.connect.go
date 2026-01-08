@@ -41,6 +41,8 @@ const (
 	ServiceMakeOrGetSeriesProcedure = "/streamvis.v1.Service/MakeOrGetSeries"
 	// ServiceAppendToSeriesProcedure is the fully-qualified name of the Service's AppendToSeries RPC.
 	ServiceAppendToSeriesProcedure = "/streamvis.v1.Service/AppendToSeries"
+	// ServiceListScopesProcedure is the fully-qualified name of the Service's ListScopes RPC.
+	ServiceListScopesProcedure = "/streamvis.v1.Service/ListScopes"
 )
 
 // ServiceClient is a client for the streamvis.v1.Service service.
@@ -49,6 +51,7 @@ type ServiceClient interface {
 	DeleteScope(context.Context, *v1.DeleteScopeRequest) (*v1.DeleteScopeResponse, error)
 	MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error)
 	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
+	ListScopes(context.Context, *v1.ListScopesRequest) (*connect.ServerStreamForClient[v1.ListScopesResponse], error)
 }
 
 // NewServiceClient constructs a client for the streamvis.v1.Service service. By default, it uses
@@ -86,6 +89,12 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("AppendToSeries")),
 			connect.WithClientOptions(opts...),
 		),
+		listScopes: connect.NewClient[v1.ListScopesRequest, v1.ListScopesResponse](
+			httpClient,
+			baseURL+ServiceListScopesProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListScopes")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -95,6 +104,7 @@ type serviceClient struct {
 	deleteScope     *connect.Client[v1.DeleteScopeRequest, v1.DeleteScopeResponse]
 	makeOrGetSeries *connect.Client[v1.GetSeriesRequest, v1.GetSeriesResponse]
 	appendToSeries  *connect.Client[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse]
+	listScopes      *connect.Client[v1.ListScopesRequest, v1.ListScopesResponse]
 }
 
 // MakeOrGetScope calls streamvis.v1.Service.MakeOrGetScope.
@@ -133,12 +143,18 @@ func (c *serviceClient) AppendToSeries(ctx context.Context, req *v1.AppendToSeri
 	return nil, err
 }
 
+// ListScopes calls streamvis.v1.Service.ListScopes.
+func (c *serviceClient) ListScopes(ctx context.Context, req *v1.ListScopesRequest) (*connect.ServerStreamForClient[v1.ListScopesResponse], error) {
+	return c.listScopes.CallServerStream(ctx, connect.NewRequest(req))
+}
+
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
 	MakeOrGetScope(context.Context, *v1.GetScopeRequest) (*v1.GetScopeResponse, error)
 	DeleteScope(context.Context, *v1.DeleteScopeRequest) (*v1.DeleteScopeResponse, error)
 	MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error)
 	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
+	ListScopes(context.Context, *v1.ListScopesRequest, *connect.ServerStream[v1.ListScopesResponse]) error
 }
 
 // NewServiceHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -172,6 +188,12 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("AppendToSeries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceListScopesHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListScopesProcedure,
+		svc.ListScopes,
+		connect.WithSchema(serviceMethods.ByName("ListScopes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/streamvis.v1.Service/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceMakeOrGetScopeProcedure:
@@ -182,6 +204,8 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceMakeOrGetSeriesHandler.ServeHTTP(w, r)
 		case ServiceAppendToSeriesProcedure:
 			serviceAppendToSeriesHandler.ServeHTTP(w, r)
+		case ServiceListScopesProcedure:
+			serviceListScopesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -205,4 +229,8 @@ func (UnimplementedServiceHandler) MakeOrGetSeries(context.Context, *v1.GetSerie
 
 func (UnimplementedServiceHandler) AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AppendToSeries is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListScopes(context.Context, *v1.ListScopesRequest, *connect.ServerStream[v1.ListScopesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListScopes is not implemented"))
 }

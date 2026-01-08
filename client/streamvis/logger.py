@@ -3,6 +3,8 @@ import grpc
 import numpy as np
 from typing import Literal
 import threading
+import time
+from . import dbutil
 
 from .v1 import data_pb2 as pb
 from .v1 import data_pb2_grpc as pb_grpc
@@ -27,10 +29,11 @@ class BaseLogger:
         self,
         scope: str,
         grpc_uri: str,
-        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing_scope: bool=False,
-        delete_existing_series: bool=True,
-        flush_every: float=2.0,
+        tensor_type: Literal["jax", "torch", "numpy"],
+        delete_existing_scope: bool,
+        delete_existing_series: bool,
+        max_chunk_size: int,
+        flush_every: float,
     ):
         self.scope = scope
         self.delete_existing_scope = delete_existing_scope
@@ -38,7 +41,9 @@ class BaseLogger:
         self.logged_series = {} # series_name => Series
         self.chan = grpc.insecure_channel(grpc_uri)
         self.stub = pb_grpc.ServiceStub(self.chan)
+        self.max_chunk_size = max_chunk_size
         self.flush_every = flush_every
+
         match tensor_type:
             case "jax":
                 import jax.numpy as jnp
@@ -80,21 +85,14 @@ class BaseLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
-    def _init_scope(self):
-        req = pb.GetScopeRequest(
-                scope_name=self.scope, 
-                delete_existing=self.delete_existing_scope)
-        resp = self.stub.MakeOrGetScope(req)
-        self.scope_handle = h = resp.scope_handle
-        if h is None:
-            raise RuntimeError(f"Couldn't create scope '{self.scope}'")
+    def write_config(self, attrs: dict):
+        """Write a set of attributes to associate with this scope.
 
-    def _get_structure(self, **fields):
-        structure = {}
-        for name, ary in fields.items():
-            is_float = self.is_float(self.to_array(ary))  
-            structure[name] = 'f32' if is_float else 'i32'
-        return structure
+        This is useful for recording hyperparameters, settings, configuration etc.
+        for the program.  Can only be called once for the life of the logger.
+        """
+        print("write_config not implemented yet...")
+        pass
 
     def write(self, series_name: str, /, **fields):
         """
@@ -144,18 +142,33 @@ class BaseLogger:
 
         series.queue.put_nowait(arrays)
 
+    def _init_scope(self):
+        req = pb.GetScopeRequest(
+                scope_name=self.scope, 
+                delete_existing=self.delete_existing_scope)
+        resp = self.stub.MakeOrGetScope(req)
+        self.scope_handle = h = resp.scope_handle
+        if h is None:
+            raise RuntimeError(f"Couldn't create scope '{self.scope}'")
+
+    def _get_structure(self, **fields):
+        structure = {}
+        for name, ary in fields.items():
+            is_float = self.is_float(self.to_array(ary))  
+            structure[name] = 'f32' if is_float else 'i32'
+        return structure
+
     def _flush_all_series(self) -> bool:
-        more_work = False
+        finished = {}
         for series in self.logged_series.values():
-            if self._flush_series(series):
-                more_work = True
-        return more_work
+            finished[series.handle] = self._flush_series(series)
+        return all(finished.values())
 
     def _flush_series(self, series: Series) -> bool:
         current_chunk = []
         current_shape = None
         current_size = 0
-        more_work = True
+        finished = False
 
         def _item_size(item):
             return self.tensor_size(item[0])
@@ -166,11 +179,11 @@ class BaseLogger:
         while not series.queue.empty():
             item = series.queue.get_nowait()
             if item is None:
-                more_work = False
+                finished = True
 
             should_process = (
                     item is None
-                    or (current_shape is None or _item_shape(item) == current_shape)
+                    or (current_shape is not None and _item_shape(item) != current_shape)
                     or (current_size + _item_size(item) > self.max_chunk_size))
 
             if should_process and current_chunk:
@@ -183,14 +196,14 @@ class BaseLogger:
                 current_shape = None
                 current_size = 0
 
-            if not more_work:
+            if finished:
                 break
 
             current_chunk.append(item)
             current_shape = _item_shape(item)
             current_size += _item_size(item)
 
-        return more_work
+        return finished 
 
     def _process_chunk(
         self, 
@@ -216,18 +229,22 @@ class BaseLogger:
         for fname, ftype, ary in zip(field_names, field_types, fields):
             stacked = self.stack_arrays(ary)
             npary = self.to_numpy(stacked).astype(SIG_TO_DTYPE[ftype])
+            import pdb
+            pdb.set_trace()
             enc = dbutil.encode_array(npary)
             if ftype == 'f32':
+                optvals = tuple(pb.OptionalFloat(value=sp) for sp in enc.range_spans)
                 msg = pb.EncTyp(
                     base=enc.base.tobytes(), 
                     shape=enc.shape,
-                    fval=pb.FloatValues(enc.range_spans)
+                    fval=pb.FloatValues(values=optvals)
                 )
             elif ftype == 'i32':
+                optvals = tuple(pb.OptionalInt(value=sp) for sp in enc.range_spans)
                 msg = pb.EncTyp(
                     base=enc.base.tobytes(), 
                     shape=enc.shape,
-                    ival=pb.IntValues(enc.range_spans)
+                    ival=pb.IntValues(values=optvals)
                 )
             else:
                 raise RuntimeError(f"Invalid ftype: {ftype}")
@@ -245,17 +262,20 @@ class AsyncDataLogger(BaseLogger):
         scope: str, 
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing_scope: bool=True,
+        delete_existing_scope: bool=False,
         delete_existing_series: bool=True,
+        max_chunk_size: int=100000,
         flush_every: float=2.0
     ):
         super().__init__(scope, grpc_uri, tensor_type, delete_existing_scope, 
-                         delete_existing_series, flush_every)
+                         delete_existing_series, max_chunk_size, flush_every)
+        self.exiting = False
 
     async def flush_buffer(self):
         while True:
             if not self._flush_all_series():
-                break
+                if self.exiting:
+                    break
             try:
                 await asyncio.sleep(self.flush_every)
             except asyncio.CancelledError:
@@ -272,24 +292,25 @@ class AsyncDataLogger(BaseLogger):
     async def __aexit__(self, *args):
         for series in self.logged_series.values():
             series.queue.put_nowait(None)
+        self.exiting = True
         await self._task_group.__aexit__(*args)
         self.chan.close()
         self._task_group = None
 
-    async def write(self, name: str, /, start_index: int=0, **data):
+    async def write(self, series_name: str, /, **data):
         """The default write function for the async logger.
 
         If using this instead of write_sync, there is no need to call yield_to_flush"""
-        super().write(name, start_index, **data)
+        super().write(series_name, **data)
         await asyncio.sleep(0) # explicit yield
 
-    def write_sync(self, name: str, /, start_index: int=0, **data):
+    def write_sync(self, series_name: str, /, **data):
         """A convenience function to avoid making every function async.
 
         If using write_sync, you must periodically call yield_to_flush() to allow
         the flush task to wake up.
         """
-        super().write(name, start_index, **data)
+        super().write(series_name, **data)
 
     async def yield_to_flush(self):
         """An explicit yield function to allow buffer flush.
@@ -308,10 +329,12 @@ class DataLogger(BaseLogger):
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
         delete_existing_scope: bool=False,
         delete_existing_series: bool=True,
+        max_chunk_size: int=100000,
         flush_every: float=2.0
     ):
         super().__init__(scope, grpc_uri, tensor_type, delete_existing_scope, 
-                         delete_existing_series, flush_every)
+                         delete_existing_series, max_chunk_size, flush_every)
+        self.exiting = False
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
     def start(self):
@@ -320,15 +343,17 @@ class DataLogger(BaseLogger):
 
     def flush_buffer(self):
         while True:
-            if not self._flush_all_series():
-                break
+            if not super()._flush_all_series():
+                if self.exiting:
+                    break
             time.sleep(self.flush_every)
 
     def stop(self):
+        self.exiting = True
         for series in self.logged_series.values():
             series.queue.put_nowait(None)
         self._flush_thread.join()
 
-    def write(self, name: str, /, start_index: int=0, **data):
-        super().write(name, start_index, **data)
+    def write(self, series_name: str, /, **data):
+        super().write(series_name, **data)
 

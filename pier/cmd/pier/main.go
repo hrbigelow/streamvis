@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"pier/pb/streamvis/v1/streamvis_v1connect"
 	"pier/service"
@@ -31,13 +32,12 @@ func main() {
 
 	mux := http.NewServeMux()
 	path, serviceHandler := streamvis_v1connect.NewServiceHandler(dbService)
-	fmt.Printf("Handler path: %s\n", path)
+	nakedPath := strings.ReplaceAll(path, "/", "")
+	fmt.Printf("URI: localhost:%d, Service: %s\n", *port, nakedPath)
 
 	mux.Handle(path, serviceHandler)
 
-	reflector := grpcreflect.NewStaticReflector(
-		"streamvis.v1.Service",
-	)
+	reflector := grpcreflect.NewStaticReflector(nakedPath)
 
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))

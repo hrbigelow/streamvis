@@ -6,14 +6,14 @@ class Float32Data:
     # See db/schema.sql float32_data type
     base: np.array
     shape: tuple[int]
-    range_spans: tuple[float]
+    range_spans: tuple[float|None]
 
 @dataclass
 class Int32Data:
     # See db/schema.sql int32_data type
     base: np.array
     shape: tuple[int]
-    range_spans: tuple[int]
+    range_spans: tuple[int|None]
 
 
 def slice_in_dim(ary: np.array, _slice: slice | int, dim: int):
@@ -41,10 +41,11 @@ def encode_array(
             continue
         diffs = slice_in_dim(data, slice(0, -1), d) - slice_in_dim(data, slice(1, None), d)
         lo, hi = diffs.min(), diffs.max()
-        mid = (hi + lo) / 2.0
-        if hi == lo or (hi - lo) / mid < rtol:
+        magnitude = np.abs(hi + lo) / 2.0
+        if hi == lo or (hi - lo) / magnitude < rtol:
             spans = slice_in_dim(data, -1, d) - slice_in_dim(data, 0, d)
-            range_spans[d] = spans.mean().item()
+            span = spans.flatten()[0].item()
+            range_spans[d] = span 
 
     range_spans = tuple(range_spans)
     indices = tuple(slice(None) if s is None else 0 for s in range_spans)
