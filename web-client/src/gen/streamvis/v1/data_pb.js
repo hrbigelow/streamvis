@@ -3,146 +3,103 @@
 /* eslint-disable */
 
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import { file_google_protobuf_struct } from "@bufbuild/protobuf/wkt";
 
 /**
  * Describes the file streamvis/v1/data.proto.
  */
 export const file_streamvis_v1_data = /*@__PURE__*/
-  fileDesc("ChdzdHJlYW12aXMvdjEvZGF0YS5wcm90bxIMc3RyZWFtdmlzLnYxIj4KD0dldFNjb3BlUmVxdWVzdBISCgpzY29wZV9uYW1lGAEgASgJEhcKD2RlbGV0ZV9leGlzdGluZxgCIAEoCCIoChBHZXRTY29wZVJlc3BvbnNlEhQKDHNjb3BlX2hhbmRsZRgBIAEoCSIqChJEZWxldGVTY29wZVJlcXVlc3QSFAoMc2NvcGVfaGFuZGxlGAEgASgJIiYKE0RlbGV0ZVNjb3BlUmVzcG9uc2USDwoHZGVsZXRlZBgBIAEoCCLKAQoQR2V0U2VyaWVzUmVxdWVzdBIUCgxzY29wZV9oYW5kbGUYASABKAkSEwoLc2VyaWVzX25hbWUYAiABKAkSQAoJc3RydWN0dXJlGAMgAygLMi0uc3RyZWFtdmlzLnYxLkdldFNlcmllc1JlcXVlc3QuU3RydWN0dXJlRW50cnkSFwoPZGVsZXRlX2V4aXN0aW5nGAQgASgIGjAKDlN0cnVjdHVyZUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiKgoRR2V0U2VyaWVzUmVzcG9uc2USFQoNc2VyaWVzX2hhbmRsZRgBIAEoCSKCAQoGRW5jVHlwEgwKBGJhc2UYASABKAwSDQoFc2hhcGUYAiADKA0SJwoEaXZhbBgDIAEoCzIXLnN0cmVhbXZpcy52MS5JbnRWYWx1ZXNIABIpCgRmdmFsGAQgASgLMhkuc3RyZWFtdmlzLnYxLkZsb2F0VmFsdWVzSABCBwoFc3BhbnMiNgoJSW50VmFsdWVzEikKBnZhbHVlcxgBIAMoCzIZLnN0cmVhbXZpcy52MS5PcHRpb25hbEludCIrCgtPcHRpb25hbEludBISCgV2YWx1ZRgBIAEoBUgAiAEBQggKBl92YWx1ZSI6CgtGbG9hdFZhbHVlcxIrCgZ2YWx1ZXMYASADKAsyGy5zdHJlYW12aXMudjEuT3B0aW9uYWxGbG9hdCItCg1PcHRpb25hbEZsb2F0EhIKBXZhbHVlGAEgASgCSACIAQFCCAoGX3ZhbHVlIm0KFUFwcGVuZFRvU2VyaWVzUmVxdWVzdBIVCg1zZXJpZXNfaGFuZGxlGAEgASgJEhMKC2ZpZWxkX25hbWVzGAIgAygJEigKCmZpZWxkX3ZhbHMYAyADKAsyFC5zdHJlYW12aXMudjEuRW5jVHlwIikKFkFwcGVuZFRvU2VyaWVzUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCCJSChFMaXN0U2NvcGVzUmVxdWVzdBITCgtzY29wZV9yZWdleBgBIAEoCRIUCgxzZXJpZXNfcmVnZXgYAiABKAkSEgoKd2l0aF9zdGF0cxgDIAEoCCJcCgVTY29wZRIUCgxzY29wZV9oYW5kbGUYASABKAkSEgoKc2NvcGVfbmFtZRgCIAEoCRIpCgtzZXJpZXNfbGlzdBgDIAMoCzIULnN0cmVhbXZpcy52MS5TZXJpZXMiqQEKBlNlcmllcxIVCg1zZXJpZXNfaGFuZGxlGAEgASgJEhMKC3Nlcmllc19uYW1lGAIgASgJEioKCXN0cnVjdHVyZRgDIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QSIwoGZmllbGRzGAQgAygLMhMuc3RyZWFtdmlzLnYxLkZpZWxkEiIKBXN0YXRzGAUgASgLMhMuc3RyZWFtdmlzLnYxLlN0YXRzIkUKBUZpZWxkEhQKDGZpZWxkX2hhbmRsZRgBIAEoCRISCgpmaWVsZF9uYW1lGAIgASgJEhIKCmZpZWxkX3R5cGUYAyABKAkiLwoFU3RhdHMSEgoKbnVtX3BvaW50cxgBIAEoDRISCgpudW1fY2h1bmtzGAIgASgNIjgKEkxpc3RTY29wZXNSZXNwb25zZRIiCgVzY29wZRgBIAEoCzITLnN0cmVhbXZpcy52MS5TY29wZTKyAwoHU2VydmljZRJPCg5NYWtlT3JHZXRTY29wZRIdLnN0cmVhbXZpcy52MS5HZXRTY29wZVJlcXVlc3QaHi5zdHJlYW12aXMudjEuR2V0U2NvcGVSZXNwb25zZRJSCgtEZWxldGVTY29wZRIgLnN0cmVhbXZpcy52MS5EZWxldGVTY29wZVJlcXVlc3QaIS5zdHJlYW12aXMudjEuRGVsZXRlU2NvcGVSZXNwb25zZRJSCg9NYWtlT3JHZXRTZXJpZXMSHi5zdHJlYW12aXMudjEuR2V0U2VyaWVzUmVxdWVzdBofLnN0cmVhbXZpcy52MS5HZXRTZXJpZXNSZXNwb25zZRJbCg5BcHBlbmRUb1NlcmllcxIjLnN0cmVhbXZpcy52MS5BcHBlbmRUb1Nlcmllc1JlcXVlc3QaJC5zdHJlYW12aXMudjEuQXBwZW5kVG9TZXJpZXNSZXNwb25zZRJRCgpMaXN0U2NvcGVzEh8uc3RyZWFtdmlzLnYxLkxpc3RTY29wZXNSZXF1ZXN0GiAuc3RyZWFtdmlzLnYxLkxpc3RTY29wZXNSZXNwb25zZTABQiNaIXBpZXIvcGIvc3RyZWFtdmlzL3YxO3N0cmVhbXZpc192MWIGcHJvdG8z", [file_google_protobuf_struct]);
-
-/**
- * Describes the message streamvis.v1.GetScopeRequest.
- * Use `create(GetScopeRequestSchema)` to create a new message.
- */
-export const GetScopeRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 0);
-
-/**
- * Describes the message streamvis.v1.GetScopeResponse.
- * Use `create(GetScopeResponseSchema)` to create a new message.
- */
-export const GetScopeResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 1);
-
-/**
- * Describes the message streamvis.v1.DeleteScopeRequest.
- * Use `create(DeleteScopeRequestSchema)` to create a new message.
- */
-export const DeleteScopeRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 2);
-
-/**
- * Describes the message streamvis.v1.DeleteScopeResponse.
- * Use `create(DeleteScopeResponseSchema)` to create a new message.
- */
-export const DeleteScopeResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 3);
+  fileDesc("ChdzdHJlYW12aXMvdjEvZGF0YS5wcm90bxIMc3RyZWFtdmlzLnYxIpsBChBHZXRTZXJpZXNSZXF1ZXN0EhMKC3Nlcmllc19uYW1lGAEgASgJEkAKCXN0cnVjdHVyZRgCIAMoCzItLnN0cmVhbXZpcy52MS5HZXRTZXJpZXNSZXF1ZXN0LlN0cnVjdHVyZUVudHJ5GjAKDlN0cnVjdHVyZUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiKgoRR2V0U2VyaWVzUmVzcG9uc2USFQoNc2VyaWVzX2hhbmRsZRgBIAEoCSKCAQoGRW5jVHlwEgwKBGJhc2UYASABKAwSDQoFc2hhcGUYAiADKA0SJwoEaXZhbBgDIAEoCzIXLnN0cmVhbXZpcy52MS5JbnRWYWx1ZXNIABIpCgRmdmFsGAQgASgLMhkuc3RyZWFtdmlzLnYxLkZsb2F0VmFsdWVzSABCBwoFc3BhbnMiNgoJSW50VmFsdWVzEikKBnZhbHVlcxgBIAMoCzIZLnN0cmVhbXZpcy52MS5PcHRpb25hbEludCIrCgtPcHRpb25hbEludBISCgV2YWx1ZRgBIAEoBUgAiAEBQggKBl92YWx1ZSI6CgtGbG9hdFZhbHVlcxIrCgZ2YWx1ZXMYASADKAsyGy5zdHJlYW12aXMudjEuT3B0aW9uYWxGbG9hdCItCg1PcHRpb25hbEZsb2F0EhIKBXZhbHVlGAEgASgCSACIAQFCCAoGX3ZhbHVlIoEBChVBcHBlbmRUb1Nlcmllc1JlcXVlc3QSFQoNc2VyaWVzX2hhbmRsZRgBIAEoCRISCgpydW5faGFuZGxlGAIgASgJEhMKC2ZpZWxkX25hbWVzGAMgAygJEigKCmZpZWxkX3ZhbHMYBCADKAsyFC5zdHJlYW12aXMudjEuRW5jVHlwIikKFkFwcGVuZFRvU2VyaWVzUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCCISChBDcmVhdGVSdW5SZXF1ZXN0IicKEUNyZWF0ZVJ1blJlc3BvbnNlEhIKCnJ1bl9oYW5kbGUYASABKAkiJgoQRGVsZXRlUnVuUmVxdWVzdBISCgpydW5faGFuZGxlGAEgASgJIiQKEURlbGV0ZVJ1blJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgy1gIKB1NlcnZpY2USUgoPTWFrZU9yR2V0U2VyaWVzEh4uc3RyZWFtdmlzLnYxLkdldFNlcmllc1JlcXVlc3QaHy5zdHJlYW12aXMudjEuR2V0U2VyaWVzUmVzcG9uc2USWwoOQXBwZW5kVG9TZXJpZXMSIy5zdHJlYW12aXMudjEuQXBwZW5kVG9TZXJpZXNSZXF1ZXN0GiQuc3RyZWFtdmlzLnYxLkFwcGVuZFRvU2VyaWVzUmVzcG9uc2USTAoJQ3JlYXRlUnVuEh4uc3RyZWFtdmlzLnYxLkNyZWF0ZVJ1blJlcXVlc3QaHy5zdHJlYW12aXMudjEuQ3JlYXRlUnVuUmVzcG9uc2USTAoJRGVsZXRlUnVuEh4uc3RyZWFtdmlzLnYxLkRlbGV0ZVJ1blJlcXVlc3QaHy5zdHJlYW12aXMudjEuRGVsZXRlUnVuUmVzcG9uc2VCI1ohcGllci9wYi9zdHJlYW12aXMvdjE7c3RyZWFtdmlzX3YxYgZwcm90bzM");
 
 /**
  * Describes the message streamvis.v1.GetSeriesRequest.
  * Use `create(GetSeriesRequestSchema)` to create a new message.
  */
 export const GetSeriesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 4);
+  messageDesc(file_streamvis_v1_data, 0);
 
 /**
  * Describes the message streamvis.v1.GetSeriesResponse.
  * Use `create(GetSeriesResponseSchema)` to create a new message.
  */
 export const GetSeriesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 5);
+  messageDesc(file_streamvis_v1_data, 1);
 
 /**
  * Describes the message streamvis.v1.EncTyp.
  * Use `create(EncTypSchema)` to create a new message.
  */
 export const EncTypSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 6);
+  messageDesc(file_streamvis_v1_data, 2);
 
 /**
  * Describes the message streamvis.v1.IntValues.
  * Use `create(IntValuesSchema)` to create a new message.
  */
 export const IntValuesSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 7);
+  messageDesc(file_streamvis_v1_data, 3);
 
 /**
  * Describes the message streamvis.v1.OptionalInt.
  * Use `create(OptionalIntSchema)` to create a new message.
  */
 export const OptionalIntSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 8);
+  messageDesc(file_streamvis_v1_data, 4);
 
 /**
  * Describes the message streamvis.v1.FloatValues.
  * Use `create(FloatValuesSchema)` to create a new message.
  */
 export const FloatValuesSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 9);
+  messageDesc(file_streamvis_v1_data, 5);
 
 /**
  * Describes the message streamvis.v1.OptionalFloat.
  * Use `create(OptionalFloatSchema)` to create a new message.
  */
 export const OptionalFloatSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 10);
+  messageDesc(file_streamvis_v1_data, 6);
 
 /**
  * Describes the message streamvis.v1.AppendToSeriesRequest.
  * Use `create(AppendToSeriesRequestSchema)` to create a new message.
  */
 export const AppendToSeriesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 11);
+  messageDesc(file_streamvis_v1_data, 7);
 
 /**
  * Describes the message streamvis.v1.AppendToSeriesResponse.
  * Use `create(AppendToSeriesResponseSchema)` to create a new message.
  */
 export const AppendToSeriesResponseSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 8);
+
+/**
+ * Describes the message streamvis.v1.CreateRunRequest.
+ * Use `create(CreateRunRequestSchema)` to create a new message.
+ */
+export const CreateRunRequestSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 9);
+
+/**
+ * Describes the message streamvis.v1.CreateRunResponse.
+ * Use `create(CreateRunResponseSchema)` to create a new message.
+ */
+export const CreateRunResponseSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 10);
+
+/**
+ * Describes the message streamvis.v1.DeleteRunRequest.
+ * Use `create(DeleteRunRequestSchema)` to create a new message.
+ */
+export const DeleteRunRequestSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 11);
+
+/**
+ * Describes the message streamvis.v1.DeleteRunResponse.
+ * Use `create(DeleteRunResponseSchema)` to create a new message.
+ */
+export const DeleteRunResponseSchema = /*@__PURE__*/
   messageDesc(file_streamvis_v1_data, 12);
-
-/**
- * Describes the message streamvis.v1.ListScopesRequest.
- * Use `create(ListScopesRequestSchema)` to create a new message.
- */
-export const ListScopesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 13);
-
-/**
- * Describes the message streamvis.v1.Scope.
- * Use `create(ScopeSchema)` to create a new message.
- */
-export const ScopeSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 14);
-
-/**
- * Describes the message streamvis.v1.Series.
- * Use `create(SeriesSchema)` to create a new message.
- */
-export const SeriesSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 15);
-
-/**
- * Describes the message streamvis.v1.Field.
- * Use `create(FieldSchema)` to create a new message.
- */
-export const FieldSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 16);
-
-/**
- * Describes the message streamvis.v1.Stats.
- * Use `create(StatsSchema)` to create a new message.
- */
-export const StatsSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 17);
-
-/**
- * Describes the message streamvis.v1.ListScopesResponse.
- * Use `create(ListScopesResponseSchema)` to create a new message.
- */
-export const ListScopesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 18);
 
 /**
  * @generated from service streamvis.v1.Service

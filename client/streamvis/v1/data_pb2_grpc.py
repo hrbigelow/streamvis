@@ -34,16 +34,6 @@ class ServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.MakeOrGetScope = channel.unary_unary(
-                '/streamvis.v1.Service/MakeOrGetScope',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.GetScopeRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.GetScopeResponse.FromString,
-                _registered_method=True)
-        self.DeleteScope = channel.unary_unary(
-                '/streamvis.v1.Service/DeleteScope',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteScopeRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteScopeResponse.FromString,
-                _registered_method=True)
         self.MakeOrGetSeries = channel.unary_unary(
                 '/streamvis.v1.Service/MakeOrGetSeries',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.GetSeriesRequest.SerializeToString,
@@ -54,27 +44,20 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.FromString,
                 _registered_method=True)
-        self.ListScopes = channel.unary_stream(
-                '/streamvis.v1.Service/ListScopes',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.ListScopesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListScopesResponse.FromString,
+        self.CreateRun = channel.unary_unary(
+                '/streamvis.v1.Service/CreateRun',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.CreateRunRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateRunResponse.FromString,
+                _registered_method=True)
+        self.DeleteRun = channel.unary_unary(
+                '/streamvis.v1.Service/DeleteRun',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.FromString,
                 _registered_method=True)
 
 
 class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
-
-    def MakeOrGetScope(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def DeleteScope(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
     def MakeOrGetSeries(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -88,7 +71,13 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ListScopes(self, request, context):
+    def CreateRun(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteRun(self, request, context):
         """rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
         rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
         """
@@ -99,16 +88,6 @@ class ServiceServicer(object):
 
 def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'MakeOrGetScope': grpc.unary_unary_rpc_method_handler(
-                    servicer.MakeOrGetScope,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.GetScopeRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.GetScopeResponse.SerializeToString,
-            ),
-            'DeleteScope': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteScope,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteScopeRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteScopeResponse.SerializeToString,
-            ),
             'MakeOrGetSeries': grpc.unary_unary_rpc_method_handler(
                     servicer.MakeOrGetSeries,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.GetSeriesRequest.FromString,
@@ -119,10 +98,15 @@ def add_ServiceServicer_to_server(servicer, server):
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.SerializeToString,
             ),
-            'ListScopes': grpc.unary_stream_rpc_method_handler(
-                    servicer.ListScopes,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListScopesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListScopesResponse.SerializeToString,
+            'CreateRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateRun,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateRunRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.CreateRunResponse.SerializeToString,
+            ),
+            'DeleteRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteRun,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -134,60 +118,6 @@ def add_ServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class Service(object):
     """Missing associated documentation comment in .proto file."""
-
-    @staticmethod
-    def MakeOrGetScope(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/streamvis.v1.Service/MakeOrGetScope',
-            streamvis_dot_v1_dot_data__pb2.GetScopeRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.GetScopeResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def DeleteScope(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/streamvis.v1.Service/DeleteScope',
-            streamvis_dot_v1_dot_data__pb2.DeleteScopeRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.DeleteScopeResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
 
     @staticmethod
     def MakeOrGetSeries(request,
@@ -244,7 +174,7 @@ class Service(object):
             _registered_method=True)
 
     @staticmethod
-    def ListScopes(request,
+    def CreateRun(request,
             target,
             options=(),
             channel_credentials=None,
@@ -254,12 +184,39 @@ class Service(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(
+        return grpc.experimental.unary_unary(
             request,
             target,
-            '/streamvis.v1.Service/ListScopes',
-            streamvis_dot_v1_dot_data__pb2.ListScopesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.ListScopesResponse.FromString,
+            '/streamvis.v1.Service/CreateRun',
+            streamvis_dot_v1_dot_data__pb2.CreateRunRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.CreateRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteRun(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/streamvis.v1.Service/DeleteRun',
+            streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.FromString,
             options,
             channel_credentials,
             insecure,

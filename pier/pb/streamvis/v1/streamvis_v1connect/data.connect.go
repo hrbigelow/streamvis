@@ -33,25 +33,22 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// ServiceMakeOrGetScopeProcedure is the fully-qualified name of the Service's MakeOrGetScope RPC.
-	ServiceMakeOrGetScopeProcedure = "/streamvis.v1.Service/MakeOrGetScope"
-	// ServiceDeleteScopeProcedure is the fully-qualified name of the Service's DeleteScope RPC.
-	ServiceDeleteScopeProcedure = "/streamvis.v1.Service/DeleteScope"
 	// ServiceMakeOrGetSeriesProcedure is the fully-qualified name of the Service's MakeOrGetSeries RPC.
 	ServiceMakeOrGetSeriesProcedure = "/streamvis.v1.Service/MakeOrGetSeries"
 	// ServiceAppendToSeriesProcedure is the fully-qualified name of the Service's AppendToSeries RPC.
 	ServiceAppendToSeriesProcedure = "/streamvis.v1.Service/AppendToSeries"
-	// ServiceListScopesProcedure is the fully-qualified name of the Service's ListScopes RPC.
-	ServiceListScopesProcedure = "/streamvis.v1.Service/ListScopes"
+	// ServiceCreateRunProcedure is the fully-qualified name of the Service's CreateRun RPC.
+	ServiceCreateRunProcedure = "/streamvis.v1.Service/CreateRun"
+	// ServiceDeleteRunProcedure is the fully-qualified name of the Service's DeleteRun RPC.
+	ServiceDeleteRunProcedure = "/streamvis.v1.Service/DeleteRun"
 )
 
 // ServiceClient is a client for the streamvis.v1.Service service.
 type ServiceClient interface {
-	MakeOrGetScope(context.Context, *v1.GetScopeRequest) (*v1.GetScopeResponse, error)
-	DeleteScope(context.Context, *v1.DeleteScopeRequest) (*v1.DeleteScopeResponse, error)
 	MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error)
 	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
-	ListScopes(context.Context, *v1.ListScopesRequest) (*connect.ServerStreamForClient[v1.ListScopesResponse], error)
+	CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error)
+	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
 }
 
 // NewServiceClient constructs a client for the streamvis.v1.Service service. By default, it uses
@@ -65,18 +62,6 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 	baseURL = strings.TrimRight(baseURL, "/")
 	serviceMethods := v1.File_streamvis_v1_data_proto.Services().ByName("Service").Methods()
 	return &serviceClient{
-		makeOrGetScope: connect.NewClient[v1.GetScopeRequest, v1.GetScopeResponse](
-			httpClient,
-			baseURL+ServiceMakeOrGetScopeProcedure,
-			connect.WithSchema(serviceMethods.ByName("MakeOrGetScope")),
-			connect.WithClientOptions(opts...),
-		),
-		deleteScope: connect.NewClient[v1.DeleteScopeRequest, v1.DeleteScopeResponse](
-			httpClient,
-			baseURL+ServiceDeleteScopeProcedure,
-			connect.WithSchema(serviceMethods.ByName("DeleteScope")),
-			connect.WithClientOptions(opts...),
-		),
 		makeOrGetSeries: connect.NewClient[v1.GetSeriesRequest, v1.GetSeriesResponse](
 			httpClient,
 			baseURL+ServiceMakeOrGetSeriesProcedure,
@@ -89,10 +74,16 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("AppendToSeries")),
 			connect.WithClientOptions(opts...),
 		),
-		listScopes: connect.NewClient[v1.ListScopesRequest, v1.ListScopesResponse](
+		createRun: connect.NewClient[v1.CreateRunRequest, v1.CreateRunResponse](
 			httpClient,
-			baseURL+ServiceListScopesProcedure,
-			connect.WithSchema(serviceMethods.ByName("ListScopes")),
+			baseURL+ServiceCreateRunProcedure,
+			connect.WithSchema(serviceMethods.ByName("CreateRun")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteRun: connect.NewClient[v1.DeleteRunRequest, v1.DeleteRunResponse](
+			httpClient,
+			baseURL+ServiceDeleteRunProcedure,
+			connect.WithSchema(serviceMethods.ByName("DeleteRun")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -100,29 +91,10 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 
 // serviceClient implements ServiceClient.
 type serviceClient struct {
-	makeOrGetScope  *connect.Client[v1.GetScopeRequest, v1.GetScopeResponse]
-	deleteScope     *connect.Client[v1.DeleteScopeRequest, v1.DeleteScopeResponse]
 	makeOrGetSeries *connect.Client[v1.GetSeriesRequest, v1.GetSeriesResponse]
 	appendToSeries  *connect.Client[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse]
-	listScopes      *connect.Client[v1.ListScopesRequest, v1.ListScopesResponse]
-}
-
-// MakeOrGetScope calls streamvis.v1.Service.MakeOrGetScope.
-func (c *serviceClient) MakeOrGetScope(ctx context.Context, req *v1.GetScopeRequest) (*v1.GetScopeResponse, error) {
-	response, err := c.makeOrGetScope.CallUnary(ctx, connect.NewRequest(req))
-	if response != nil {
-		return response.Msg, err
-	}
-	return nil, err
-}
-
-// DeleteScope calls streamvis.v1.Service.DeleteScope.
-func (c *serviceClient) DeleteScope(ctx context.Context, req *v1.DeleteScopeRequest) (*v1.DeleteScopeResponse, error) {
-	response, err := c.deleteScope.CallUnary(ctx, connect.NewRequest(req))
-	if response != nil {
-		return response.Msg, err
-	}
-	return nil, err
+	createRun       *connect.Client[v1.CreateRunRequest, v1.CreateRunResponse]
+	deleteRun       *connect.Client[v1.DeleteRunRequest, v1.DeleteRunResponse]
 }
 
 // MakeOrGetSeries calls streamvis.v1.Service.MakeOrGetSeries.
@@ -143,18 +115,30 @@ func (c *serviceClient) AppendToSeries(ctx context.Context, req *v1.AppendToSeri
 	return nil, err
 }
 
-// ListScopes calls streamvis.v1.Service.ListScopes.
-func (c *serviceClient) ListScopes(ctx context.Context, req *v1.ListScopesRequest) (*connect.ServerStreamForClient[v1.ListScopesResponse], error) {
-	return c.listScopes.CallServerStream(ctx, connect.NewRequest(req))
+// CreateRun calls streamvis.v1.Service.CreateRun.
+func (c *serviceClient) CreateRun(ctx context.Context, req *v1.CreateRunRequest) (*v1.CreateRunResponse, error) {
+	response, err := c.createRun.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// DeleteRun calls streamvis.v1.Service.DeleteRun.
+func (c *serviceClient) DeleteRun(ctx context.Context, req *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error) {
+	response, err := c.deleteRun.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
 }
 
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
-	MakeOrGetScope(context.Context, *v1.GetScopeRequest) (*v1.GetScopeResponse, error)
-	DeleteScope(context.Context, *v1.DeleteScopeRequest) (*v1.DeleteScopeResponse, error)
 	MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error)
 	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
-	ListScopes(context.Context, *v1.ListScopesRequest, *connect.ServerStream[v1.ListScopesResponse]) error
+	CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error)
+	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
 }
 
 // NewServiceHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -164,18 +148,6 @@ type ServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	serviceMethods := v1.File_streamvis_v1_data_proto.Services().ByName("Service").Methods()
-	serviceMakeOrGetScopeHandler := connect.NewUnaryHandlerSimple(
-		ServiceMakeOrGetScopeProcedure,
-		svc.MakeOrGetScope,
-		connect.WithSchema(serviceMethods.ByName("MakeOrGetScope")),
-		connect.WithHandlerOptions(opts...),
-	)
-	serviceDeleteScopeHandler := connect.NewUnaryHandlerSimple(
-		ServiceDeleteScopeProcedure,
-		svc.DeleteScope,
-		connect.WithSchema(serviceMethods.ByName("DeleteScope")),
-		connect.WithHandlerOptions(opts...),
-	)
 	serviceMakeOrGetSeriesHandler := connect.NewUnaryHandlerSimple(
 		ServiceMakeOrGetSeriesProcedure,
 		svc.MakeOrGetSeries,
@@ -188,24 +160,28 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("AppendToSeries")),
 		connect.WithHandlerOptions(opts...),
 	)
-	serviceListScopesHandler := connect.NewServerStreamHandlerSimple(
-		ServiceListScopesProcedure,
-		svc.ListScopes,
-		connect.WithSchema(serviceMethods.ByName("ListScopes")),
+	serviceCreateRunHandler := connect.NewUnaryHandlerSimple(
+		ServiceCreateRunProcedure,
+		svc.CreateRun,
+		connect.WithSchema(serviceMethods.ByName("CreateRun")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serviceDeleteRunHandler := connect.NewUnaryHandlerSimple(
+		ServiceDeleteRunProcedure,
+		svc.DeleteRun,
+		connect.WithSchema(serviceMethods.ByName("DeleteRun")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/streamvis.v1.Service/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case ServiceMakeOrGetScopeProcedure:
-			serviceMakeOrGetScopeHandler.ServeHTTP(w, r)
-		case ServiceDeleteScopeProcedure:
-			serviceDeleteScopeHandler.ServeHTTP(w, r)
 		case ServiceMakeOrGetSeriesProcedure:
 			serviceMakeOrGetSeriesHandler.ServeHTTP(w, r)
 		case ServiceAppendToSeriesProcedure:
 			serviceAppendToSeriesHandler.ServeHTTP(w, r)
-		case ServiceListScopesProcedure:
-			serviceListScopesHandler.ServeHTTP(w, r)
+		case ServiceCreateRunProcedure:
+			serviceCreateRunHandler.ServeHTTP(w, r)
+		case ServiceDeleteRunProcedure:
+			serviceDeleteRunHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -215,14 +191,6 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 // UnimplementedServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedServiceHandler struct{}
 
-func (UnimplementedServiceHandler) MakeOrGetScope(context.Context, *v1.GetScopeRequest) (*v1.GetScopeResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.MakeOrGetScope is not implemented"))
-}
-
-func (UnimplementedServiceHandler) DeleteScope(context.Context, *v1.DeleteScopeRequest) (*v1.DeleteScopeResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.DeleteScope is not implemented"))
-}
-
 func (UnimplementedServiceHandler) MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.MakeOrGetSeries is not implemented"))
 }
@@ -231,6 +199,10 @@ func (UnimplementedServiceHandler) AppendToSeries(context.Context, *v1.AppendToS
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AppendToSeries is not implemented"))
 }
 
-func (UnimplementedServiceHandler) ListScopes(context.Context, *v1.ListScopesRequest, *connect.ServerStream[v1.ListScopesResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListScopes is not implemented"))
+func (UnimplementedServiceHandler) CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.CreateRun is not implemented"))
+}
+
+func (UnimplementedServiceHandler) DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.DeleteRun is not implemented"))
 }

@@ -22,10 +22,9 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17streamvis/v1/data.proto\x12\x0cstreamvis.v1\x1a\x1cgoogle/protobuf/struct.proto\">\n\x0fGetScopeRequest\x12\x12\n\nscope_name\x18\x01 \x01(\t\x12\x17\n\x0f\x64\x65lete_existing\x18\x02 \x01(\x08\"(\n\x10GetScopeResponse\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\"*\n\x12\x44\x65leteScopeRequest\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\"&\n\x13\x44\x65leteScopeResponse\x12\x0f\n\x07\x64\x65leted\x18\x01 \x01(\x08\"\xca\x01\n\x10GetSeriesRequest\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\x12\x13\n\x0bseries_name\x18\x02 \x01(\t\x12@\n\tstructure\x18\x03 \x03(\x0b\x32-.streamvis.v1.GetSeriesRequest.StructureEntry\x12\x17\n\x0f\x64\x65lete_existing\x18\x04 \x01(\x08\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"*\n\x11GetSeriesResponse\x12\x15\n\rseries_handle\x18\x01 \x01(\t\"\x82\x01\n\x06\x45ncTyp\x12\x0c\n\x04\x62\x61se\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\r\x12\'\n\x04ival\x18\x03 \x01(\x0b\x32\x17.streamvis.v1.IntValuesH\x00\x12)\n\x04\x66val\x18\x04 \x01(\x0b\x32\x19.streamvis.v1.FloatValuesH\x00\x42\x07\n\x05spans\"6\n\tIntValues\x12)\n\x06values\x18\x01 \x03(\x0b\x32\x19.streamvis.v1.OptionalInt\"+\n\x0bOptionalInt\x12\x12\n\x05value\x18\x01 \x01(\x05H\x00\x88\x01\x01\x42\x08\n\x06_value\":\n\x0b\x46loatValues\x12+\n\x06values\x18\x01 \x03(\x0b\x32\x1b.streamvis.v1.OptionalFloat\"-\n\rOptionalFloat\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\"m\n\x15\x41ppendToSeriesRequest\x12\x15\n\rseries_handle\x18\x01 \x01(\t\x12\x13\n\x0b\x66ield_names\x18\x02 \x03(\t\x12(\n\nfield_vals\x18\x03 \x03(\x0b\x32\x14.streamvis.v1.EncTyp\")\n\x16\x41ppendToSeriesResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"R\n\x11ListScopesRequest\x12\x13\n\x0bscope_regex\x18\x01 \x01(\t\x12\x14\n\x0cseries_regex\x18\x02 \x01(\t\x12\x12\n\nwith_stats\x18\x03 \x01(\x08\"\\\n\x05Scope\x12\x14\n\x0cscope_handle\x18\x01 \x01(\t\x12\x12\n\nscope_name\x18\x02 \x01(\t\x12)\n\x0bseries_list\x18\x03 \x03(\x0b\x32\x14.streamvis.v1.Series\"\xa9\x01\n\x06Series\x12\x15\n\rseries_handle\x18\x01 \x01(\t\x12\x13\n\x0bseries_name\x18\x02 \x01(\t\x12*\n\tstructure\x18\x03 \x01(\x0b\x32\x17.google.protobuf.Struct\x12#\n\x06\x66ields\x18\x04 \x03(\x0b\x32\x13.streamvis.v1.Field\x12\"\n\x05stats\x18\x05 \x01(\x0b\x32\x13.streamvis.v1.Stats\"E\n\x05\x46ield\x12\x14\n\x0c\x66ield_handle\x18\x01 \x01(\t\x12\x12\n\nfield_name\x18\x02 \x01(\t\x12\x12\n\nfield_type\x18\x03 \x01(\t\"/\n\x05Stats\x12\x12\n\nnum_points\x18\x01 \x01(\r\x12\x12\n\nnum_chunks\x18\x02 \x01(\r\"8\n\x12ListScopesResponse\x12\"\n\x05scope\x18\x01 \x01(\x0b\x32\x13.streamvis.v1.Scope2\xb2\x03\n\x07Service\x12O\n\x0eMakeOrGetScope\x12\x1d.streamvis.v1.GetScopeRequest\x1a\x1e.streamvis.v1.GetScopeResponse\x12R\n\x0b\x44\x65leteScope\x12 .streamvis.v1.DeleteScopeRequest\x1a!.streamvis.v1.DeleteScopeResponse\x12R\n\x0fMakeOrGetSeries\x12\x1e.streamvis.v1.GetSeriesRequest\x1a\x1f.streamvis.v1.GetSeriesResponse\x12[\n\x0e\x41ppendToSeries\x12#.streamvis.v1.AppendToSeriesRequest\x1a$.streamvis.v1.AppendToSeriesResponse\x12Q\n\nListScopes\x12\x1f.streamvis.v1.ListScopesRequest\x1a .streamvis.v1.ListScopesResponse0\x01\x42#Z!pier/pb/streamvis/v1;streamvis_v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17streamvis/v1/data.proto\x12\x0cstreamvis.v1\"\x9b\x01\n\x10GetSeriesRequest\x12\x13\n\x0bseries_name\x18\x01 \x01(\t\x12@\n\tstructure\x18\x02 \x03(\x0b\x32-.streamvis.v1.GetSeriesRequest.StructureEntry\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"*\n\x11GetSeriesResponse\x12\x15\n\rseries_handle\x18\x01 \x01(\t\"\x82\x01\n\x06\x45ncTyp\x12\x0c\n\x04\x62\x61se\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\r\x12\'\n\x04ival\x18\x03 \x01(\x0b\x32\x17.streamvis.v1.IntValuesH\x00\x12)\n\x04\x66val\x18\x04 \x01(\x0b\x32\x19.streamvis.v1.FloatValuesH\x00\x42\x07\n\x05spans\"6\n\tIntValues\x12)\n\x06values\x18\x01 \x03(\x0b\x32\x19.streamvis.v1.OptionalInt\"+\n\x0bOptionalInt\x12\x12\n\x05value\x18\x01 \x01(\x05H\x00\x88\x01\x01\x42\x08\n\x06_value\":\n\x0b\x46loatValues\x12+\n\x06values\x18\x01 \x03(\x0b\x32\x1b.streamvis.v1.OptionalFloat\"-\n\rOptionalFloat\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\"\x81\x01\n\x15\x41ppendToSeriesRequest\x12\x15\n\rseries_handle\x18\x01 \x01(\t\x12\x12\n\nrun_handle\x18\x02 \x01(\t\x12\x13\n\x0b\x66ield_names\x18\x03 \x03(\t\x12(\n\nfield_vals\x18\x04 \x03(\x0b\x32\x14.streamvis.v1.EncTyp\")\n\x16\x41ppendToSeriesResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\x12\n\x10\x43reateRunRequest\"\'\n\x11\x43reateRunResponse\x12\x12\n\nrun_handle\x18\x01 \x01(\t\"&\n\x10\x44\x65leteRunRequest\x12\x12\n\nrun_handle\x18\x01 \x01(\t\"$\n\x11\x44\x65leteRunResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x32\xd6\x02\n\x07Service\x12R\n\x0fMakeOrGetSeries\x12\x1e.streamvis.v1.GetSeriesRequest\x1a\x1f.streamvis.v1.GetSeriesResponse\x12[\n\x0e\x41ppendToSeries\x12#.streamvis.v1.AppendToSeriesRequest\x1a$.streamvis.v1.AppendToSeriesResponse\x12L\n\tCreateRun\x12\x1e.streamvis.v1.CreateRunRequest\x1a\x1f.streamvis.v1.CreateRunResponse\x12L\n\tDeleteRun\x12\x1e.streamvis.v1.DeleteRunRequest\x1a\x1f.streamvis.v1.DeleteRunResponseB#Z!pier/pb/streamvis/v1;streamvis_v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,46 +34,34 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'Z!pier/pb/streamvis/v1;streamvis_v1'
   _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._loaded_options = None
   _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_options = b'8\001'
-  _globals['_GETSCOPEREQUEST']._serialized_start=71
-  _globals['_GETSCOPEREQUEST']._serialized_end=133
-  _globals['_GETSCOPERESPONSE']._serialized_start=135
-  _globals['_GETSCOPERESPONSE']._serialized_end=175
-  _globals['_DELETESCOPEREQUEST']._serialized_start=177
-  _globals['_DELETESCOPEREQUEST']._serialized_end=219
-  _globals['_DELETESCOPERESPONSE']._serialized_start=221
-  _globals['_DELETESCOPERESPONSE']._serialized_end=259
-  _globals['_GETSERIESREQUEST']._serialized_start=262
-  _globals['_GETSERIESREQUEST']._serialized_end=464
-  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_start=416
-  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_end=464
-  _globals['_GETSERIESRESPONSE']._serialized_start=466
-  _globals['_GETSERIESRESPONSE']._serialized_end=508
-  _globals['_ENCTYP']._serialized_start=511
-  _globals['_ENCTYP']._serialized_end=641
-  _globals['_INTVALUES']._serialized_start=643
-  _globals['_INTVALUES']._serialized_end=697
-  _globals['_OPTIONALINT']._serialized_start=699
-  _globals['_OPTIONALINT']._serialized_end=742
-  _globals['_FLOATVALUES']._serialized_start=744
-  _globals['_FLOATVALUES']._serialized_end=802
-  _globals['_OPTIONALFLOAT']._serialized_start=804
-  _globals['_OPTIONALFLOAT']._serialized_end=849
-  _globals['_APPENDTOSERIESREQUEST']._serialized_start=851
-  _globals['_APPENDTOSERIESREQUEST']._serialized_end=960
-  _globals['_APPENDTOSERIESRESPONSE']._serialized_start=962
-  _globals['_APPENDTOSERIESRESPONSE']._serialized_end=1003
-  _globals['_LISTSCOPESREQUEST']._serialized_start=1005
-  _globals['_LISTSCOPESREQUEST']._serialized_end=1087
-  _globals['_SCOPE']._serialized_start=1089
-  _globals['_SCOPE']._serialized_end=1181
-  _globals['_SERIES']._serialized_start=1184
-  _globals['_SERIES']._serialized_end=1353
-  _globals['_FIELD']._serialized_start=1355
-  _globals['_FIELD']._serialized_end=1424
-  _globals['_STATS']._serialized_start=1426
-  _globals['_STATS']._serialized_end=1473
-  _globals['_LISTSCOPESRESPONSE']._serialized_start=1475
-  _globals['_LISTSCOPESRESPONSE']._serialized_end=1531
-  _globals['_SERVICE']._serialized_start=1534
-  _globals['_SERVICE']._serialized_end=1968
+  _globals['_GETSERIESREQUEST']._serialized_start=42
+  _globals['_GETSERIESREQUEST']._serialized_end=197
+  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_start=149
+  _globals['_GETSERIESREQUEST_STRUCTUREENTRY']._serialized_end=197
+  _globals['_GETSERIESRESPONSE']._serialized_start=199
+  _globals['_GETSERIESRESPONSE']._serialized_end=241
+  _globals['_ENCTYP']._serialized_start=244
+  _globals['_ENCTYP']._serialized_end=374
+  _globals['_INTVALUES']._serialized_start=376
+  _globals['_INTVALUES']._serialized_end=430
+  _globals['_OPTIONALINT']._serialized_start=432
+  _globals['_OPTIONALINT']._serialized_end=475
+  _globals['_FLOATVALUES']._serialized_start=477
+  _globals['_FLOATVALUES']._serialized_end=535
+  _globals['_OPTIONALFLOAT']._serialized_start=537
+  _globals['_OPTIONALFLOAT']._serialized_end=582
+  _globals['_APPENDTOSERIESREQUEST']._serialized_start=585
+  _globals['_APPENDTOSERIESREQUEST']._serialized_end=714
+  _globals['_APPENDTOSERIESRESPONSE']._serialized_start=716
+  _globals['_APPENDTOSERIESRESPONSE']._serialized_end=757
+  _globals['_CREATERUNREQUEST']._serialized_start=759
+  _globals['_CREATERUNREQUEST']._serialized_end=777
+  _globals['_CREATERUNRESPONSE']._serialized_start=779
+  _globals['_CREATERUNRESPONSE']._serialized_end=818
+  _globals['_DELETERUNREQUEST']._serialized_start=820
+  _globals['_DELETERUNREQUEST']._serialized_end=858
+  _globals['_DELETERUNRESPONSE']._serialized_start=860
+  _globals['_DELETERUNRESPONSE']._serialized_end=896
+  _globals['_SERVICE']._serialized_start=899
+  _globals['_SERVICE']._serialized_end=1241
 # @@protoc_insertion_point(module_scope)

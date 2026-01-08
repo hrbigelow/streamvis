@@ -19,24 +19,20 @@ def init_web_uri():
         raise RuntimeError("streamvis server requires STREAMVIS_WEB_URI variable set")
 
 def demo_sync_fn(
-    scope: str, 
-    delete_existing_series: bool=True, 
     num_steps: int=2000,
     step_sleep_ms: int=0,
 ):
     global GRPC_URI
     num_steps = int(num_steps)
-    log_data(GRPC_URI, scope, delete_existing_series, num_steps, step_sleep_ms)
+    log_data(GRPC_URI, num_steps, step_sleep_ms)
 
 def demo_async_fn(
-    scope: str, 
-    delete_existing_series: bool=True, 
     num_steps: int=2000,
     report_every: int=100
 ):
     global GRPC_URI
     num_steps = int(num_steps)
-    asyncio.run(log_data_async(GRPC_URI, scope, delete_existing_series, num_steps))
+    asyncio.run(log_data_async(GRPC_URI, num_steps))
 
 
 def main():
@@ -46,7 +42,6 @@ def main():
              # "web-serve": serve,
              "logging-demo": demo_sync_fn, 
              "logging-demo-async": demo_async_fn,
-             # "scopes": scopes,
              # "names": names,
              # "counts": counts,
              # "delete": delete_name,

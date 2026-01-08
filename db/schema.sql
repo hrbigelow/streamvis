@@ -1,35 +1,21 @@
 DROP TABLE IF EXISTS field_data;
 DROP TABLE IF EXISTS field;
 DROP TABLE IF EXISTS chunk;
+DROP TABLE IF EXISTS run;
 DROP TABLE IF EXISTS series;
-DROP TABLE IF EXISTS scope;
 DROP TABLE IF EXISTS data_lock;
 DROP FUNCTION IF EXISTS valid_enc_typ;
 DROP FUNCTION IF EXISTS get_enc_signature;
 
 /*
-A scope is the top-level grouping of all data
-*/
-CREATE TABLE scope (
-  scope_id SERIAL PRIMARY KEY,
-  scope_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  scope_name TEXT NOT NULL UNIQUE
-);
-
-/*
 A series is conceptually an unordered set of points, each point having the same
 structure consisting of an unordered collection of field names and respective types.
-The data associated with a given series_id will be append-only.  But, an application
-may delete the entire series and re-create a new one with the same series_name and
-structure.
 */
 CREATE TABLE series (
   series_id SERIAL PRIMARY KEY,
   series_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  scope_id INTEGER NOT NULL REFERENCES scope(scope_id) ON DELETE CASCADE,
-  series_name TEXT NOT NULL,
-  structure JSONB, -- a convenience field for inspecting the structure
-  UNIQUE (scope_id, series_name)
+  series_name TEXT NOT NULL UNIQUE,
+  structure JSONB -- a convenience field for inspecting the structure
 );
 
 /*
@@ -45,6 +31,20 @@ CREATE TABLE field (
 );
 
 /*
+An entry in the run table describes the notion of a "run" in the sense of
+running a program or script to generate data.  It is useful to be able to delete
+all data associated with a given run, for example if the run parameters or code
+are deemed faulty.
+*/
+CREATE TABLE run (
+  run_id SERIAL PRIMARY KEY,
+  run_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  run_params JSONB DEFAULT NULL, -- user-defined parameters associated with this run
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+/*
 A chunk is the unit of incrementally logging data to a series.  In the logging
 application, it represents the data that has accumulated since the last buffer flush. 
 I use BIGSERIAL for chunk_id here since 
@@ -52,6 +52,7 @@ I use BIGSERIAL for chunk_id here since
 CREATE TABLE chunk (
   chunk_id BIGSERIAL PRIMARY KEY,
   series_id INT NOT NULL REFERENCES series(series_id) ON DELETE CASCADE,
+  run_id INT NOT NULL REFERENCES run(run_id) ON DELETE CASCADE,
   num_points INT NOT NULL
 );
 

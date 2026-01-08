@@ -43,14 +43,11 @@ class Sinusoidal(SynthData):
 
 
 
-def log_data(grpc_uri, scope, delete_existing_series, num_steps, step_sleep_ms=0):
+def log_data(grpc_uri, num_steps, step_sleep_ms=0):
     """Demo of the Synchronous DataLogger."""
     logger = DataLogger(
-        scope=scope, 
         grpc_uri=grpc_uri,
         tensor_type="numpy",
-        delete_existing_scope=False,
-        delete_existing_series=delete_existing_series,
         flush_every=2.0,
     )
 
@@ -79,14 +76,11 @@ def log_data(grpc_uri, scope, delete_existing_series, num_steps, step_sleep_ms=0
     logger.stop()
 
 
-async def log_data_async(grpc_uri, scope, delete_existing_series, num_steps):
+async def log_data_async(grpc_uri, num_steps):
     """Demo of the AsyncDataLogger."""
     logger = AsyncDataLogger(
-        scope=scope, 
         grpc_uri=grpc_uri, 
         tensor_type="numpy", 
-        delete_existing_scope=False,
-        delete_existing_series=delete_existing_series, 
         flush_every=1.0,
     )
 

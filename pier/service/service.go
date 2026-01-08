@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"regexp"
 
 	pb "pier/pb/streamvis/v1"
 
@@ -63,43 +62,12 @@ func streamRecords[M proto.Message, R any](
 	}
 }
 
-func (s *Service) MakeOrGetScope(
-	ctx context.Context,
-	req *pb.GetScopeRequest,
-) (*pb.GetScopeResponse, error) {
-	handle, err := s.store.MakeOrGetScope(ctx, req.GetScopeName(), req.GetDeleteExisting())
-	if err != nil {
-		return nil, err
-	}
-	return &pb.GetScopeResponse{ScopeHandle: handle.String()}, nil
-}
-
-func (s *Service) DeleteScope(
-	ctx context.Context,
-	req *pb.DeleteScopeRequest,
-) (*pb.DeleteScopeResponse, error) {
-	handleUUID, err := uuid.Parse(req.GetScopeHandle())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "SeriesHandle invalid UUID: %v", err)
-	}
-	deleted, err2 := s.store.DeleteScope(ctx, handleUUID)
-	if err2 != nil {
-		return nil, status.Errorf(codes.Internal, "database store error: %v", err2)
-	}
-	return &pb.DeleteScopeResponse{Deleted: deleted}, nil
-}
-
 func (s *Service) MakeOrGetSeries(
 	ctx context.Context,
 	req *pb.GetSeriesRequest,
 ) (*pb.GetSeriesResponse, error) {
-	handleUUID, err := uuid.Parse(req.GetScopeHandle())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "ScopeHandle invalid UUID: %v", err)
-	}
 	handle, err := s.store.MakeOrGetSeries(
-		ctx, handleUUID, req.GetSeriesName(), req.GetStructure(),
-		req.GetDeleteExisting(),
+		ctx, req.GetSeriesName(), req.GetStructure(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "database store error: %v", err)
@@ -111,38 +79,47 @@ func (s *Service) AppendToSeries(
 	ctx context.Context,
 	req *pb.AppendToSeriesRequest,
 ) (*pb.AppendToSeriesResponse, error) {
-	handleUUID, err := uuid.Parse(req.GetSeriesHandle())
+	seriesHandleUUID, err := uuid.Parse(req.GetSeriesHandle())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "SeriesHandle invalid UUID: %v", err)
 	}
+	runHandleUUID, err := uuid.Parse(req.GetRunHandle())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
+	}
 
-	success, err2 := s.store.AppendToSeries(
-		ctx, handleUUID, req.GetFieldNames(), req.GetFieldVals(),
+	success, err := s.store.AppendToSeries(
+		ctx, seriesHandleUUID, runHandleUUID, req.GetFieldNames(), req.GetFieldVals(),
 	)
-	if err2 != nil {
+	if err != nil {
 		return nil, status.Errorf(codes.Internal, "database store error: %v", err)
 	}
 	return &pb.AppendToSeriesResponse{Success: success}, nil
 
 }
 
-// TODO: handle NULL regex patterns
-func (s *Service) ListScopes(
+func (s *Service) CreateRun(
 	ctx context.Context,
-	req *pb.ListScopesRequest,
-	stream *connect.ServerStream[pb.ListScopesResponse],
-) error {
-	if _, err := regexp.Compile(req.ScopeRegex); err != nil {
-		return status.Errorf(codes.InvalidArgument, "ScopeRegex invalid: %v", err)
+	req *pb.CreateRunRequest,
+) (*pb.CreateRunResponse, error) {
+	handle, err := s.store.CreateRun(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
-	if _, err := regexp.Compile(req.SeriesRegex); err != nil {
-		return status.Errorf(codes.InvalidArgument, "SeriesRegex invalid: %v", err)
+	return &pb.CreateRunResponse{RunHandle: handle.String()}, nil
+}
+
+func (s *Service) DeleteRun(
+	ctx context.Context,
+	req *pb.DeleteRunRequest,
+) (*pb.DeleteRunResponse, error) {
+	handle, err := uuid.Parse(req.GetRunHandle())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
 	}
-	dataCh, errCh := s.store.ListScopes(ctx, req.ScopeRegex, req.SeriesRegex, req.WithStats)
-	wrapData := func(msg *pb.Scope) *pb.ListScopesResponse {
-		return &pb.ListScopesResponse{
-			Scope: msg,
-		}
+	success, err := s.store.DeleteRun(ctx, handle)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
-	return streamRecords[*pb.Scope, pb.ListScopesResponse](ctx, *stream, dataCh, errCh, wrapData)
+	return &pb.DeleteRunResponse{Success: success}, nil
 }

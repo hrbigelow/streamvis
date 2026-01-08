@@ -27,22 +27,17 @@ class Series:
 class BaseLogger:
     def __init__(
         self,
-        scope: str,
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"],
-        delete_existing_scope: bool,
-        delete_existing_series: bool,
         max_chunk_size: int,
         flush_every: float,
     ):
-        self.scope = scope
-        self.delete_existing_scope = delete_existing_scope
-        self.delete_existing_series = delete_existing_series
         self.logged_series = {} # series_name => Series
         self.chan = grpc.insecure_channel(grpc_uri)
         self.stub = pb_grpc.ServiceStub(self.chan)
         self.max_chunk_size = max_chunk_size
         self.flush_every = flush_every
+        self.run_handle = None
 
         match tensor_type:
             case "jax":
@@ -85,8 +80,13 @@ class BaseLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
+    def _create_run(self):
+        req = pb.CreateRunRequest()
+        resp = self.stub.CreateRun(req) # always succeeds
+        self.run_handle = resp.run_handle
+
     def write_config(self, attrs: dict):
-        """Write a set of attributes to associate with this scope.
+        """Write a set of attributes to associate with this run.
 
         This is useful for recording hyperparameters, settings, configuration etc.
         for the program.  Can only be called once for the life of the logger.
@@ -98,8 +98,8 @@ class BaseLogger:
         """
         Append data to a series.
         If this is the first call to write to this `series_name`,
-        creates it if needed.  If delete_existing_series is True, deletes any
-        existing series by this name.
+        creates it if needed.  If the series already exists, the structure must
+        match, otherwise it is an error
 
         series_name: the name of the series to be appended
         fields: a dict containing tensor-like (or scalar) values.  The set of all
@@ -109,10 +109,8 @@ class BaseLogger:
 
         if series_name not in self.logged_series:
             req = pb.GetSeriesRequest(
-                scope_handle=self.scope_handle,
                 series_name=series_name,
                 structure=structure,
-                delete_existing=self.delete_existing_series
             )
             resp = self.stub.MakeOrGetSeries(req)
             self.series_handle = h = resp.series_handle
@@ -141,15 +139,6 @@ class BaseLogger:
                 ", ".join(f"{k}: {v.shape}" for k, v in z))
 
         series.queue.put_nowait(arrays)
-
-    def _init_scope(self):
-        req = pb.GetScopeRequest(
-                scope_name=self.scope, 
-                delete_existing=self.delete_existing_scope)
-        resp = self.stub.MakeOrGetScope(req)
-        self.scope_handle = h = resp.scope_handle
-        if h is None:
-            raise RuntimeError(f"Couldn't create scope '{self.scope}'")
 
     def _get_structure(self, **fields):
         structure = {}
@@ -222,6 +211,7 @@ class BaseLogger:
         """
         req = pb.AppendToSeriesRequest(
             series_handle=series_handle,
+            run_handle=self.run_handle,
             field_names=field_names
         )
 
@@ -229,8 +219,6 @@ class BaseLogger:
         for fname, ftype, ary in zip(field_names, field_types, fields):
             stacked = self.stack_arrays(ary)
             npary = self.to_numpy(stacked).astype(SIG_TO_DTYPE[ftype])
-            import pdb
-            pdb.set_trace()
             enc = dbutil.encode_array(npary)
             if ftype == 'f32':
                 optvals = tuple(pb.OptionalFloat(value=sp) for sp in enc.range_spans)
@@ -259,16 +247,12 @@ class AsyncDataLogger(BaseLogger):
 
     def __init__(
         self, 
-        scope: str, 
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing_scope: bool=False,
-        delete_existing_series: bool=True,
         max_chunk_size: int=100000,
         flush_every: float=2.0
     ):
-        super().__init__(scope, grpc_uri, tensor_type, delete_existing_scope, 
-                         delete_existing_series, max_chunk_size, flush_every)
+        super().__init__(grpc_uri, tensor_type, max_chunk_size, flush_every)
         self.exiting = False
 
     async def flush_buffer(self):
@@ -285,8 +269,8 @@ class AsyncDataLogger(BaseLogger):
     async def __aenter__(self):
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
+        self._create_run()
         self._task_group.create_task(self.flush_buffer())
-        self._init_scope()
         return self
 
     async def __aexit__(self, *args):
@@ -324,22 +308,18 @@ class DataLogger(BaseLogger):
 
     def __init__(
         self, 
-        scope: str, 
         grpc_uri: str,
         tensor_type: Literal["jax", "torch", "numpy"]="numpy",
-        delete_existing_scope: bool=False,
-        delete_existing_series: bool=True,
         max_chunk_size: int=100000,
         flush_every: float=2.0
     ):
-        super().__init__(scope, grpc_uri, tensor_type, delete_existing_scope, 
-                         delete_existing_series, max_chunk_size, flush_every)
+        super().__init__(grpc_uri, tensor_type, max_chunk_size, flush_every)
         self.exiting = False
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
     def start(self):
+        self._create_run()
         self._flush_thread.start()
-        super()._init_scope()
 
     def flush_buffer(self):
         while True:

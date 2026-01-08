@@ -52,44 +52,15 @@ func registerCustomTypes(
 	return nil
 }
 
-func (st *Store) MakeOrGetScope(
-	ctx context.Context,
-	scopeName string,
-	deleteExisting bool,
-) (uuid.UUID, error) {
-	var scopeHandle uuid.UUID
-	sql := `CALL make_or_get_scope($1, $2, $3)`
-	err := st.pool.QueryRow(ctx, sql, scopeName, deleteExisting, nil).Scan(&scopeHandle)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to call make_or_get_scope: %w\n", err)
-	}
-	return scopeHandle, nil
-}
-
-func (st *Store) DeleteScope(
-	ctx context.Context,
-	scopeHandle uuid.UUID,
-) (bool, error) {
-	var deleted bool
-	sql := `CALL delete_scope($1, $2)`
-	err := st.pool.QueryRow(ctx, sql, scopeHandle, nil).Scan(&deleted)
-	if err != nil {
-		return false, fmt.Errorf("failed to call delete_scope: %w\n", err)
-	}
-	return deleted, nil
-}
-
 func (st *Store) MakeOrGetSeries(
 	ctx context.Context,
-	scopeHandle uuid.UUID,
 	seriesName string,
 	seriesStructure map[string]string,
-	deleteExisting bool,
 ) (uuid.UUID, error) {
 	var seriesHandle uuid.UUID
-	sql := `CALL make_or_get_series($1, $2, $3, $4, $5)`
+	sql := `CALL make_or_get_series($1, $2, $3)`
 	err := st.pool.QueryRow(
-		ctx, sql, scopeHandle, seriesName, seriesStructure, deleteExisting, nil,
+		ctx, sql, seriesName, seriesStructure, nil,
 	).Scan(&seriesHandle)
 
 	if err != nil {
@@ -101,6 +72,7 @@ func (st *Store) MakeOrGetSeries(
 func (st *Store) AppendToSeries(
 	ctx context.Context,
 	seriesHandle uuid.UUID,
+	runHandle uuid.UUID,
 	fieldName []string,
 	fieldVals []*pb.EncTyp,
 ) (bool, error) {
@@ -110,11 +82,10 @@ func (st *Store) AppendToSeries(
 	}
 
 	var success bool
-	sql := `CALL append_to_series($1, $2, $3, $4)`
-	// stmt, err := st.pool.Prepare(ctx, "append_to_series", sql)
+	sql := `CALL append_to_series($1, $2, $3, $4, $5)`
 
 	err := st.pool.QueryRow(
-		ctx, sql, seriesHandle, fieldName, wrapped, nil,
+		ctx, sql, seriesHandle, runHandle, fieldName, wrapped, nil,
 	).Scan(&success)
 
 	if err != nil {
@@ -123,11 +94,36 @@ func (st *Store) AppendToSeries(
 	return success, nil
 }
 
-type Scope struct {
-	ScopeHandle string `db:"scope_handle"`
-	ScopeName   string `db:"scope_name"`
+func (st *Store) CreateRun(
+	ctx context.Context,
+) (uuid.UUID, error) {
+	sql := `CALL create_run($1)`
+	var runHandle uuid.UUID
+	err := st.pool.QueryRow(ctx, sql, nil).Scan(&runHandle)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("error calling delete_run: %w\n", err)
+	}
+	return runHandle, nil
 }
 
+func (st *Store) DeleteRun(
+	ctx context.Context,
+	handle uuid.UUID,
+) (bool, error) {
+	var success bool
+	sql := `CALL delete_run($1, $2)`
+
+	err := st.pool.QueryRow(
+		ctx, sql, handle, nil,
+	).Scan(&success)
+
+	if err != nil {
+		return false, fmt.Errorf("error calling delete_run: %w\n", err)
+	}
+	return success, nil
+}
+
+/*
 func (st *Store) ListScopes(
 	ctx context.Context,
 	scopeRegex string,
@@ -167,3 +163,4 @@ func (st *Store) ListScopes(
 	}()
 	return dataChan, errChan
 }
+*/
