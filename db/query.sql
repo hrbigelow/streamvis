@@ -1,5 +1,8 @@
 -- definitions of views and table functions
 DROP FUNCTION IF EXISTS get_data;
+DROP VIEW IF EXISTS series_vw;
+DROP VIEW IF EXISTS field_vw;
+DROP VIEW IF EXISTS attribute_vw;
 
 CREATE FUNCTION get_data(
   p_run_handles UUID[],
@@ -26,4 +29,22 @@ BEGIN
   AND d.field_id = f.field_id;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+CREATE VIEW field_vw AS
+SELECT
+    s.series_name, f.field_name, f.field_handle
+FROM series s, field f
+WHERE f.series_id = s.series_id;
+
+
+CREATE VIEW series_vw AS
+SELECT
+    series_name, series_handle, structure
+FROM series;
+
+CREATE VIEW attribute_vw AS
+SELECT
+    attr_handle, attr_name, attr_type, attr_desc
+FROM attr;
+
 

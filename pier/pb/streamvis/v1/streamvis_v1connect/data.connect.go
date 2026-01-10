@@ -33,22 +33,31 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// ServiceMakeOrGetSeriesProcedure is the fully-qualified name of the Service's MakeOrGetSeries RPC.
-	ServiceMakeOrGetSeriesProcedure = "/streamvis.v1.Service/MakeOrGetSeries"
+	// ServiceCreateAttributeProcedure is the fully-qualified name of the Service's CreateAttribute RPC.
+	ServiceCreateAttributeProcedure = "/streamvis.v1.Service/CreateAttribute"
+	// ServiceCreateSeriesProcedure is the fully-qualified name of the Service's CreateSeries RPC.
+	ServiceCreateSeriesProcedure = "/streamvis.v1.Service/CreateSeries"
 	// ServiceAppendToSeriesProcedure is the fully-qualified name of the Service's AppendToSeries RPC.
 	ServiceAppendToSeriesProcedure = "/streamvis.v1.Service/AppendToSeries"
 	// ServiceCreateRunProcedure is the fully-qualified name of the Service's CreateRun RPC.
 	ServiceCreateRunProcedure = "/streamvis.v1.Service/CreateRun"
 	// ServiceDeleteRunProcedure is the fully-qualified name of the Service's DeleteRun RPC.
 	ServiceDeleteRunProcedure = "/streamvis.v1.Service/DeleteRun"
+	// ServiceListSeriesProcedure is the fully-qualified name of the Service's ListSeries RPC.
+	ServiceListSeriesProcedure = "/streamvis.v1.Service/ListSeries"
+	// ServiceListAttributesProcedure is the fully-qualified name of the Service's ListAttributes RPC.
+	ServiceListAttributesProcedure = "/streamvis.v1.Service/ListAttributes"
 )
 
 // ServiceClient is a client for the streamvis.v1.Service service.
 type ServiceClient interface {
-	MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error)
+	CreateAttribute(context.Context, *v1.CreateAttributeRequest) (*v1.CreateAttributeResponse, error)
+	CreateSeries(context.Context, *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error)
 	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
 	CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error)
 	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
+	ListSeries(context.Context, *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.ListSeriesResponse], error)
+	ListAttributes(context.Context, *v1.ListAttributesRequest) (*connect.ServerStreamForClient[v1.ListAttributesResponse], error)
 }
 
 // NewServiceClient constructs a client for the streamvis.v1.Service service. By default, it uses
@@ -62,10 +71,16 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 	baseURL = strings.TrimRight(baseURL, "/")
 	serviceMethods := v1.File_streamvis_v1_data_proto.Services().ByName("Service").Methods()
 	return &serviceClient{
-		makeOrGetSeries: connect.NewClient[v1.GetSeriesRequest, v1.GetSeriesResponse](
+		createAttribute: connect.NewClient[v1.CreateAttributeRequest, v1.CreateAttributeResponse](
 			httpClient,
-			baseURL+ServiceMakeOrGetSeriesProcedure,
-			connect.WithSchema(serviceMethods.ByName("MakeOrGetSeries")),
+			baseURL+ServiceCreateAttributeProcedure,
+			connect.WithSchema(serviceMethods.ByName("CreateAttribute")),
+			connect.WithClientOptions(opts...),
+		),
+		createSeries: connect.NewClient[v1.CreateSeriesRequest, v1.CreateSeriesResponse](
+			httpClient,
+			baseURL+ServiceCreateSeriesProcedure,
+			connect.WithSchema(serviceMethods.ByName("CreateSeries")),
 			connect.WithClientOptions(opts...),
 		),
 		appendToSeries: connect.NewClient[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse](
@@ -86,20 +101,44 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("DeleteRun")),
 			connect.WithClientOptions(opts...),
 		),
+		listSeries: connect.NewClient[v1.ListSeriesRequest, v1.ListSeriesResponse](
+			httpClient,
+			baseURL+ServiceListSeriesProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListSeries")),
+			connect.WithClientOptions(opts...),
+		),
+		listAttributes: connect.NewClient[v1.ListAttributesRequest, v1.ListAttributesResponse](
+			httpClient,
+			baseURL+ServiceListAttributesProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListAttributes")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // serviceClient implements ServiceClient.
 type serviceClient struct {
-	makeOrGetSeries *connect.Client[v1.GetSeriesRequest, v1.GetSeriesResponse]
+	createAttribute *connect.Client[v1.CreateAttributeRequest, v1.CreateAttributeResponse]
+	createSeries    *connect.Client[v1.CreateSeriesRequest, v1.CreateSeriesResponse]
 	appendToSeries  *connect.Client[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse]
 	createRun       *connect.Client[v1.CreateRunRequest, v1.CreateRunResponse]
 	deleteRun       *connect.Client[v1.DeleteRunRequest, v1.DeleteRunResponse]
+	listSeries      *connect.Client[v1.ListSeriesRequest, v1.ListSeriesResponse]
+	listAttributes  *connect.Client[v1.ListAttributesRequest, v1.ListAttributesResponse]
 }
 
-// MakeOrGetSeries calls streamvis.v1.Service.MakeOrGetSeries.
-func (c *serviceClient) MakeOrGetSeries(ctx context.Context, req *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error) {
-	response, err := c.makeOrGetSeries.CallUnary(ctx, connect.NewRequest(req))
+// CreateAttribute calls streamvis.v1.Service.CreateAttribute.
+func (c *serviceClient) CreateAttribute(ctx context.Context, req *v1.CreateAttributeRequest) (*v1.CreateAttributeResponse, error) {
+	response, err := c.createAttribute.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// CreateSeries calls streamvis.v1.Service.CreateSeries.
+func (c *serviceClient) CreateSeries(ctx context.Context, req *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error) {
+	response, err := c.createSeries.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -133,12 +172,25 @@ func (c *serviceClient) DeleteRun(ctx context.Context, req *v1.DeleteRunRequest)
 	return nil, err
 }
 
+// ListSeries calls streamvis.v1.Service.ListSeries.
+func (c *serviceClient) ListSeries(ctx context.Context, req *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.ListSeriesResponse], error) {
+	return c.listSeries.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListAttributes calls streamvis.v1.Service.ListAttributes.
+func (c *serviceClient) ListAttributes(ctx context.Context, req *v1.ListAttributesRequest) (*connect.ServerStreamForClient[v1.ListAttributesResponse], error) {
+	return c.listAttributes.CallServerStream(ctx, connect.NewRequest(req))
+}
+
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
-	MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error)
+	CreateAttribute(context.Context, *v1.CreateAttributeRequest) (*v1.CreateAttributeResponse, error)
+	CreateSeries(context.Context, *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error)
 	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
 	CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error)
 	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
+	ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.ListSeriesResponse]) error
+	ListAttributes(context.Context, *v1.ListAttributesRequest, *connect.ServerStream[v1.ListAttributesResponse]) error
 }
 
 // NewServiceHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -148,10 +200,16 @@ type ServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	serviceMethods := v1.File_streamvis_v1_data_proto.Services().ByName("Service").Methods()
-	serviceMakeOrGetSeriesHandler := connect.NewUnaryHandlerSimple(
-		ServiceMakeOrGetSeriesProcedure,
-		svc.MakeOrGetSeries,
-		connect.WithSchema(serviceMethods.ByName("MakeOrGetSeries")),
+	serviceCreateAttributeHandler := connect.NewUnaryHandlerSimple(
+		ServiceCreateAttributeProcedure,
+		svc.CreateAttribute,
+		connect.WithSchema(serviceMethods.ByName("CreateAttribute")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serviceCreateSeriesHandler := connect.NewUnaryHandlerSimple(
+		ServiceCreateSeriesProcedure,
+		svc.CreateSeries,
+		connect.WithSchema(serviceMethods.ByName("CreateSeries")),
 		connect.WithHandlerOptions(opts...),
 	)
 	serviceAppendToSeriesHandler := connect.NewUnaryHandlerSimple(
@@ -172,16 +230,34 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("DeleteRun")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceListSeriesHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListSeriesProcedure,
+		svc.ListSeries,
+		connect.WithSchema(serviceMethods.ByName("ListSeries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serviceListAttributesHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListAttributesProcedure,
+		svc.ListAttributes,
+		connect.WithSchema(serviceMethods.ByName("ListAttributes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/streamvis.v1.Service/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case ServiceMakeOrGetSeriesProcedure:
-			serviceMakeOrGetSeriesHandler.ServeHTTP(w, r)
+		case ServiceCreateAttributeProcedure:
+			serviceCreateAttributeHandler.ServeHTTP(w, r)
+		case ServiceCreateSeriesProcedure:
+			serviceCreateSeriesHandler.ServeHTTP(w, r)
 		case ServiceAppendToSeriesProcedure:
 			serviceAppendToSeriesHandler.ServeHTTP(w, r)
 		case ServiceCreateRunProcedure:
 			serviceCreateRunHandler.ServeHTTP(w, r)
 		case ServiceDeleteRunProcedure:
 			serviceDeleteRunHandler.ServeHTTP(w, r)
+		case ServiceListSeriesProcedure:
+			serviceListSeriesHandler.ServeHTTP(w, r)
+		case ServiceListAttributesProcedure:
+			serviceListAttributesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -191,8 +267,12 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 // UnimplementedServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedServiceHandler struct{}
 
-func (UnimplementedServiceHandler) MakeOrGetSeries(context.Context, *v1.GetSeriesRequest) (*v1.GetSeriesResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.MakeOrGetSeries is not implemented"))
+func (UnimplementedServiceHandler) CreateAttribute(context.Context, *v1.CreateAttributeRequest) (*v1.CreateAttributeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.CreateAttribute is not implemented"))
+}
+
+func (UnimplementedServiceHandler) CreateSeries(context.Context, *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.CreateSeries is not implemented"))
 }
 
 func (UnimplementedServiceHandler) AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error) {
@@ -205,4 +285,12 @@ func (UnimplementedServiceHandler) CreateRun(context.Context, *v1.CreateRunReque
 
 func (UnimplementedServiceHandler) DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.DeleteRun is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.ListSeriesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListSeries is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListAttributes(context.Context, *v1.ListAttributesRequest, *connect.ServerStream[v1.ListAttributesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListAttributes is not implemented"))
 }

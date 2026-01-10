@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS field_data;
 DROP TABLE IF EXISTS field;
 DROP TABLE IF EXISTS chunk;
 DROP TABLE IF EXISTS run;
+DROP TABLE IF EXISTS attr;
 DROP TABLE IF EXISTS series;
 DROP TABLE IF EXISTS data_lock;
 DROP FUNCTION IF EXISTS valid_enc_typ;
@@ -27,7 +28,8 @@ CREATE TABLE field (
   series_id INT NOT NULL REFERENCES series(series_id) ON DELETE CASCADE,
   field_name TEXT NOT NULL,
   field_type TEXT NOT NULL,
-  UNIQUE (series_id, field_name)
+  UNIQUE (series_id, field_name),
+  CONSTRAINT valid_field_type CHECK (field_type IN ('i32', 'f32'))
 );
 
 /*
@@ -39,8 +41,22 @@ are deemed faulty.
 CREATE TABLE run (
   run_id SERIAL PRIMARY KEY,
   run_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  run_params JSONB DEFAULT NULL, -- user-defined parameters associated with this run
+  run_attrs JSONB DEFAULT NULL, -- map of attr_id => value 
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+/*
+Holds the notion of an "attribute" which will provide basic type enforcement 
+(int, float, text) for the associated value.  run.run_attrs holds attr_id => value.
+These are run-level attributes.
+*/
+CREATE TABLE attr (
+  attr_id SERIAL PRIMARY KEY,
+  attr_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  attr_name TEXT NOT NULL UNIQUE,
+  attr_type TEXT NOT NULL, -- int, float, string, bool
+  attr_desc TEXT 
 );
 
 

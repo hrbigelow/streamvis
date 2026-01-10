@@ -8,14 +8,21 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 */
 
+message CreateAttributeRequest {
+  string attr_name = 1;
+  string attr_type = 2;
+  string attr_desc = 3;
+}
 
-message GetSeriesRequest {
+message CreateAttributeResponse {
+}
+
+message CreateSeriesRequest {
   string series_name = 1;
   map<string, string> structure = 2;
 }
 
-message GetSeriesResponse {
-  string series_handle = 1;
+message CreateSeriesResponse {
 }
 
 message EncTyp {
@@ -68,12 +75,30 @@ message DeleteRunResponse {
   bool success = 1;
 }
 
+message ListSeriesRequest {}
+
+message ListSeriesResponse {
+  string series_name = 1;
+  string series_handle = 2;
+  map<string, string> structure = 3;
+}
+
+message ListAttributesRequest {}
+
+message ListAttributesResponse {
+  string attr_handle = 1;
+  string attr_name = 2;
+  string attr_type = 3;
+  string attr_desc = 4;
+}
 
 service Service {
-  rpc MakeOrGetSeries (GetSeriesRequest) returns (GetSeriesResponse);
+  rpc CreateAttribute (CreateAttributeRequest) returns (CreateAttributeResponse);
+  rpc CreateSeries (CreateSeriesRequest) returns (CreateSeriesResponse);
   rpc AppendToSeries (AppendToSeriesRequest) returns (AppendToSeriesResponse);
   rpc CreateRun (CreateRunRequest) returns (CreateRunResponse);
   rpc DeleteRun (DeleteRunRequest) returns (DeleteRunResponse);
-  // rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
+  rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
+  rpc ListAttributes (ListAttributesRequest) returns (stream ListAttributesResponse);
   // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
 }

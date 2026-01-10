@@ -34,10 +34,15 @@ class ServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.MakeOrGetSeries = channel.unary_unary(
-                '/streamvis.v1.Service/MakeOrGetSeries',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.GetSeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.GetSeriesResponse.FromString,
+        self.CreateAttribute = channel.unary_unary(
+                '/streamvis.v1.Service/CreateAttribute',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeResponse.FromString,
+                _registered_method=True)
+        self.CreateSeries = channel.unary_unary(
+                '/streamvis.v1.Service/CreateSeries',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesResponse.FromString,
                 _registered_method=True)
         self.AppendToSeries = channel.unary_unary(
                 '/streamvis.v1.Service/AppendToSeries',
@@ -54,12 +59,28 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.FromString,
                 _registered_method=True)
+        self.ListSeries = channel.unary_stream(
+                '/streamvis.v1.Service/ListSeries',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.FromString,
+                _registered_method=True)
+        self.ListAttributes = channel.unary_stream(
+                '/streamvis.v1.Service/ListAttributes',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListAttributesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListAttributesResponse.FromString,
+                _registered_method=True)
 
 
 class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def MakeOrGetSeries(self, request, context):
+    def CreateAttribute(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateSeries(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -78,8 +99,19 @@ class ServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def DeleteRun(self, request, context):
-        """rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
-        rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListSeries(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAttributes(self, request, context):
+        """rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -88,10 +120,15 @@ class ServiceServicer(object):
 
 def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'MakeOrGetSeries': grpc.unary_unary_rpc_method_handler(
-                    servicer.MakeOrGetSeries,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.GetSeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.GetSeriesResponse.SerializeToString,
+            'CreateAttribute': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAttribute,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeResponse.SerializeToString,
+            ),
+            'CreateSeries': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateSeries,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesResponse.SerializeToString,
             ),
             'AppendToSeries': grpc.unary_unary_rpc_method_handler(
                     servicer.AppendToSeries,
@@ -108,6 +145,16 @@ def add_ServiceServicer_to_server(servicer, server):
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.SerializeToString,
             ),
+            'ListSeries': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListSeries,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.SerializeToString,
+            ),
+            'ListAttributes': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListAttributes,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListAttributesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListAttributesResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'streamvis.v1.Service', rpc_method_handlers)
@@ -120,7 +167,7 @@ class Service(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def MakeOrGetSeries(request,
+    def CreateAttribute(request,
             target,
             options=(),
             channel_credentials=None,
@@ -133,9 +180,36 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/streamvis.v1.Service/MakeOrGetSeries',
-            streamvis_dot_v1_dot_data__pb2.GetSeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.GetSeriesResponse.FromString,
+            '/streamvis.v1.Service/CreateAttribute',
+            streamvis_dot_v1_dot_data__pb2.CreateAttributeRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.CreateAttributeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateSeries(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/streamvis.v1.Service/CreateSeries',
+            streamvis_dot_v1_dot_data__pb2.CreateSeriesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.CreateSeriesResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -217,6 +291,60 @@ class Service(object):
             '/streamvis.v1.Service/DeleteRun',
             streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListSeries(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListSeries',
+            streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAttributes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListAttributes',
+            streamvis_dot_v1_dot_data__pb2.ListAttributesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.ListAttributesResponse.FromString,
             options,
             channel_credentials,
             insecure,

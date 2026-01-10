@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 type Service struct {
@@ -22,12 +21,11 @@ func NewService(st *Store) *Service {
 	}
 }
 
-func streamRecords[M proto.Message, R any](
+func streamRecords[R any](
 	ctx context.Context,
 	stream connect.ServerStream[R], // Send(*R)
-	dataCh <-chan M,
+	dataCh <-chan *R,
 	errCh <-chan error,
-	wrapToStream func(msg M) *R,
 ) error {
 	/*
 		Consumes the messages in dataCh, wrapping each using wrapToStream, and sending them
@@ -55,13 +53,40 @@ func streamRecords[M proto.Message, R any](
 				return nil
 			}
 
-			if err := stream.Send(wrapToStream(d)); err != nil {
+			if err := stream.Send(d); err != nil {
 				return status.Errorf(codes.Unavailable, "send failed: %v", err)
 			}
 		}
 	}
 }
 
+func (s *Service) CreateAttribute(
+	ctx context.Context,
+	req *pb.CreateAttributeRequest,
+) (*pb.CreateAttributeResponse, error) {
+	err := s.store.CreateAttribute(
+		ctx, req.GetAttrName(), req.GetAttrType(), req.GetAttrDesc(),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &pb.CreateAttributeResponse{}, nil
+}
+
+func (s *Service) CreateSeries(
+	ctx context.Context,
+	req *pb.CreateSeriesRequest,
+) (*pb.CreateSeriesResponse, error) {
+	err := s.store.CreateSeries(
+		ctx, req.GetSeriesName(), req.GetStructure(),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &pb.CreateSeriesResponse{}, nil
+}
+
+/*
 func (s *Service) MakeOrGetSeries(
 	ctx context.Context,
 	req *pb.GetSeriesRequest,
@@ -74,6 +99,7 @@ func (s *Service) MakeOrGetSeries(
 	}
 	return &pb.GetSeriesResponse{SeriesHandle: handle.String()}, nil
 }
+*/
 
 func (s *Service) AppendToSeries(
 	ctx context.Context,
@@ -122,4 +148,22 @@ func (s *Service) DeleteRun(
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
 	return &pb.DeleteRunResponse{Success: success}, nil
+}
+
+func (s *Service) ListSeries(
+	ctx context.Context,
+	req *pb.ListSeriesRequest,
+	stream *connect.ServerStream[pb.ListSeriesResponse],
+) error {
+	dataCh, errCh := s.store.ListSeries(ctx)
+	return streamRecords[pb.ListSeriesResponse](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) ListAttributes(
+	ctx context.Context,
+	req *pb.ListAttributesRequest,
+	stream *connect.ServerStream[pb.ListAttributesResponse],
+) error {
+	dataCh, errCh := s.store.ListAttributes(ctx)
+	return streamRecords[pb.ListAttributesResponse](ctx, *stream, dataCh, errCh)
 }

@@ -52,6 +52,27 @@ func registerCustomTypes(
 	return nil
 }
 
+func (st *Store) CreateAttribute(
+	ctx context.Context,
+	attrName string,
+	attrType string,
+	attrDesc string,
+) error {
+	sql := `CALL create_attribute($1, $2, $3)`
+	_, err := st.pool.Exec(ctx, sql, attrName, attrType, attrDesc)
+	return err
+}
+
+func (st *Store) CreateSeries(
+	ctx context.Context,
+	seriesName string,
+	seriesStructure map[string]string,
+) error {
+	sql := `CALL create_series($1, $2)`
+	_, err := st.pool.Exec(ctx, sql, seriesName, seriesStructure)
+	return err
+}
+
 func (st *Store) MakeOrGetSeries(
 	ctx context.Context,
 	seriesName string,
@@ -123,6 +144,56 @@ func (st *Store) DeleteRun(
 	return success, nil
 }
 
+func queryItems[T any](
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	sql string,
+	args ...any,
+) (<-chan *T, <-chan error) {
+	dataCh := make(chan *T, 10)
+	errCh := make(chan error, 1)
+
+	rows, err := pool.Query(ctx, sql, args...)
+	if err != nil {
+		errCh <- err
+		return dataCh, errCh
+	}
+
+	go func() {
+		defer close(dataCh)
+		defer rows.Close()
+
+		for rows.Next() {
+			item, err := pgx.RowToStructByName[T](rows)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			select {
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				return
+			case dataCh <- &item:
+			}
+		}
+	}()
+	return dataCh, errCh
+}
+
+func (st *Store) ListSeries(
+	ctx context.Context,
+) (<-chan *pb.ListSeriesResponse, <-chan error) {
+	sql := `SELECT * from series_vw`
+	return queryItems[pb.ListSeriesResponse](ctx, st.pool, sql)
+}
+
+func (st *Store) ListAttributes(
+	ctx context.Context,
+) (<-chan *pb.ListAttributesResponse, <-chan error) {
+	sql := `SELECT * from attribute_vw`
+	return queryItems[pb.ListAttributesResponse](ctx, st.pool, sql)
+}
+
 /*
 func (st *Store) ListScopes(
 	ctx context.Context,
@@ -130,16 +201,16 @@ func (st *Store) ListScopes(
 	seriesRegex string,
 	withStats bool,
 ) (<-chan *pb.Scope, <-chan error) {
-	dataChan := make(chan *pb.Scope, 10)
-	errChan := make(chan error, 1)
+	dataCh := make(chan *pb.Scope, 10)
+	errCh := make(chan error, 1)
 
 	go func() {
-		defer close(dataChan)
+		defer close(dataCh)
 
 		sql := `SELECT scope_handle, scope_name FROM scope WHERE scope_name ~* $1`
 		rows, err := st.pool.Query(ctx, sql, scopeRegex)
 		if err != nil {
-			errChan <- err
+			errCh <- err
 			return
 		}
 		defer rows.Close()
@@ -147,7 +218,7 @@ func (st *Store) ListScopes(
 		for rows.Next() {
 			var handle, name string
 			if err := rows.Scan(&handle, &name); err != nil {
-				errChan <- err
+				errCh <- err
 				return
 			}
 
@@ -155,12 +226,12 @@ func (st *Store) ListScopes(
 
 			select {
 			case <-ctx.Done():
-				errChan <- ctx.Err()
+				errCh <- ctx.Err()
 				return
-			case dataChan <- msg:
+			case dataCh <- msg:
 			}
 		}
 	}()
-	return dataChan, errChan
+	return dataCh, errCh
 }
 */

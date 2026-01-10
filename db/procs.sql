@@ -1,5 +1,6 @@
 DROP PROCEDURE IF EXISTS add_data_lock;
-DROP PROCEDURE IF EXISTS make_or_get_series;
+DROP PROCEDURE IF EXISTS create_attribute;
+DROP PROCEDURE IF EXISTS create_series;
 DROP PROCEDURE IF EXISTS append_to_series;
 DROP PROCEDURE IF EXISTS create_run;
 DROP PROCEDURE IF EXISTS delete_run;
@@ -22,6 +23,50 @@ BEGIN
 END;
 $$;
 
+/*
+Make an attribute descriptor.  Defines a named type which can be used to describe
+a run attribute stored in run_attrs.
+*/
+CREATE OR REPLACE PROCEDURE create_attribute(
+  IN p_attr_name TEXT,
+  IN p_attr_type TEXT,
+  IN p_attr_desc TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_attr_type NOT IN ('int', 'float', 'string') THEN
+    RAISE EXCEPTION 'p_attr_type must be one of "int", "float" or "string".  Got %', p_attr_type;
+  END IF;
+
+  INSERT INTO attr (attr_name, attr_type, attr_desc)
+  VALUES (p_attr_name, p_attr_type, p_attr_desc);
+END;
+$$;
+
+
+
+/*
+Create a new series.
+*/
+CREATE OR REPLACE PROCEDURE create_series(
+  IN p_series_name TEXT,
+  IN p_series_structure JSONB
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_series_id INT;
+BEGIN
+  INSERT INTO series (series_name, structure)
+  VALUES (p_series_name, p_series_structure)
+  RETURNING series_id INTO v_series_id;
+
+  INSERT INTO field (series_id, field_name, field_type)
+  SELECT v_series_id, t.field_name, t.field_type
+  FROM jsonb_each_text(p_series_structure) as t(field_name, field_type);
+END;
+$$;
 
 /*
 Create a new series.  
@@ -185,6 +230,7 @@ BEGIN
 END;
 $$;
 
+
 CREATE OR REPLACE PROCEDURE create_run(
   OUT p_run_handle UUID
 )
@@ -196,7 +242,6 @@ BEGIN
   RETURNING run_handle into p_run_handle;
 END;
 $$;
-
 
 
 CREATE OR REPLACE PROCEDURE delete_run(
