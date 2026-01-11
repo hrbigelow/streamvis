@@ -80,19 +80,39 @@ class BaseLogger:
             case other:
                 raise RuntimeError(f"unsupported tensor type: '{other}'")
 
+    def _get_series(self):
+        self.all_series = {}
+        req = pb.ListSeriesRequest()
+        for msg in self.stub.ListSeries(req):
+            self.all_series[msg.series_name] = msg
+
     def _create_run(self):
         req = pb.CreateRunRequest()
         resp = self.stub.CreateRun(req) # always succeeds
         self.run_handle = resp.run_handle
+        self._get_series()
 
-    def write_config(self, attrs: dict):
+    def set_run_attributes(self, attrs: dict):
         """Write a set of attributes to associate with this run.
 
         This is useful for recording hyperparameters, settings, configuration etc.
         for the program.  Can only be called once for the life of the logger.
         """
-        print("write_config not implemented yet...")
-        pass
+        if self.run_handle is None:
+            raise RuntimeError(f"Cannot call set_run_attrs until run started")
+
+        req = pb.SetRunAttributesRequest(run_handle=self.run_handle)
+        for key, val in attrs.items():
+            if not isinstance(key, str):
+                raise RuntimeError(f"All attribute keys must be strings")
+            match val:
+                case int(): req.attrs[key].int_val = val
+                case float(): req.attrs[key].float_val = val
+                case str(): req.attrs[key].text_val = val
+                case bool(): req.attrs[key].bool_val = val
+                case _: raise RuntimeError(
+                    f"All Attribute values must be one of (int, float, bool, str)")
+        _ = self.stub.SetRunAttributes(req)
 
     def write(self, series_name: str, /, **fields):
         """
@@ -108,15 +128,13 @@ class BaseLogger:
         structure = self._get_structure(**fields)
 
         if series_name not in self.logged_series:
-            req = pb.GetSeriesRequest(
-                series_name=series_name,
-                structure=structure,
-            )
-            resp = self.stub.MakeOrGetSeries(req)
-            self.series_handle = h = resp.series_handle
-            if h is None:
-                raise RuntimeError(f"Couldn't create series '{series_name}'")
-            self.logged_series[series_name] = Series(h, structure)
+            msg = self.all_series.get(series_name)
+            if msg is None:
+                raise RuntimeError(
+                    f"Series {series_name} doesn't exist.  Create it with:\n"
+                    f"`streamvis create-series` or\n"
+                    f"`grpcurl ... streamvis.v1.Service/CreateSeries`\n")
+            self.logged_series[series_name] = Series(msg.series_handle, msg.structure)
 
         series = self.logged_series[series_name]
         if structure != series.structure:

@@ -56,7 +56,7 @@ def log_data(grpc_uri, num_steps, step_sleep_ms=0):
 
     # Call start before any logging
     logger.start()
-    logger.write_config({ "start-time": time.time() })
+    logger.set_run_attributes({"start-time": time.time()})
 
     for step in range(0, num_steps):
 
@@ -88,7 +88,7 @@ async def log_data_async(grpc_uri, num_steps):
     sinusoidal = Sinusoidal()
 
     async with logger:
-        logger.write_config({ "start-time": time.time() })
+        logger.set_run_attributes({"start-time": time.time()})
 
         for step in range(0, num_steps):
             # top_data[group, point], where group is a logical grouping of points that

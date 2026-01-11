@@ -59,6 +59,16 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.FromString,
                 _registered_method=True)
+        self.SetRunAttributes = channel.unary_unary(
+                '/streamvis.v1.Service/SetRunAttributes',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesResponse.FromString,
+                _registered_method=True)
+        self.DeleteEmptySeries = channel.unary_unary(
+                '/streamvis.v1.Service/DeleteEmptySeries',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.FromString,
+                _registered_method=True)
         self.ListSeries = channel.unary_stream(
                 '/streamvis.v1.Service/ListSeries',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
@@ -104,6 +114,18 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SetRunAttributes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteEmptySeries(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ListSeries(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -144,6 +166,16 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.DeleteRun,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.SerializeToString,
+            ),
+            'SetRunAttributes': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetRunAttributes,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesResponse.SerializeToString,
+            ),
+            'DeleteEmptySeries': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteEmptySeries,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.SerializeToString,
             ),
             'ListSeries': grpc.unary_stream_rpc_method_handler(
                     servicer.ListSeries,
@@ -291,6 +323,60 @@ class Service(object):
             '/streamvis.v1.Service/DeleteRun',
             streamvis_dot_v1_dot_data__pb2.DeleteRunRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.DeleteRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetRunAttributes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/streamvis.v1.Service/SetRunAttributes',
+            streamvis_dot_v1_dot_data__pb2.SetRunAttributesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.SetRunAttributesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteEmptySeries(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/streamvis.v1.Service/DeleteEmptySeries',
+            streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.FromString,
             options,
             channel_credentials,
             insecure,

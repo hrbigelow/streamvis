@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17streamvis/v1/data.proto\x12\x0cstreamvis.v1\"Q\n\x16\x43reateAttributeRequest\x12\x11\n\tattr_name\x18\x01 \x01(\t\x12\x11\n\tattr_type\x18\x02 \x01(\t\x12\x11\n\tattr_desc\x18\x03 \x01(\t\"\x19\n\x17\x43reateAttributeResponse\"\xa1\x01\n\x13\x43reateSeriesRequest\x12\x13\n\x0bseries_name\x18\x01 \x01(\t\x12\x43\n\tstructure\x18\x02 \x03(\x0b\x32\x30.streamvis.v1.CreateSeriesRequest.StructureEntry\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x16\n\x14\x43reateSeriesResponse\"\x82\x01\n\x06\x45ncTyp\x12\x0c\n\x04\x62\x61se\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\r\x12\'\n\x04ival\x18\x03 \x01(\x0b\x32\x17.streamvis.v1.IntValuesH\x00\x12)\n\x04\x66val\x18\x04 \x01(\x0b\x32\x19.streamvis.v1.FloatValuesH\x00\x42\x07\n\x05spans\"6\n\tIntValues\x12)\n\x06values\x18\x01 \x03(\x0b\x32\x19.streamvis.v1.OptionalInt\"+\n\x0bOptionalInt\x12\x12\n\x05value\x18\x01 \x01(\x05H\x00\x88\x01\x01\x42\x08\n\x06_value\":\n\x0b\x46loatValues\x12+\n\x06values\x18\x01 \x03(\x0b\x32\x1b.streamvis.v1.OptionalFloat\"-\n\rOptionalFloat\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\"\x81\x01\n\x15\x41ppendToSeriesRequest\x12\x15\n\rseries_handle\x18\x01 \x01(\t\x12\x12\n\nrun_handle\x18\x02 \x01(\t\x12\x13\n\x0b\x66ield_names\x18\x03 \x03(\t\x12(\n\nfield_vals\x18\x04 \x03(\x0b\x32\x14.streamvis.v1.EncTyp\")\n\x16\x41ppendToSeriesResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\x12\n\x10\x43reateRunRequest\"\'\n\x11\x43reateRunResponse\x12\x12\n\nrun_handle\x18\x01 \x01(\t\"&\n\x10\x44\x65leteRunRequest\x12\x12\n\nrun_handle\x18\x01 \x01(\t\"$\n\x11\x44\x65leteRunResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\x13\n\x11ListSeriesRequest\"\xb6\x01\n\x12ListSeriesResponse\x12\x13\n\x0bseries_name\x18\x01 \x01(\t\x12\x15\n\rseries_handle\x18\x02 \x01(\t\x12\x42\n\tstructure\x18\x03 \x03(\x0b\x32/.streamvis.v1.ListSeriesResponse.StructureEntry\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x17\n\x15ListAttributesRequest\"f\n\x16ListAttributesResponse\x12\x13\n\x0b\x61ttr_handle\x18\x01 \x01(\t\x12\x11\n\tattr_name\x18\x02 \x01(\t\x12\x11\n\tattr_type\x18\x03 \x01(\t\x12\x11\n\tattr_desc\x18\x04 \x01(\t2\xeb\x04\n\x07Service\x12^\n\x0f\x43reateAttribute\x12$.streamvis.v1.CreateAttributeRequest\x1a%.streamvis.v1.CreateAttributeResponse\x12U\n\x0c\x43reateSeries\x12!.streamvis.v1.CreateSeriesRequest\x1a\".streamvis.v1.CreateSeriesResponse\x12[\n\x0e\x41ppendToSeries\x12#.streamvis.v1.AppendToSeriesRequest\x1a$.streamvis.v1.AppendToSeriesResponse\x12L\n\tCreateRun\x12\x1e.streamvis.v1.CreateRunRequest\x1a\x1f.streamvis.v1.CreateRunResponse\x12L\n\tDeleteRun\x12\x1e.streamvis.v1.DeleteRunRequest\x1a\x1f.streamvis.v1.DeleteRunResponse\x12Q\n\nListSeries\x12\x1f.streamvis.v1.ListSeriesRequest\x1a .streamvis.v1.ListSeriesResponse0\x01\x12]\n\x0eListAttributes\x12#.streamvis.v1.ListAttributesRequest\x1a$.streamvis.v1.ListAttributesResponse0\x01\x42#Z!pier/pb/streamvis/v1;streamvis_v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17streamvis/v1/data.proto\x12\x0cstreamvis.v1\"Q\n\x16\x43reateAttributeRequest\x12\x11\n\tattr_name\x18\x01 \x01(\t\x12\x11\n\tattr_type\x18\x02 \x01(\t\x12\x11\n\tattr_desc\x18\x03 \x01(\t\"\x19\n\x17\x43reateAttributeResponse\"\xa1\x01\n\x13\x43reateSeriesRequest\x12\x13\n\x0bseries_name\x18\x01 \x01(\t\x12\x43\n\tstructure\x18\x02 \x03(\x0b\x32\x30.streamvis.v1.CreateSeriesRequest.StructureEntry\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x16\n\x14\x43reateSeriesResponse\"\x82\x01\n\x06\x45ncTyp\x12\x0c\n\x04\x62\x61se\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\r\x12\'\n\x04ival\x18\x03 \x01(\x0b\x32\x17.streamvis.v1.IntValuesH\x00\x12)\n\x04\x66val\x18\x04 \x01(\x0b\x32\x19.streamvis.v1.FloatValuesH\x00\x42\x07\n\x05spans\"6\n\tIntValues\x12)\n\x06values\x18\x01 \x03(\x0b\x32\x19.streamvis.v1.OptionalInt\"+\n\x0bOptionalInt\x12\x12\n\x05value\x18\x01 \x01(\x05H\x00\x88\x01\x01\x42\x08\n\x06_value\":\n\x0b\x46loatValues\x12+\n\x06values\x18\x01 \x03(\x0b\x32\x1b.streamvis.v1.OptionalFloat\"-\n\rOptionalFloat\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\"\x81\x01\n\x15\x41ppendToSeriesRequest\x12\x15\n\rseries_handle\x18\x01 \x01(\t\x12\x12\n\nrun_handle\x18\x02 \x01(\t\x12\x13\n\x0b\x66ield_names\x18\x03 \x03(\t\x12(\n\nfield_vals\x18\x04 \x03(\x0b\x32\x14.streamvis.v1.EncTyp\")\n\x16\x41ppendToSeriesResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\x12\n\x10\x43reateRunRequest\"\'\n\x11\x43reateRunResponse\x12\x12\n\nrun_handle\x18\x01 \x01(\t\"&\n\x10\x44\x65leteRunRequest\x12\x12\n\nrun_handle\x18\x01 \x01(\t\"$\n\x11\x44\x65leteRunResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"d\n\tAttribute\x12\x11\n\x07int_val\x18\x01 \x01(\x05H\x00\x12\x13\n\tfloat_val\x18\x02 \x01(\x02H\x00\x12\x12\n\x08text_val\x18\x03 \x01(\tH\x00\x12\x12\n\x08\x62ool_val\x18\x04 \x01(\x08H\x00\x42\x07\n\x05value\"\xb5\x01\n\x17SetRunAttributesRequest\x12\x12\n\nrun_handle\x18\x01 \x01(\t\x12?\n\x05\x61ttrs\x18\x02 \x03(\x0b\x32\x30.streamvis.v1.SetRunAttributesRequest.AttrsEntry\x1a\x45\n\nAttrsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.streamvis.v1.Attribute:\x02\x38\x01\"\x1a\n\x18SetRunAttributesResponse\"/\n\x18\x44\x65leteEmptySeriesRequest\x12\x13\n\x0bseries_name\x18\x01 \x01(\t\"\x1b\n\x19\x44\x65leteEmptySeriesResponse\"\x13\n\x11ListSeriesRequest\"\xb6\x01\n\x12ListSeriesResponse\x12\x13\n\x0bseries_name\x18\x01 \x01(\t\x12\x15\n\rseries_handle\x18\x02 \x01(\t\x12\x42\n\tstructure\x18\x03 \x03(\x0b\x32/.streamvis.v1.ListSeriesResponse.StructureEntry\x1a\x30\n\x0eStructureEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x17\n\x15ListAttributesRequest\"f\n\x16ListAttributesResponse\x12\x13\n\x0b\x61ttr_handle\x18\x01 \x01(\t\x12\x11\n\tattr_name\x18\x02 \x01(\t\x12\x11\n\tattr_type\x18\x03 \x01(\t\x12\x11\n\tattr_desc\x18\x04 \x01(\t2\xb4\x06\n\x07Service\x12^\n\x0f\x43reateAttribute\x12$.streamvis.v1.CreateAttributeRequest\x1a%.streamvis.v1.CreateAttributeResponse\x12U\n\x0c\x43reateSeries\x12!.streamvis.v1.CreateSeriesRequest\x1a\".streamvis.v1.CreateSeriesResponse\x12[\n\x0e\x41ppendToSeries\x12#.streamvis.v1.AppendToSeriesRequest\x1a$.streamvis.v1.AppendToSeriesResponse\x12L\n\tCreateRun\x12\x1e.streamvis.v1.CreateRunRequest\x1a\x1f.streamvis.v1.CreateRunResponse\x12L\n\tDeleteRun\x12\x1e.streamvis.v1.DeleteRunRequest\x1a\x1f.streamvis.v1.DeleteRunResponse\x12\x61\n\x10SetRunAttributes\x12%.streamvis.v1.SetRunAttributesRequest\x1a&.streamvis.v1.SetRunAttributesResponse\x12\x64\n\x11\x44\x65leteEmptySeries\x12&.streamvis.v1.DeleteEmptySeriesRequest\x1a\'.streamvis.v1.DeleteEmptySeriesResponse\x12Q\n\nListSeries\x12\x1f.streamvis.v1.ListSeriesRequest\x1a .streamvis.v1.ListSeriesResponse0\x01\x12]\n\x0eListAttributes\x12#.streamvis.v1.ListAttributesRequest\x1a$.streamvis.v1.ListAttributesResponse0\x01\x42#Z!pier/pb/streamvis/v1;streamvis_v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,6 +34,8 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'Z!pier/pb/streamvis/v1;streamvis_v1'
   _globals['_CREATESERIESREQUEST_STRUCTUREENTRY']._loaded_options = None
   _globals['_CREATESERIESREQUEST_STRUCTUREENTRY']._serialized_options = b'8\001'
+  _globals['_SETRUNATTRIBUTESREQUEST_ATTRSENTRY']._loaded_options = None
+  _globals['_SETRUNATTRIBUTESREQUEST_ATTRSENTRY']._serialized_options = b'8\001'
   _globals['_LISTSERIESRESPONSE_STRUCTUREENTRY']._loaded_options = None
   _globals['_LISTSERIESRESPONSE_STRUCTUREENTRY']._serialized_options = b'8\001'
   _globals['_CREATEATTRIBUTEREQUEST']._serialized_start=41
@@ -68,16 +70,28 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DELETERUNREQUEST']._serialized_end=954
   _globals['_DELETERUNRESPONSE']._serialized_start=956
   _globals['_DELETERUNRESPONSE']._serialized_end=992
-  _globals['_LISTSERIESREQUEST']._serialized_start=994
-  _globals['_LISTSERIESREQUEST']._serialized_end=1013
-  _globals['_LISTSERIESRESPONSE']._serialized_start=1016
-  _globals['_LISTSERIESRESPONSE']._serialized_end=1198
+  _globals['_ATTRIBUTE']._serialized_start=994
+  _globals['_ATTRIBUTE']._serialized_end=1094
+  _globals['_SETRUNATTRIBUTESREQUEST']._serialized_start=1097
+  _globals['_SETRUNATTRIBUTESREQUEST']._serialized_end=1278
+  _globals['_SETRUNATTRIBUTESREQUEST_ATTRSENTRY']._serialized_start=1209
+  _globals['_SETRUNATTRIBUTESREQUEST_ATTRSENTRY']._serialized_end=1278
+  _globals['_SETRUNATTRIBUTESRESPONSE']._serialized_start=1280
+  _globals['_SETRUNATTRIBUTESRESPONSE']._serialized_end=1306
+  _globals['_DELETEEMPTYSERIESREQUEST']._serialized_start=1308
+  _globals['_DELETEEMPTYSERIESREQUEST']._serialized_end=1355
+  _globals['_DELETEEMPTYSERIESRESPONSE']._serialized_start=1357
+  _globals['_DELETEEMPTYSERIESRESPONSE']._serialized_end=1384
+  _globals['_LISTSERIESREQUEST']._serialized_start=1386
+  _globals['_LISTSERIESREQUEST']._serialized_end=1405
+  _globals['_LISTSERIESRESPONSE']._serialized_start=1408
+  _globals['_LISTSERIESRESPONSE']._serialized_end=1590
   _globals['_LISTSERIESRESPONSE_STRUCTUREENTRY']._serialized_start=265
   _globals['_LISTSERIESRESPONSE_STRUCTUREENTRY']._serialized_end=313
-  _globals['_LISTATTRIBUTESREQUEST']._serialized_start=1200
-  _globals['_LISTATTRIBUTESREQUEST']._serialized_end=1223
-  _globals['_LISTATTRIBUTESRESPONSE']._serialized_start=1225
-  _globals['_LISTATTRIBUTESRESPONSE']._serialized_end=1327
-  _globals['_SERVICE']._serialized_start=1330
-  _globals['_SERVICE']._serialized_end=1949
+  _globals['_LISTATTRIBUTESREQUEST']._serialized_start=1592
+  _globals['_LISTATTRIBUTESREQUEST']._serialized_end=1615
+  _globals['_LISTATTRIBUTESRESPONSE']._serialized_start=1617
+  _globals['_LISTATTRIBUTESRESPONSE']._serialized_end=1719
+  _globals['_SERVICE']._serialized_start=1722
+  _globals['_SERVICE']._serialized_end=2542
 # @@protoc_insertion_point(module_scope)

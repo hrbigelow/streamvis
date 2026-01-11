@@ -1,0 +1,5 @@
+DROP FUNCTION IF EXISTS get_data;
+DROP VIEW IF EXISTS series_vw;
+DROP VIEW IF EXISTS field_vw;
+DROP VIEW IF EXISTS attribute_vw;
+

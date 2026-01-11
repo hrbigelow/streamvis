@@ -1,9 +1,4 @@
 -- definitions of views and table functions
-DROP FUNCTION IF EXISTS get_data;
-DROP VIEW IF EXISTS series_vw;
-DROP VIEW IF EXISTS field_vw;
-DROP VIEW IF EXISTS attribute_vw;
-
 CREATE FUNCTION get_data(
   p_run_handles UUID[],
   p_field_handles UUID[],

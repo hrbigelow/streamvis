@@ -52,6 +52,26 @@ func registerCustomTypes(
 	return nil
 }
 
+func unwrapAttributesMap(attrs map[string]*pb.Attribute) map[string]any {
+	result := make(map[string]any, len(attrs))
+	for key, attr := range attrs {
+		if attr == nil {
+			continue
+		}
+		switch v := attr.Value.(type) {
+		case *pb.Attribute_IntVal:
+			result[key] = v.IntVal
+		case *pb.Attribute_FloatVal:
+			result[key] = v.FloatVal
+		case *pb.Attribute_TextVal:
+			result[key] = v.TextVal
+		case *pb.Attribute_BoolVal:
+			result[key] = v.BoolVal
+		}
+	}
+	return result
+}
+
 func (st *Store) CreateAttribute(
 	ctx context.Context,
 	attrName string,
@@ -71,23 +91,6 @@ func (st *Store) CreateSeries(
 	sql := `CALL create_series($1, $2)`
 	_, err := st.pool.Exec(ctx, sql, seriesName, seriesStructure)
 	return err
-}
-
-func (st *Store) MakeOrGetSeries(
-	ctx context.Context,
-	seriesName string,
-	seriesStructure map[string]string,
-) (uuid.UUID, error) {
-	var seriesHandle uuid.UUID
-	sql := `CALL make_or_get_series($1, $2, $3)`
-	err := st.pool.QueryRow(
-		ctx, sql, seriesName, seriesStructure, nil,
-	).Scan(&seriesHandle)
-
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to call make_or_get_series: %w\n", err)
-	}
-	return seriesHandle, nil
 }
 
 func (st *Store) AppendToSeries(
@@ -144,6 +147,17 @@ func (st *Store) DeleteRun(
 	return success, nil
 }
 
+func (st *Store) SetRunAttributes(
+	ctx context.Context,
+	handle uuid.UUID,
+	attrs map[string]*pb.Attribute,
+) error {
+	sql := `CALL set_run_attributes($1, $2)`
+	unwrapped := unwrapAttributesMap(attrs)
+	_, err := st.pool.Exec(ctx, sql, handle, unwrapped)
+	return err
+}
+
 func queryItems[T any](
 	ctx context.Context,
 	pool *pgxpool.Pool,
@@ -187,51 +201,18 @@ func (st *Store) ListSeries(
 	return queryItems[pb.ListSeriesResponse](ctx, st.pool, sql)
 }
 
+func (st *Store) DeleteEmptySeries(
+	ctx context.Context,
+	seriesName string,
+) error {
+	sql := `CALL delete_empty_series($1)`
+	_, err := st.pool.Exec(ctx, sql, seriesName)
+	return err
+}
+
 func (st *Store) ListAttributes(
 	ctx context.Context,
 ) (<-chan *pb.ListAttributesResponse, <-chan error) {
 	sql := `SELECT * from attribute_vw`
 	return queryItems[pb.ListAttributesResponse](ctx, st.pool, sql)
 }
-
-/*
-func (st *Store) ListScopes(
-	ctx context.Context,
-	scopeRegex string,
-	seriesRegex string,
-	withStats bool,
-) (<-chan *pb.Scope, <-chan error) {
-	dataCh := make(chan *pb.Scope, 10)
-	errCh := make(chan error, 1)
-
-	go func() {
-		defer close(dataCh)
-
-		sql := `SELECT scope_handle, scope_name FROM scope WHERE scope_name ~* $1`
-		rows, err := st.pool.Query(ctx, sql, scopeRegex)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var handle, name string
-			if err := rows.Scan(&handle, &name); err != nil {
-				errCh <- err
-				return
-			}
-
-			msg := &pb.Scope{ScopeHandle: handle, ScopeName: name}
-
-			select {
-			case <-ctx.Done():
-				errCh <- ctx.Err()
-				return
-			case dataCh <- msg:
-			}
-		}
-	}()
-	return dataCh, errCh
-}
-*/

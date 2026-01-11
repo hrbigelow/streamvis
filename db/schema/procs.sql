@@ -1,12 +1,3 @@
-DROP PROCEDURE IF EXISTS add_data_lock;
-DROP PROCEDURE IF EXISTS create_attribute;
-DROP PROCEDURE IF EXISTS create_series;
-DROP PROCEDURE IF EXISTS append_to_series;
-DROP PROCEDURE IF EXISTS create_run;
-DROP PROCEDURE IF EXISTS delete_run;
-DROP FUNCTION IF EXISTS array_product;
-
-
 CREATE OR REPLACE PROCEDURE add_data_lock(
   IN p_handle UUID,
   IN p_lock_type TEXT,
@@ -45,7 +36,6 @@ END;
 $$;
 
 
-
 /*
 Create a new series.
 */
@@ -58,6 +48,14 @@ AS $$
 DECLARE
   v_series_id INT;
 BEGIN
+  IF p_series_name IS NULL OR p_series_name = '' THEN
+    RAISE EXCEPTION 'p_series_name must be a non-empty string';
+  END IF;
+
+  IF jsonb_typeof(p_series_structure) != 'object' OR p_series_structure = '{}'::jsonb THEN
+    RAISE EXCEPTION 'p_series_structure must be a non-empty object';
+  END IF;
+
   INSERT INTO series (series_name, structure)
   VALUES (p_series_name, p_series_structure)
   RETURNING series_id INTO v_series_id;
@@ -68,70 +66,32 @@ BEGIN
 END;
 $$;
 
-/*
-Create a new series.  
-
-If delete_existing = True:
-  delete any existing series, create a new series, return its handle
-
-If delete_existing = False:
-  - If no existing series, create the new series and return its handle
-  - If a series of same structure exists, return the existing series_handle
-  - If a series of different structure exists, return NULL for p_series_handle (an error)
-
-p_series_structure is a flat dictionary of string => option['f32', i32']
-
-*/
-CREATE OR REPLACE PROCEDURE make_or_get_series(
-  IN p_series_name TEXT,
-  IN p_series_structure JSONB,
-  OUT p_series_handle UUID
+CREATE OR REPLACE PROCEDURE delete_empty_series(
+  IN p_series_name TEXT
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_series_id INT;
-  v_existing_structure JSONB;
+  v_handle UUID;
 BEGIN
-
-  SELECT series_id, series_handle INTO v_series_id, p_series_handle
+  SELECT series_handle into v_handle
   FROM series
-  WHERE series_name = p_series_name
-  LIMIT 1;
+  WHERE series_name = p_series_name;
 
-  IF v_series_id IS NULL THEN
-    -- create a new series and return its handle
-    INSERT INTO series (series_name, structure)
-    VALUES (p_series_name, p_series_structure)
-    ON CONFLICT DO NOTHING;
+  IF v_handle IS NULL THEN
+    RAISE EXCEPTION 'delete_empty_series: a series named `%` does not exist', p_series_name;
+  END IF;
 
-    IF NOT FOUND THEN
-      -- should never happen because v_series_id was found via (p_series_name)
-      p_series_handle := NULL;
-      RETURN;
-    END IF;
+  DELETE FROM series s
+  WHERE s.series_handle = v_handle
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chunk c
+    WHERE s.series_id = c.series_id
+  );
 
-    SELECT series_id, series_handle INTO v_series_id, p_series_handle
-    FROM series
-    WHERE series_name = p_series_name;
-
-    INSERT INTO field (series_id, field_name, field_type)
-    SELECT v_series_id, t.field_name, t.field_type
-    FROM jsonb_each_text(p_series_structure) as t(field_name, field_type);
-    RETURN;
-
-  ELSE
-    -- if existing series is congruent, return its handle
-    SELECT jsonb_object_agg(field_name, field_type) INTO v_existing_structure
-    FROM field
-    WHERE series_id = v_series_id;
-    IF v_existing_structure = p_series_structure THEN
-      RETURN;
-    ELSE
-      -- inconsistent structure, but can't delete existing 
-      p_series_handle := NULL;
-      RETURN;
-    END IF;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'delete_empty_series: series `%` is not empty; cannot delete', p_series_name;
   END IF;
 END;
 $$;
@@ -270,5 +230,65 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION valid_attr_value(
+  type_name TEXT,
+  val JSONB
+)
+RETURNS BOOLEAN
+IMMUTABLE
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  CASE type_name
+    WHEN 'int' THEN
+      RETURN jsonb_typeof(val) = 'number' AND (val::numeric % 1 = 0);
+    WHEN 'float' THEN
+      RETURN jsonb_typeof(val) = 'number';
+    WHEN 'text' THEN
+      RETURN jsonb_typeof(val) = 'string';
+    WHEN 'bool' THEN
+      RETURN jsonb_typeof(val) = 'boolean';
+    ELSE
+      RAISE EXCEPTION 'Unknown type name: %. Valid types are int, float, text, bool.', type_name; 
+  END CASE;
+END;
+$$;
+
+
+CREATE OR REPLACE PROCEDURE set_run_attributes(
+  IN p_run_handle UUID,
+  IN p_attributes JSONB
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_attrs JSONB;
+  v_num_attrs INT;
+  v_num_valid_attrs INT;
+BEGIN
+  SELECT COALESCE(jsonb_object_agg(a.attr_handle, v.attr_value), '{}'::jsonb), count(*)
+  INTO v_attrs, v_num_attrs
+  FROM attr a, jsonb_each(p_attributes) AS v(attr_name, attr_value)
+  WHERE a.attr_name = v.attr_name
+  AND valid_attr_value(a.attr_type, v.attr_value);
+
+  SELECT count(*)
+  INTO v_num_valid_attrs 
+  FROM jsonb_each(p_attributes);
+
+  IF v_num_attrs != v_num_valid_attrs THEN
+    RAISE EXCEPTION 'One or more run attributes are invalid';
+  END IF;
+
+  UPDATE run
+  SET run_attrs = run_attrs || v_attrs
+  WHERE run_handle = p_run_handle;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Run with handle %s not found', p_run_handle;
+  END IF;
+
+END;
+$$;
 
 

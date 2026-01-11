@@ -1,0 +1,2 @@
+DROP TYPE IF EXISTS enc_typ;
+

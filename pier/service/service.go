@@ -86,21 +86,6 @@ func (s *Service) CreateSeries(
 	return &pb.CreateSeriesResponse{}, nil
 }
 
-/*
-func (s *Service) MakeOrGetSeries(
-	ctx context.Context,
-	req *pb.GetSeriesRequest,
-) (*pb.GetSeriesResponse, error) {
-	handle, err := s.store.MakeOrGetSeries(
-		ctx, req.GetSeriesName(), req.GetStructure(),
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "database store error: %v", err)
-	}
-	return &pb.GetSeriesResponse{SeriesHandle: handle.String()}, nil
-}
-*/
-
 func (s *Service) AppendToSeries(
 	ctx context.Context,
 	req *pb.AppendToSeriesRequest,
@@ -150,6 +135,21 @@ func (s *Service) DeleteRun(
 	return &pb.DeleteRunResponse{Success: success}, nil
 }
 
+func (s *Service) SetRunAttributes(
+	ctx context.Context,
+	req *pb.SetRunAttributesRequest,
+) (*pb.SetRunAttributesResponse, error) {
+	handle, err := uuid.Parse(req.GetRunHandle())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
+	}
+	err = s.store.SetRunAttributes(ctx, handle, req.GetAttrs())
+	if err != nil {
+		return nil, err
+	}
+	return &pb.SetRunAttributesResponse{}, nil
+}
+
 func (s *Service) ListSeries(
 	ctx context.Context,
 	req *pb.ListSeriesRequest,
@@ -157,6 +157,14 @@ func (s *Service) ListSeries(
 ) error {
 	dataCh, errCh := s.store.ListSeries(ctx)
 	return streamRecords[pb.ListSeriesResponse](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) DeleteEmptySeries(
+	ctx context.Context,
+	req *pb.DeleteEmptySeriesRequest,
+) (*pb.DeleteEmptySeriesResponse, error) {
+	err := s.store.DeleteEmptySeries(ctx, req.GetSeriesName())
+	return &pb.DeleteEmptySeriesResponse{}, err
 }
 
 func (s *Service) ListAttributes(

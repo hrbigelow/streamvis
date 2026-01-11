@@ -1,13 +1,3 @@
-DROP TABLE IF EXISTS field_data;
-DROP TABLE IF EXISTS field;
-DROP TABLE IF EXISTS chunk;
-DROP TABLE IF EXISTS run;
-DROP TABLE IF EXISTS attr;
-DROP TABLE IF EXISTS series;
-DROP TABLE IF EXISTS data_lock;
-DROP FUNCTION IF EXISTS valid_enc_typ;
-DROP FUNCTION IF EXISTS get_enc_signature;
-
 /*
 A series is conceptually an unordered set of points, each point having the same
 structure consisting of an unordered collection of field names and respective types.
@@ -41,7 +31,7 @@ are deemed faulty.
 CREATE TABLE run (
   run_id SERIAL PRIMARY KEY,
   run_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  run_attrs JSONB DEFAULT NULL, -- map of attr_id => value 
+  run_attrs JSONB DEFAULT '{}'::jsonb, -- map of attr_id => value 
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

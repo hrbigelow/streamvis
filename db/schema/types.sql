@@ -1,4 +1,3 @@
-DROP TYPE IF EXISTS enc_typ;
 /*
 enc_typ represents an ordered 1D sequence of values, viewed
 as a flattened tensor of shape `shape`, and the following logic:

@@ -1,0 +1,11 @@
+DROP PROCEDURE IF EXISTS add_data_lock;
+DROP PROCEDURE IF EXISTS create_attribute;
+DROP FUNCTION IF EXISTS valid_attr_value;
+DROP PROCEDURE IF EXISTS create_series;
+DROP PROCEDURE IF EXISTS delete_empty_series;
+DROP PROCEDURE IF EXISTS append_to_series;
+DROP PROCEDURE IF EXISTS create_run;
+DROP PROCEDURE IF EXISTS delete_run;
+DROP PROCEDURE IF EXISTS set_run_attributes;
+DROP FUNCTION IF EXISTS array_product;
+
