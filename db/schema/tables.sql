@@ -31,7 +31,7 @@ are deemed faulty.
 CREATE TABLE run (
   run_id SERIAL PRIMARY KEY,
   run_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  run_attrs JSONB DEFAULT '{}'::jsonb, -- map of attr_id => value 
+  run_tags TEXT[] NOT NULL DEFAULT '{}'::TEXT[], 
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -47,6 +47,17 @@ CREATE TABLE attr (
   attr_name TEXT NOT NULL UNIQUE,
   attr_type TEXT NOT NULL, -- int, float, string, bool
   attr_desc TEXT 
+);
+
+
+/*
+Holds attribute values associated with runs
+*/
+CREATE TABLE run_attr (
+  run_id INT NOT NULL REFERENCES run(run_id) ON DELETE CASCADE,
+  attr_id INT NOT NULL REFERENCES attr(attr_id) ON DELETE CASCADE,
+  attr_value JSONB NOT NULL, -- one of 'string', 'number', or 'bool'
+  UNIQUE (run_id, attr_id)
 );
 
 

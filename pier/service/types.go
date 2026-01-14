@@ -3,6 +3,8 @@ package service
 import (
 	pb "pier/pb/streamvis/v1"
 
+	"github.com/google/uuid"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -42,75 +44,50 @@ func NewEncTypValue(pb *pb.EncTyp) *EncTypValue {
 	return v
 }
 
-/*
-type EncTypValue struct {
-	*pb.EncTyp
+type AttributeFilterValue struct {
+	AttrHandle     uuid.UUID `db:"attr_handle"`
+	IncludeMissing bool      `db:"include_missing"`
+	IntMin         int32     `db:"int_min"`
+	IntMax         int32     `db:"int_max"`
+	IntVals        []int32   `db:"int_vals"`
+	FloatMin       float32   `db:"float_min"`
+	FloatMax       float32   `db:"float_max"`
+	BoolVals       []bool    `db:"bool_vals"`
+	StringVals     []string  `db:"string_vals"`
 }
 
-func (v *EncTypValue) Index(i int) any {
-	switch i {
-	case 0:
-		return v.Base
-	case 1:
-		return v.Shape
-	case 2:
-		if v.GetIval() != nil {
-			vals := v.GetIval().GetValues()
-			result := make([]pgtype.Int4, len(vals))
-			for i, opt := range vals {
-				if opt.Value != nil {
-					result[i] = pgtype.Int4{Int32: *opt.Value, Valid: true}
-				}
-			}
-			return result
-		}
-		return nil
-	case 3:
-		if v.GetFval() != nil {
-			vals := v.GetFval().GetValues()
-			result := make([]pgtype.Float4, len(vals))
-			for i, opt := range vals {
-				if opt.Value != nil {
-					result[i] = pgtype.Float4{Float32: *opt.Value, Valid: true}
-				}
-			}
-			return result
-		}
-		return nil
+func NewAttributeFilterValue(pb *pb.AttributeFilter) (*AttributeFilterValue, error) {
+	attrHandle, err := uuid.Parse(pb.GetAttrHandle())
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
 
-func (v *EncTypValue) IsNull() bool {
-	return v.EncTyp == nil
-}
-*/
-
-/*
-func (c *EncTypCodec) PlanEncode(m *pgtype.Map, oid uint32, format int16, value any) pgtype.EncodePlan {
-	// returns a struct implementing the EncodePlan interface (or nil)
-	// the Encode member of EncodePlan converts the
-	if _, ok := value.(pb.EncTyp); !ok {
-		return nil
+	v := &AttributeFilterValue{
+		AttrHandle:     attrHandle,
+		IncludeMissing: pb.GetIncludeMissing(),
 	}
-	return pgtype.EncodePlanFunc(func(value any) (plan []byte, err error) {
-		msg := value.(*pb.EncTyp)
-		var builder pgtype.RecordBuilder
-		builder.AppendValue(msg.Bytes)
-		builder.AppendValue(msg.Shape)
-		var ival *pb.IntValues
-		var fval *pb.FloatValues
-		if msg.Spans != nil {
-			switch v := msg.Spans.(type) {
-			case *pb.EncTyp_Ival:
-				ival = v.Ival
-			case *pb.EncTyp_Fval:
-				fval = v.Fval
-			}
-		}
-		builder.AppendValue(ival)
-		builder.AppendValue(fval)
-		return builder.Finish()
-	})
+
+	if val := pb.GetIntRange(); val != nil {
+		v.IntMin = val.GetImin()
+		v.IntMax = val.GetImax()
+	}
+	if val := pb.GetIntList(); val != nil {
+		v.IntVals = val.Vals
+	}
+	if val := pb.GetFloatRange(); val != nil {
+		v.FloatMin = val.GetFmin()
+		v.FloatMax = val.GetFmax()
+	}
+	if val := pb.GetBoolList(); val != nil {
+		v.BoolVals = val.Vals
+	}
+	if val := pb.GetStringList(); val != nil {
+		v.StringVals = val.Vals
+	}
+	return v, nil
 }
-*/
+
+type TagFilterValue struct {
+	HasAnyTag  []string `db:"has_any_tag"`
+	HasAllTags []string `db:"has_all_tags"`
+}

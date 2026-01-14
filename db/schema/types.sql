@@ -22,3 +22,22 @@ CREATE TYPE enc_typ AS (
   i32_spans INT[], 
   f32_spans REAL[]
 );
+
+
+CREATE TYPE attribute_filter_typ AS (
+  attr_handle UUID,
+  include_missing BOOLEAN,
+  int_min INT,
+  int_max INT,
+  int_vals INT[],
+  float_min REAL,
+  float_max REAL,
+  bool_vals BOOLEAN[],
+  string_vals TEXT[]
+);
+
+CREATE TYPE tag_filter_typ AS (
+  has_any_tag TEXT[],
+  has_all_tags TEXT[]
+);
+

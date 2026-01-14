@@ -26,8 +26,8 @@ CREATE OR REPLACE PROCEDURE create_attribute(
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF p_attr_type NOT IN ('int', 'float', 'string') THEN
-    RAISE EXCEPTION 'p_attr_type must be one of "int", "float" or "string".  Got %', p_attr_type;
+  IF p_attr_type NOT IN ('int', 'float', 'text', 'bool') THEN
+    RAISE EXCEPTION 'p_attr_type must be one of "int", "float", "text", or "bool".  Got %', p_attr_type;
   END IF;
 
   INSERT INTO attr (attr_name, attr_type, attr_desc)
@@ -197,9 +197,22 @@ CREATE OR REPLACE PROCEDURE create_run(
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  INSERT INTO run
-  DEFAULT VALUES
+  INSERT INTO run DEFAULT VALUES
   RETURNING run_handle into p_run_handle;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE replace_run(
+  IN p_run_handle UUID
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  DELETE FROM run
+  WHERE run_handle = p_run_handle;
+
+  INSERT INTO run (run_handle)
+  VALUES (p_run_handle);
 END;
 $$;
 
@@ -257,32 +270,34 @@ $$;
 
 CREATE OR REPLACE PROCEDURE set_run_attributes(
   IN p_run_handle UUID,
-  IN p_attributes JSONB
+  IN p_attributes JSONB -- { attr_name: attr_value }
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_attrs JSONB;
   v_num_attrs INT;
   v_num_valid_attrs INT;
 BEGIN
-  SELECT COALESCE(jsonb_object_agg(a.attr_handle, v.attr_value), '{}'::jsonb), count(*)
-  INTO v_attrs, v_num_attrs
+  SELECT count(*) INTO v_num_attrs
+  FROM jsonb_object_keys(p_attributes);
+
+  SELECT count(*) INTO v_num_valid_attrs
   FROM attr a, jsonb_each(p_attributes) AS v(attr_name, attr_value)
   WHERE a.attr_name = v.attr_name
   AND valid_attr_value(a.attr_type, v.attr_value);
 
-  SELECT count(*)
-  INTO v_num_valid_attrs 
-  FROM jsonb_each(p_attributes);
-
   IF v_num_attrs != v_num_valid_attrs THEN
-    RAISE EXCEPTION 'One or more run attributes are invalid';
+    RAISE EXCEPTION 'Received % attributes but only % were valid', v_num_attrs, v_num_valid_attrs;
   END IF;
 
-  UPDATE run
-  SET run_attrs = run_attrs || v_attrs
-  WHERE run_handle = p_run_handle;
+  INSERT INTO run_attr (run_id, attr_id, attr_value)
+  SELECT r.run_id, a.attr_id, v.attr_value
+  FROM run r, attr a, jsonb_each(p_attributes) AS v(attr_name, attr_value)
+  WHERE a.attr_name = v.attr_name
+  AND r.run_handle = p_run_handle
+  ON CONFLICT (run_id, attr_id)
+  DO UPDATE SET 
+    attr_value = EXCLUDED.attr_value; 
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Run with handle %s not found', p_run_handle;

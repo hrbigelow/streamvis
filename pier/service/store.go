@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Store struct {
@@ -38,18 +39,22 @@ func registerCustomTypes(
 	ctx context.Context,
 	conn *pgx.Conn,
 ) error {
-	dbType, err := conn.LoadType(ctx, "enc_typ")
-	if err != nil {
-		return err
+	types := []string{
+		"enc_typ",
+		"enc_typ[]",
+		"attribute_filter_typ",
+		"attribute_filter_typ[]",
+		"tag_filter_typ",
 	}
-	conn.TypeMap().RegisterType(dbType)
-
-	arrayType, err := conn.LoadType(ctx, "enc_typ[]")
-	if err != nil {
-		return err
+	for _, ty := range types {
+		dbType, err := conn.LoadType(ctx, ty)
+		if err != nil {
+			return err
+		}
+		conn.TypeMap().RegisterType(dbType)
 	}
-	conn.TypeMap().RegisterType(arrayType)
 	return nil
+
 }
 
 func unwrapAttributesMap(attrs map[string]*pb.Attribute) map[string]any {
@@ -71,6 +76,27 @@ func unwrapAttributesMap(attrs map[string]*pb.Attribute) map[string]any {
 	}
 	return result
 }
+
+/*
+func wrapAttributesMap(attrs map[string]any) map[string]*pb.Attribute {
+	result := make(map[string]*pb.Attribute, len(attrs))
+	for key, attr := range attrs {
+		if attr == nil {
+			continue
+		}
+		switch v := attr.Value.(type) {
+		case float64:
+			result[key] = &pb.Attribute{
+		case *pb.Attribute_FloatVal:
+			result[key] = v.FloatVal
+		case *pb.Attribute_TextVal:
+			result[key] = v.TextVal
+		case *pb.Attribute_BoolVal:
+			result[key] = v.BoolVal
+		}
+	}
+	return result
+*/
 
 func (st *Store) CreateAttribute(
 	ctx context.Context,
@@ -130,6 +156,15 @@ func (st *Store) CreateRun(
 	return runHandle, nil
 }
 
+func (st *Store) ReplaceRun(
+	ctx context.Context,
+	runHandle uuid.UUID,
+) error {
+	sql := `CALL replace_run($1)`
+	_, err := st.pool.Exec(ctx, sql, runHandle)
+	return err
+}
+
 func (st *Store) DeleteRun(
 	ctx context.Context,
 	handle uuid.UUID,
@@ -158,13 +193,14 @@ func (st *Store) SetRunAttributes(
 	return err
 }
 
-func queryItems[T any](
+func queryItemsInternal[Row, Item any](
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	sql string,
+	convert func(Row) (Item, error),
 	args ...any,
-) (<-chan *T, <-chan error) {
-	dataCh := make(chan *T, 10)
+) (<-chan *Item, <-chan error) {
+	dataCh := make(chan *Item, 10)
 	errCh := make(chan error, 1)
 
 	rows, err := pool.Query(ctx, sql, args...)
@@ -178,11 +214,20 @@ func queryItems[T any](
 		defer rows.Close()
 
 		for rows.Next() {
-			item, err := pgx.RowToStructByName[T](rows)
+			row, err := pgx.RowToStructByName[Row](rows)
+
 			if err != nil {
 				errCh <- err
 				return
 			}
+
+			item, err := convert(row)
+
+			if err != nil {
+				errCh <- err
+				return
+			}
+
 			select {
 			case <-ctx.Done():
 				errCh <- ctx.Err()
@@ -192,6 +237,26 @@ func queryItems[T any](
 		}
 	}()
 	return dataCh, errCh
+}
+
+func queryItems[Item any](
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	sql string,
+	args ...any,
+) (<-chan *Item, <-chan error) {
+	convert := func(row Item) (Item, error) { return row, nil }
+	return queryItemsInternal(ctx, pool, sql, convert, args...)
+}
+
+func queryItemsConvert[Row, Item any](
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	sql string,
+	convert func(Row) (Item, error),
+	args ...any,
+) (<-chan *Item, <-chan error) {
+	return queryItemsInternal(ctx, pool, sql, convert, args...)
 }
 
 func (st *Store) ListSeries(
@@ -215,4 +280,59 @@ func (st *Store) ListAttributes(
 ) (<-chan *pb.ListAttributesResponse, <-chan error) {
 	sql := `SELECT * from attribute_vw`
 	return queryItems[pb.ListAttributesResponse](ctx, st.pool, sql)
+}
+
+type RunResult struct {
+	RunHandle string                    `db:"run_handle"`
+	RunAttrs  map[string]map[string]any `db:"run_attrs"`
+	StartedAt time.Time                 `db:"started_at"`
+}
+
+func (st *Store) ListRuns(
+	ctx context.Context,
+) (<-chan *pb.ListRunsResponse, <-chan error) {
+	sql := `SELECT * from run_vw`
+	convert := func(row RunResult) (pb.ListRunsResponse, error) {
+		attrs := make(map[string]*pb.Attribute, len(row.RunAttrs))
+		for k, v := range row.RunAttrs {
+			if val, ok := v["int_val"]; ok {
+				if intVal, ok2 := val.(float64); ok2 {
+					attrs[k] = &pb.Attribute{Value: &pb.Attribute_IntVal{IntVal: int32(intVal)}}
+				} else {
+					err := fmt.Errorf("Attribute %s (int_val) was not a valid int32 value", row.RunHandle)
+					return pb.ListRunsResponse{}, err
+				}
+			}
+			if val, ok := v["float_val"]; ok {
+				if floatVal, ok2 := val.(float64); ok2 {
+					attrs[k] = &pb.Attribute{Value: &pb.Attribute_FloatVal{FloatVal: float32(floatVal)}}
+				} else {
+					err := fmt.Errorf("Attribute %s (float_val) was not a valid float32 value", row.RunHandle)
+					return pb.ListRunsResponse{}, err
+				}
+			}
+			if val, ok := v["text_val"]; ok {
+				if textVal, ok2 := val.(string); ok2 {
+					attrs[k] = &pb.Attribute{Value: &pb.Attribute_TextVal{TextVal: textVal}}
+				} else {
+					err := fmt.Errorf("Attribute %s (text_val) was not a valid string value", row.RunHandle)
+					return pb.ListRunsResponse{}, err
+				}
+			}
+			if val, ok := v["bool_val"]; ok {
+				if boolVal, ok2 := val.(bool); ok2 {
+					attrs[k] = &pb.Attribute{Value: &pb.Attribute_BoolVal{BoolVal: boolVal}}
+				} else {
+					err := fmt.Errorf("Attribute %s (bool_val) was not a valid bool value", row.RunHandle)
+					return pb.ListRunsResponse{}, err
+				}
+			}
+		}
+		return pb.ListRunsResponse{
+			RunHandle: row.RunHandle,
+			RunAttrs:  attrs,
+			StartedAt: timestamppb.New(row.StartedAt),
+		}, nil
+	}
+	return queryItemsConvert(ctx, st.pool, sql, convert)
 }

@@ -57,6 +57,7 @@ def log_data(grpc_uri, num_steps, step_sleep_ms=0):
     # Call start before any logging
     logger.start()
     logger.set_run_attributes({"start-time": time.time()})
+    logger.set_run_attributes({"mixing-noise": 1.5})
 
     for step in range(0, num_steps):
 

@@ -120,6 +120,18 @@ func (s *Service) CreateRun(
 	return &pb.CreateRunResponse{RunHandle: handle.String()}, nil
 }
 
+func (s *Service) ReplaceRun(
+	ctx context.Context,
+	req *pb.ReplaceRunRequest,
+) (*pb.ReplaceRunResponse, error) {
+	handle, err := uuid.Parse(req.GetRunHandle())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
+	}
+	err = s.store.ReplaceRun(ctx, handle)
+	return &pb.ReplaceRunResponse{}, err
+}
+
 func (s *Service) DeleteRun(
 	ctx context.Context,
 	req *pb.DeleteRunRequest,
@@ -174,4 +186,13 @@ func (s *Service) ListAttributes(
 ) error {
 	dataCh, errCh := s.store.ListAttributes(ctx)
 	return streamRecords[pb.ListAttributesResponse](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) ListRuns(
+	ctx context.Context,
+	req *pb.ListRunsRequest,
+	stream *connect.ServerStream[pb.ListRunsResponse],
+) error {
+	dataCh, errCh := s.store.ListRuns(ctx)
+	return streamRecords[pb.ListRunsResponse](ctx, *stream, dataCh, errCh)
 }
