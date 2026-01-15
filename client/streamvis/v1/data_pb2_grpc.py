@@ -34,10 +34,10 @@ class ServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.CreateAttribute = channel.unary_unary(
-                '/streamvis.v1.Service/CreateAttribute',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeResponse.FromString,
+        self.CreateField = channel.unary_unary(
+                '/streamvis.v1.Service/CreateField',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.CreateFieldRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateFieldResponse.FromString,
                 _registered_method=True)
         self.CreateSeries = channel.unary_unary(
                 '/streamvis.v1.Service/CreateSeries',
@@ -79,10 +79,10 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.FromString,
                 _registered_method=True)
-        self.ListAttributes = channel.unary_stream(
-                '/streamvis.v1.Service/ListAttributes',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.ListAttributesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListAttributesResponse.FromString,
+        self.ListFields = channel.unary_stream(
+                '/streamvis.v1.Service/ListFields',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListFieldsRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListFieldsResponse.FromString,
                 _registered_method=True)
         self.ListRuns = channel.unary_stream(
                 '/streamvis.v1.Service/ListRuns',
@@ -94,7 +94,7 @@ class ServiceStub(object):
 class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def CreateAttribute(self, request, context):
+    def CreateField(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -148,7 +148,7 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ListAttributes(self, request, context):
+    def ListFields(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -164,10 +164,10 @@ class ServiceServicer(object):
 
 def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'CreateAttribute': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateAttribute,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.CreateAttributeResponse.SerializeToString,
+            'CreateField': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateField,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateFieldRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.CreateFieldResponse.SerializeToString,
             ),
             'CreateSeries': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateSeries,
@@ -209,10 +209,10 @@ def add_ServiceServicer_to_server(servicer, server):
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.SerializeToString,
             ),
-            'ListAttributes': grpc.unary_stream_rpc_method_handler(
-                    servicer.ListAttributes,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListAttributesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListAttributesResponse.SerializeToString,
+            'ListFields': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListFields,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListFieldsRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListFieldsResponse.SerializeToString,
             ),
             'ListRuns': grpc.unary_stream_rpc_method_handler(
                     servicer.ListRuns,
@@ -231,7 +231,7 @@ class Service(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def CreateAttribute(request,
+    def CreateField(request,
             target,
             options=(),
             channel_credentials=None,
@@ -244,9 +244,9 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/streamvis.v1.Service/CreateAttribute',
-            streamvis_dot_v1_dot_data__pb2.CreateAttributeRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.CreateAttributeResponse.FromString,
+            '/streamvis.v1.Service/CreateField',
+            streamvis_dot_v1_dot_data__pb2.CreateFieldRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.CreateFieldResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -474,7 +474,7 @@ class Service(object):
             _registered_method=True)
 
     @staticmethod
-    def ListAttributes(request,
+    def ListFields(request,
             target,
             options=(),
             channel_credentials=None,
@@ -487,9 +487,9 @@ class Service(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/streamvis.v1.Service/ListAttributes',
-            streamvis_dot_v1_dot_data__pb2.ListAttributesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.ListAttributesResponse.FromString,
+            '/streamvis.v1.Service/ListFields',
+            streamvis_dot_v1_dot_data__pb2.ListFieldsRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.ListFieldsResponse.FromString,
             options,
             channel_credentials,
             insecure,

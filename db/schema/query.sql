@@ -1,3 +1,4 @@
+/*
 -- definitions of views and table functions
 CREATE FUNCTION get_data(
   p_run_handles UUID[],
@@ -24,23 +25,32 @@ BEGIN
   AND d.field_id = f.field_id;
 END;
 $$ LANGUAGE plpgsql STABLE;
-
-CREATE VIEW field_vw AS
-SELECT
-    s.series_name, f.field_name, f.field_handle
-FROM series s, field f
-WHERE f.series_id = s.series_id;
-
+*/
 
 CREATE VIEW series_vw AS
 SELECT
-    series_name, series_handle, structure
-FROM series;
+  jsonb_build_object(
+    'series_name', s.series_name, 
+    'series_handle', s.series_handle, 
+    'fields', 
+    jsonb_agg(
+      jsonb_build_object(
+        'field_name', f.field_name, 
+        'field_handle', f.field_handle, 
+        'field_type', f.field_type,
+        'field_desc', f.field_desc
+      )
+    )
+  ) json_data
+FROM series s
+INNER JOIN coord c ON c.series_id = s.series_id
+INNER JOIN field f ON f.field_id = c.field_id
+GROUP BY series_name, series_handle;
 
-CREATE VIEW attribute_vw AS
+CREATE VIEW field_vw AS
 SELECT
-    attr_handle, attr_name, attr_type, attr_desc
-FROM attr;
+    field_handle, field_name, field_type, field_desc
+FROM field;
 
 
 /*
@@ -60,7 +70,7 @@ res AS (
   CASE ra.attr_type
     WHEN 'int' THEN jsonb_build_object('int_val', ra.attr_value)
     WHEN 'float' THEN jsonb_build_object('float_val', ra.attr_value)
-    WHEN 'text' THEN jsonb_build_object('text_val', ra.attr_value)
+    WHEN 'string' THEN jsonb_build_object('string_val', ra.attr_value)
     WHEN 'bool' THEN jsonb_build_object('bool_val', ra.attr_value)
   END wrapped_val
   FROM ra
@@ -87,7 +97,7 @@ DECLARE
   v_int INT;
   v_float REAL;
   v_bool BOOLEAN;
-  v_text TEXT;
+  v_string TEXT;
   v_type TEXT := jsonb_typeof(p_attr_value);
 BEGIN
   IF p_attr_type IS NULL AND p_filter.include_missing THEN
@@ -118,12 +128,12 @@ BEGIN
         (p_filter.float_min IS NOT NULL AND v_float < p_filter.float_min) OR
         (p_filter.float_max IS NOT NULL AND v_float > p_filter.float_max)
       );
-    WHEN 'text' THEN
+    WHEN 'string' THEN
       IF v_type != 'string' THEN
         RAISE EXCEPTION 'p_attr_value must be a string type but got %', v_type;
       END IF;
-      v_text := (p_attr_value #>> '{}');
-      RETURN v_text = ANY(p_filter.string_vals);
+      v_string := (p_attr_value #>> '{}');
+      RETURN v_string = ANY(p_filter.string_vals);
     WHEN 'bool' THEN
       IF v_type != 'boolean' THEN
         RAISE EXCEPTION 'p_attr_value must be boolean type but got %', v_type;

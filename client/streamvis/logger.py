@@ -11,8 +11,8 @@ from .v1 import data_pb2_grpc as pb_grpc
 
 # Store in little endian
 SIG_TO_DTYPE = {
-    'f32': np.dtype('<f4'),
-    'i32': np.dtype('<i4'),
+    'float': np.dtype('<f4'),
+    'int': np.dtype('<i4'),
 }
 
 
@@ -162,7 +162,7 @@ class BaseLogger:
         structure = {}
         for name, ary in fields.items():
             is_float = self.is_float(self.to_array(ary))  
-            structure[name] = 'f32' if is_float else 'i32'
+            structure[name] = 'float' if is_float else 'int'
         return structure
 
     def _flush_all_series(self) -> bool:
@@ -238,14 +238,14 @@ class BaseLogger:
             stacked = self.stack_arrays(ary)
             npary = self.to_numpy(stacked).astype(SIG_TO_DTYPE[ftype])
             enc = dbutil.encode_array(npary)
-            if ftype == 'f32':
+            if ftype == 'float':
                 optvals = tuple(pb.OptionalFloat(value=sp) for sp in enc.range_spans)
                 msg = pb.EncTyp(
                     base=enc.base.tobytes(), 
                     shape=enc.shape,
                     fval=pb.FloatValues(values=optvals)
                 )
-            elif ftype == 'i32':
+            elif ftype == 'int':
                 optvals = tuple(pb.OptionalInt(value=sp) for sp in enc.range_spans)
                 msg = pb.EncTyp(
                     base=enc.base.tobytes(), 

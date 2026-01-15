@@ -8,11 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type RawJsonRow struct {
+	JSONData []byte `db:"json_data"`
+}
+
 type EncTypValue struct {
 	Base     []byte          `db:"base"`
 	Shape    []uint32        `db:"shape"`
-	I32Spans []pgtype.Int4   `db:"i32_spans"`
-	F32Spans []pgtype.Float4 `db:"f32_spans"`
+	I32Spans []pgtype.Int4   `db:"int_spans"`
+	F32Spans []pgtype.Float4 `db:"float_spans"`
 }
 
 func NewEncTypValue(pb *pb.EncTyp) *EncTypValue {

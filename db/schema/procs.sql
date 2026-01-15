@@ -18,20 +18,16 @@ $$;
 Make an attribute descriptor.  Defines a named type which can be used to describe
 a run attribute stored in run_attrs.
 */
-CREATE OR REPLACE PROCEDURE create_attribute(
-  IN p_attr_name TEXT,
-  IN p_attr_type TEXT,
-  IN p_attr_desc TEXT
+CREATE OR REPLACE PROCEDURE create_field(
+  IN p_field_name TEXT,
+  IN p_field_type field_typ,
+  IN p_field_desc TEXT
 )
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF p_attr_type NOT IN ('int', 'float', 'text', 'bool') THEN
-    RAISE EXCEPTION 'p_attr_type must be one of "int", "float", "text", or "bool".  Got %', p_attr_type;
-  END IF;
-
-  INSERT INTO attr (attr_name, attr_type, attr_desc)
-  VALUES (p_attr_name, p_attr_type, p_attr_desc);
+  INSERT INTO field (field_name, field_type, field_desc)
+  VALUES (p_field_name, p_field_type, p_field_desc);
 END;
 $$;
 
@@ -41,7 +37,7 @@ Create a new series.
 */
 CREATE OR REPLACE PROCEDURE create_series(
   IN p_series_name TEXT,
-  IN p_series_structure JSONB
+  IN p_field_names TEXT[]
 )
 LANGUAGE plpgsql
 AS $$
@@ -52,17 +48,17 @@ BEGIN
     RAISE EXCEPTION 'p_series_name must be a non-empty string';
   END IF;
 
-  IF jsonb_typeof(p_series_structure) != 'object' OR p_series_structure = '{}'::jsonb THEN
-    RAISE EXCEPTION 'p_series_structure must be a non-empty object';
-  END IF;
-
-  INSERT INTO series (series_name, structure)
-  VALUES (p_series_name, p_series_structure)
+  INSERT INTO series (series_name)
+  VALUES (p_series_name)
   RETURNING series_id INTO v_series_id;
 
-  INSERT INTO field (series_id, field_name, field_type)
-  SELECT v_series_id, t.field_name, t.field_type
-  FROM jsonb_each_text(p_series_structure) as t(field_name, field_type);
+  INSERT INTO coord (series_id, field_id)
+  SELECT v_series_id, f.field_id 
+  FROM field f 
+  INNER JOIN unnest(p_field_names) AS n(field_name)
+  ON f.field_name = n.field_name;
+
+  -- TODO: check number inserted
 END;
 $$;
 
@@ -121,9 +117,8 @@ Append data to an existing series
 CREATE OR REPLACE PROCEDURE append_to_series(
   IN p_series_handle UUID,
   IN p_run_handle UUID,
-  IN field_name TEXT[],
-  IN field_vals enc_typ[],
-  OUT success BOOLEAN
+  IN p_field_names TEXT[],
+  IN p_field_vals enc_typ[]
 )
 LANGUAGE plpgsql
 AS $$
@@ -136,7 +131,14 @@ DECLARE
   v_size INT;
   v_size_error BOOLEAN;
 BEGIN
-  -- RAISE NOTICE 'field_vals type: %', pg_typeof(field_vals);
+  IF array_length(p_field_names, 1) != array_length(p_field_vals) THEN
+    RAISE EXCEPTION 'p_field_names and p_field_vals have unequal length';
+  END IF;
+
+
+
+
+  v_size := 
 
   SELECT series_id, structure INTO v_series_id, v_structure
   FROM series
@@ -257,12 +259,12 @@ BEGIN
       RETURN jsonb_typeof(val) = 'number' AND (val::numeric % 1 = 0);
     WHEN 'float' THEN
       RETURN jsonb_typeof(val) = 'number';
-    WHEN 'text' THEN
+    WHEN 'string' THEN
       RETURN jsonb_typeof(val) = 'string';
     WHEN 'bool' THEN
       RETURN jsonb_typeof(val) = 'boolean';
     ELSE
-      RAISE EXCEPTION 'Unknown type name: %. Valid types are int, float, text, bool.', type_name; 
+      RAISE EXCEPTION 'Unknown type name: %. Valid types are int, float, string, bool.', type_name; 
   END CASE;
 END;
 $$;

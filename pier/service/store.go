@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -40,8 +41,10 @@ func registerCustomTypes(
 	conn *pgx.Conn,
 ) error {
 	types := []string{
+		"field_typ",
 		"enc_typ",
 		"enc_typ[]",
+		"attr_typ",
 		"attribute_filter_typ",
 		"attribute_filter_typ[]",
 		"tag_filter_typ",
@@ -68,8 +71,8 @@ func unwrapAttributesMap(attrs map[string]*pb.Attribute) map[string]any {
 			result[key] = v.IntVal
 		case *pb.Attribute_FloatVal:
 			result[key] = v.FloatVal
-		case *pb.Attribute_TextVal:
-			result[key] = v.TextVal
+		case *pb.Attribute_StringVal:
+			result[key] = v.StringVal
 		case *pb.Attribute_BoolVal:
 			result[key] = v.BoolVal
 		}
@@ -77,45 +80,24 @@ func unwrapAttributesMap(attrs map[string]*pb.Attribute) map[string]any {
 	return result
 }
 
-/*
-func wrapAttributesMap(attrs map[string]any) map[string]*pb.Attribute {
-	result := make(map[string]*pb.Attribute, len(attrs))
-	for key, attr := range attrs {
-		if attr == nil {
-			continue
-		}
-		switch v := attr.Value.(type) {
-		case float64:
-			result[key] = &pb.Attribute{
-		case *pb.Attribute_FloatVal:
-			result[key] = v.FloatVal
-		case *pb.Attribute_TextVal:
-			result[key] = v.TextVal
-		case *pb.Attribute_BoolVal:
-			result[key] = v.BoolVal
-		}
-	}
-	return result
-*/
-
-func (st *Store) CreateAttribute(
+func (st *Store) CreateField(
 	ctx context.Context,
-	attrName string,
-	attrType string,
-	attrDesc string,
+	fieldName string,
+	fieldType string,
+	fieldDesc string,
 ) error {
-	sql := `CALL create_attribute($1, $2, $3)`
-	_, err := st.pool.Exec(ctx, sql, attrName, attrType, attrDesc)
+	sql := `CALL create_field($1, $2, $3)`
+	_, err := st.pool.Exec(ctx, sql, fieldName, fieldType, fieldDesc)
 	return err
 }
 
 func (st *Store) CreateSeries(
 	ctx context.Context,
 	seriesName string,
-	seriesStructure map[string]string,
+	attrNames []string,
 ) error {
 	sql := `CALL create_series($1, $2)`
-	_, err := st.pool.Exec(ctx, sql, seriesName, seriesStructure)
+	_, err := st.pool.Exec(ctx, sql, seriesName, attrNames)
 	return err
 }
 
@@ -263,7 +245,12 @@ func (st *Store) ListSeries(
 	ctx context.Context,
 ) (<-chan *pb.ListSeriesResponse, <-chan error) {
 	sql := `SELECT * from series_vw`
-	return queryItems[pb.ListSeriesResponse](ctx, st.pool, sql)
+	convert := func(row RawJsonRow) (pb.ListSeriesResponse, error) {
+		msg := pb.ListSeriesResponse{}
+		err := protojson.Unmarshal(row.JSONData, &msg)
+		return msg, err
+	}
+	return queryItemsConvert(ctx, st.pool, sql, convert)
 }
 
 func (st *Store) DeleteEmptySeries(
@@ -275,11 +262,11 @@ func (st *Store) DeleteEmptySeries(
 	return err
 }
 
-func (st *Store) ListAttributes(
+func (st *Store) ListFields(
 	ctx context.Context,
-) (<-chan *pb.ListAttributesResponse, <-chan error) {
-	sql := `SELECT * from attribute_vw`
-	return queryItems[pb.ListAttributesResponse](ctx, st.pool, sql)
+) (<-chan *pb.ListFieldsResponse, <-chan error) {
+	sql := `SELECT * from field_vw`
+	return queryItems[pb.ListFieldsResponse](ctx, st.pool, sql)
 }
 
 type RunResult struct {
@@ -311,11 +298,11 @@ func (st *Store) ListRuns(
 					return pb.ListRunsResponse{}, err
 				}
 			}
-			if val, ok := v["text_val"]; ok {
+			if val, ok := v["string_val"]; ok {
 				if textVal, ok2 := val.(string); ok2 {
-					attrs[k] = &pb.Attribute{Value: &pb.Attribute_TextVal{TextVal: textVal}}
+					attrs[k] = &pb.Attribute{Value: &pb.Attribute_StringVal{StringVal: textVal}}
 				} else {
-					err := fmt.Errorf("Attribute %s (text_val) was not a valid string value", row.RunHandle)
+					err := fmt.Errorf("Attribute %s (string_val) was not a valid string value", row.RunHandle)
 					return pb.ListRunsResponse{}, err
 				}
 			}

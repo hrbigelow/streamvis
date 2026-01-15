@@ -60,17 +60,17 @@ func streamRecords[R any](
 	}
 }
 
-func (s *Service) CreateAttribute(
+func (s *Service) CreateField(
 	ctx context.Context,
-	req *pb.CreateAttributeRequest,
-) (*pb.CreateAttributeResponse, error) {
-	err := s.store.CreateAttribute(
-		ctx, req.GetAttrName(), req.GetAttrType(), req.GetAttrDesc(),
+	req *pb.CreateFieldRequest,
+) (*pb.CreateFieldResponse, error) {
+	err := s.store.CreateField(
+		ctx, req.GetFieldName(), req.GetFieldType(), req.GetFieldDesc(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
 	}
-	return &pb.CreateAttributeResponse{}, nil
+	return &pb.CreateFieldResponse{}, nil
 }
 
 func (s *Service) CreateSeries(
@@ -78,7 +78,7 @@ func (s *Service) CreateSeries(
 	req *pb.CreateSeriesRequest,
 ) (*pb.CreateSeriesResponse, error) {
 	err := s.store.CreateSeries(
-		ctx, req.GetSeriesName(), req.GetStructure(),
+		ctx, req.GetSeriesName(), req.GetFieldNames(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
@@ -179,13 +179,13 @@ func (s *Service) DeleteEmptySeries(
 	return &pb.DeleteEmptySeriesResponse{}, err
 }
 
-func (s *Service) ListAttributes(
+func (s *Service) ListFields(
 	ctx context.Context,
-	req *pb.ListAttributesRequest,
-	stream *connect.ServerStream[pb.ListAttributesResponse],
+	req *pb.ListFieldsRequest,
+	stream *connect.ServerStream[pb.ListFieldsResponse],
 ) error {
-	dataCh, errCh := s.store.ListAttributes(ctx)
-	return streamRecords[pb.ListAttributesResponse](ctx, *stream, dataCh, errCh)
+	dataCh, errCh := s.store.ListFields(ctx)
+	return streamRecords[pb.ListFieldsResponse](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) ListRuns(

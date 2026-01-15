@@ -37,31 +37,31 @@ def demo_async_fn(
     num_steps = int(num_steps)
     asyncio.run(log_data_async(GRPC_URI, num_steps))
 
-def create_attr(
-    attr_name: str,
-    attr_type: str,
-    attr_desc: str
+def create_field(
+    field_name: str,
+    field_type: str,
+    field_desc: str
 ):
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
-    req = pb.CreateAttributeRequest(
-        attr_name=attr_name,
-        attr_type=attr_type,
-        attr_desc=attr_desc
+    req = pb.CreateFieldRequest(
+        field_name=field_name,
+        field_type=field_type,
+        field_desc=field_desc
     )
-    resp = stub.CreateAttribute(req)
+    resp = stub.CreateField(req)
 
 def create_series(
     series_name: str,
-    series_structure: dict
+    *field_names: list[str]
 ):
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
     req = pb.CreateSeriesRequest(
         series_name=series_name,
-        structure=series_structure
+        field_names=field_names
     )
     resp = stub.CreateSeries(req)
 
@@ -77,7 +77,7 @@ def main():
     init_grpc_uri()
 
     tasks = { 
-             "create-attr": create_attr,
+             "create-field": create_field,
              "create-series": create_series,
              "list-series": list_series,
              # "web-serve": serve,
