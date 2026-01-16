@@ -9,9 +9,9 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 message CreateFieldRequest {
-  string field_name = 1;
-  string field_type = 2;
-  string field_desc = 3;
+  string name = 1;
+  string data_type = 2;
+  string description = 3;
 }
 
 message CreateFieldResponse {
@@ -82,18 +82,28 @@ message DeleteRunResponse {
   bool success = 1;
 }
 
-message Attribute {
+enum FieldDataType {
+  FIELD_DATA_TYPE_UNSPECIFIED = 0;
+  FIELD_DATA_TYPE_INT = 1;
+  FIELD_DATA_TYPE_FLOAT = 2;
+  FIELD_DATA_TYPE_STRING = 3;
+  FIELD_DATA_TYPE_BOOL = 4;
+}
+
+message FieldValue {
+  string handle = 1;
+  FieldDataType data_type = 2;
   oneof value {
-    int32 int_val = 1;
-    float float_val = 2;
-    string string_val = 3;
-    bool bool_val = 4;
+    int32 int_val = 3;
+    float float_val = 4;
+    string string_val = 5;
+    bool bool_val = 6;
   }
 }
 
 message SetRunAttributesRequest {
   string run_handle = 1;
-  map<string, Attribute> attrs = 2;
+  repeated FieldValue attrs = 2;
 }
 
 message SetRunAttributesResponse {
@@ -107,10 +117,10 @@ message DeleteEmptySeriesResponse {
 }
 
 message Field {
-  string field_handle = 1;
-  string field_name = 2;
-  string field_type = 3;
-  string field_desc = 4;
+  string handle = 1;
+  string name = 2;
+  FieldDataType data_type = 3;
+  string description = 4;
 }
 
 message ListSeriesRequest {}
@@ -123,19 +133,13 @@ message ListSeriesResponse {
 
 message ListFieldsRequest {}
 
-message ListFieldsResponse {
-  string field_handle = 1;
-  string field_name = 2;
-  string field_type = 3;
-  string field_desc = 4;
-}
-
 message ListRunsRequest {}
 
 message ListRunsResponse {
   string run_handle = 1;
-  map<string, Attribute> run_attrs = 2;
+  repeated string tags = 2;
   google.protobuf.Timestamp started_at = 3;
+  repeated FieldValue attrs = 4;
 }
 
 
@@ -192,7 +196,7 @@ service Service {
   rpc SetRunAttributes (SetRunAttributesRequest) returns (SetRunAttributesResponse);
   rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
   rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
-  rpc ListFields (ListFieldsRequest) returns (stream ListFieldsResponse);
+  rpc ListFields (ListFieldsRequest) returns (stream Field);
   rpc ListRuns (ListRunsRequest) returns (stream ListRunsResponse);
   // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
 }

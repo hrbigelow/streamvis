@@ -2,9 +2,9 @@
  * set of coordinates.
  */
 CREATE TABLE series (
-  series_id SERIAL PRIMARY KEY,
-  series_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  series_name TEXT NOT NULL UNIQUE
+  id SERIAL PRIMARY KEY,
+  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  name TEXT NOT NULL UNIQUE
 );
 
 /*
@@ -12,11 +12,11 @@ Holds the notion of a "field" which will provide basic type enforcement
 (int, float, string, bool) for the associated value.
 */
 CREATE TABLE field (
-  field_id SERIAL PRIMARY KEY,
-  field_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  field_name TEXT NOT NULL UNIQUE,
-  field_type field_typ NOT NULL,
-  field_desc TEXT 
+  id SERIAL PRIMARY KEY,
+  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  name TEXT NOT NULL UNIQUE,
+  data_type field_data_typ NOT NULL,
+  description TEXT 
 );
 
 /*
@@ -26,9 +26,9 @@ all data associated with a given run, for example if the run parameters or code
 are deemed faulty.
 */
 CREATE TABLE run (
-  run_id SERIAL PRIMARY KEY,
-  run_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  run_tags TEXT[] NOT NULL DEFAULT '{}'::TEXT[], 
+  id SERIAL PRIMARY KEY,
+  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  tags TEXT[] NOT NULL DEFAULT '{}'::TEXT[], 
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -36,10 +36,10 @@ CREATE TABLE run (
  * series
 */
 CREATE TABLE coord (
-  coord_id SERIAL PRIMARY KEY,
-  coord_handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  series_id INT NOT NULL REFERENCES series(series_id) ON DELETE CASCADE,
-  field_id INT NOT NULL REFERENCES field(field_id) ON DELETE CASCADE,
+  id SERIAL PRIMARY KEY,
+  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
   UNIQUE (series_id, field_id)
 );
 
@@ -47,9 +47,9 @@ CREATE TABLE coord (
 Holds attribute values associated with runs
 */
 CREATE TABLE run_attr (
-  run_id INT NOT NULL REFERENCES run(run_id) ON DELETE CASCADE,
-  field_id INT NOT NULL REFERENCES field(field_id) ON DELETE CASCADE,
-  attr_value attr_typ NOT NULL, 
+  run_id INT NOT NULL REFERENCES run(id) ON DELETE CASCADE,
+  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
+  attr_value field_value_typ NOT NULL, 
   UNIQUE (run_id, field_id)
 );
 
@@ -59,17 +59,17 @@ application, it represents the data that has accumulated since the last buffer f
 I use BIGSERIAL for chunk_id here since 
 */
 CREATE TABLE chunk (
-  chunk_id BIGSERIAL PRIMARY KEY,
-  series_id INT NOT NULL REFERENCES series(series_id) ON DELETE CASCADE,
-  run_id INT NOT NULL REFERENCES run(run_id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+  run_id INT NOT NULL REFERENCES run(id) ON DELETE CASCADE,
   num_points INT NOT NULL
 );
 
 /* Holds one chunk of data for a given coordinate
  */
 CREATE TABLE coord_data (
-  coord_id INT NOT NULL REFERENCES coord(coord_id) ON DELETE CASCADE,
-  chunk_id BIGINT NOT NULL REFERENCES chunk(chunk_id) ON DELETE CASCADE,
+  coord_id INT NOT NULL REFERENCES coord(id) ON DELETE CASCADE,
+  chunk_id BIGINT NOT NULL REFERENCES chunk(id) ON DELETE CASCADE,
   enc_vals enc_typ NOT NULL,
   PRIMARY KEY (coord_id, chunk_id),
   CONSTRAINT valid_data CHECK (valid_enc_typ(enc_vals)) 

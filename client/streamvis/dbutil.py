@@ -74,3 +74,5 @@ def decode_array(data: Float32Data | Int32Data) -> np.array:
     print(tuple(r.shape for r in terms))
     return np.add.reduce(terms).astype(base.dtype)
 
+
+def 

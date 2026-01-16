@@ -65,7 +65,7 @@ func (s *Service) CreateField(
 	req *pb.CreateFieldRequest,
 ) (*pb.CreateFieldResponse, error) {
 	err := s.store.CreateField(
-		ctx, req.GetFieldName(), req.GetFieldType(), req.GetFieldDesc(),
+		ctx, req.GetName(), req.GetDataType(), req.GetDescription(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
@@ -182,10 +182,10 @@ func (s *Service) DeleteEmptySeries(
 func (s *Service) ListFields(
 	ctx context.Context,
 	req *pb.ListFieldsRequest,
-	stream *connect.ServerStream[pb.ListFieldsResponse],
+	stream *connect.ServerStream[pb.Field],
 ) error {
 	dataCh, errCh := s.store.ListFields(ctx)
-	return streamRecords[pb.ListFieldsResponse](ctx, *stream, dataCh, errCh)
+	return streamRecords[pb.Field](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) ListRuns(

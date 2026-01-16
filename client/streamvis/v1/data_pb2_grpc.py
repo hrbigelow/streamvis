@@ -82,7 +82,7 @@ class ServiceStub(object):
         self.ListFields = channel.unary_stream(
                 '/streamvis.v1.Service/ListFields',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListFieldsRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListFieldsResponse.FromString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.Field.FromString,
                 _registered_method=True)
         self.ListRuns = channel.unary_stream(
                 '/streamvis.v1.Service/ListRuns',
@@ -212,7 +212,7 @@ def add_ServiceServicer_to_server(servicer, server):
             'ListFields': grpc.unary_stream_rpc_method_handler(
                     servicer.ListFields,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListFieldsRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListFieldsResponse.SerializeToString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.Field.SerializeToString,
             ),
             'ListRuns': grpc.unary_stream_rpc_method_handler(
                     servicer.ListRuns,
@@ -489,7 +489,7 @@ class Service(object):
             target,
             '/streamvis.v1.Service/ListFields',
             streamvis_dot_v1_dot_data__pb2.ListFieldsRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.ListFieldsResponse.FromString,
+            streamvis_dot_v1_dot_data__pb2.Field.FromString,
             options,
             channel_credentials,
             insecure,

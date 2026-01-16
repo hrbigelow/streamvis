@@ -19,15 +19,15 @@ Make an attribute descriptor.  Defines a named type which can be used to describ
 a run attribute stored in run_attrs.
 */
 CREATE OR REPLACE PROCEDURE create_field(
-  IN p_field_name TEXT,
-  IN p_field_type field_typ,
-  IN p_field_desc TEXT
+  IN p_name TEXT,
+  IN p_data_type field_data_typ,
+  IN p_description TEXT
 )
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  INSERT INTO field (field_name, field_type, field_desc)
-  VALUES (p_field_name, p_field_type, p_field_desc);
+  INSERT INTO field (name, data_type, description)
+  VALUES (p_name, p_data_type, p_description);
 END;
 $$;
 
@@ -48,15 +48,15 @@ BEGIN
     RAISE EXCEPTION 'p_series_name must be a non-empty string';
   END IF;
 
-  INSERT INTO series (series_name)
+  INSERT INTO series (name)
   VALUES (p_series_name)
-  RETURNING series_id INTO v_series_id;
+  RETURNING id INTO v_series_id;
 
   INSERT INTO coord (series_id, field_id)
-  SELECT v_series_id, f.field_id 
+  SELECT v_series_id, f.id 
   FROM field f 
   INNER JOIN unnest(p_field_names) AS n(field_name)
-  ON f.field_name = n.field_name;
+  ON f.name = n.field_name;
 
   -- TODO: check number inserted
 END;
@@ -200,7 +200,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   INSERT INTO run DEFAULT VALUES
-  RETURNING run_handle into p_run_handle;
+  RETURNING handle INTO p_run_handle;
 END;
 $$;
 
@@ -211,9 +211,9 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   DELETE FROM run
-  WHERE run_handle = p_run_handle;
+  WHERE handle = p_run_handle;
 
-  INSERT INTO run (run_handle)
+  INSERT INTO run (handle)
   VALUES (p_run_handle);
 END;
 $$;
@@ -230,7 +230,7 @@ DECLARE
 BEGIN
   SELECT run_id INTO v_run_id
   FROM run
-  WHERE run_handle = p_run_handle;
+  WHERE handle = p_run_handle;
 
   IF NOT FOUND THEN
     success := FALSE;
@@ -238,72 +238,54 @@ BEGIN
   END IF;
 
   DELETE FROM run
-  WHERE run_id = v_run_id;
+  WHERE id = v_run_id;
 
   success := TRUE;
 
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION valid_attr_value(
-  type_name TEXT,
-  val JSONB
-)
-RETURNS BOOLEAN
-IMMUTABLE
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  CASE type_name
-    WHEN 'int' THEN
-      RETURN jsonb_typeof(val) = 'number' AND (val::numeric % 1 = 0);
-    WHEN 'float' THEN
-      RETURN jsonb_typeof(val) = 'number';
-    WHEN 'string' THEN
-      RETURN jsonb_typeof(val) = 'string';
-    WHEN 'bool' THEN
-      RETURN jsonb_typeof(val) = 'boolean';
-    ELSE
-      RAISE EXCEPTION 'Unknown type name: %. Valid types are int, float, string, bool.', type_name; 
-  END CASE;
-END;
-$$;
 
 
 CREATE OR REPLACE PROCEDURE set_run_attributes(
   IN p_run_handle UUID,
-  IN p_attributes JSONB -- { attr_name: attr_value }
+  IN p_attributes field_value_typ[]
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_num_attrs INT;
-  v_num_valid_attrs INT;
+  v_all_valid BOOLEAN;
+  v_run_id INT;
 BEGIN
-  SELECT count(*) INTO v_num_attrs
-  FROM jsonb_object_keys(p_attributes);
+  SELECT run_id INTO v_run_id
+  FROM run
+  WHERE run_handle = p_run_handle;
 
-  SELECT count(*) INTO v_num_valid_attrs
-  FROM attr a, jsonb_each(p_attributes) AS v(attr_name, attr_value)
-  WHERE a.attr_name = v.attr_name
-  AND valid_attr_value(a.attr_type, v.attr_value);
-
-  IF v_num_attrs != v_num_valid_attrs THEN
-    RAISE EXCEPTION 'Received % attributes but only % were valid', v_num_attrs, v_num_valid_attrs;
+  IF v_run_id IS NULL THEN
+    RAISE EXCEPTION 'p_run_handle % did not identify an existing run', p_run_handle;
   END IF;
 
-  INSERT INTO run_attr (run_id, attr_id, attr_value)
-  SELECT r.run_id, a.attr_id, v.attr_value
-  FROM run r, attr a, jsonb_each(p_attributes) AS v(attr_name, attr_value)
-  WHERE a.attr_name = v.attr_name
-  AND r.run_handle = p_run_handle
-  ON CONFLICT (run_id, attr_id)
-  DO UPDATE SET 
-    attr_value = EXCLUDED.attr_value; 
+  WITH valid_attrs AS (
+    SELECT valid_attr_value(val) AND
+    EXISTS (
+      SELECT 1 FROM field f WHERE (val).field_handle = f.field_handle
+    ) is_valid
+    FROM unnest(p_attributes) AS val
+  )
+  SELECT bool_and(is_valid) INTO v_all_valid
+  FROM valid_attrs;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Run with handle %s not found', p_run_handle;
+  IF NOT v_all_valid THEN
+    RAISE EXCEPTION 'Not all attributes were valid';
   END IF;
+
+  INSERT INTO run_attr (run_id, field_id, attr_value)
+  SELECT v_run_id, f.field_id, val 
+  FROM unnest(p_attributes) AS val
+  INNER JOIN field f ON (val).field_handle = f.field_handle
+  ON CONFLICT (run_id, field_id)
+  DO UPDATE SET
+    attr_value = EXCLUDED.attr_value;
 
 END;
 $$;

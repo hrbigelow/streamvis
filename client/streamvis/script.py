@@ -3,6 +3,7 @@ import fire
 import grpc
 from streamvis.v1 import data_pb2 as pb
 from streamvis.v1 import data_pb2_grpc as pb_grpc
+from google.protobuf import text_format
 
 from .demo import log_data, log_data_async
 
@@ -38,18 +39,14 @@ def demo_async_fn(
     asyncio.run(log_data_async(GRPC_URI, num_steps))
 
 def create_field(
-    field_name: str,
-    field_type: str,
-    field_desc: str
+    name: str,
+    data_type: str,
+    description: str
 ):
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
-    req = pb.CreateFieldRequest(
-        field_name=field_name,
-        field_type=field_type,
-        field_desc=field_desc
-    )
+    req = pb.CreateFieldRequest(name=name, data_type=data_type, description=description)
     resp = stub.CreateField(req)
 
 def create_series(
@@ -65,13 +62,61 @@ def create_series(
     )
     resp = stub.CreateSeries(req)
 
+def create_run():
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.CreateRunRequest()
+    resp = stub.CreateRun(req)
+    print(text_format.MessageToString(resp))
+
+
+def set_run_attributes(run_handle, /, **attrs):
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.ListFieldsRequest()
+    fields = stub.ListFields(req)
+    fields_map = { f.name: f for f in fields }
+    
+    req = pb.SetRunAttributesRequest(run_handle=run_handle)
+    for field_name, value in attrs.items():
+        field = fields_map.get(field_name)
+        if field is None:
+            raise RuntimeError(f"No field named {field_name}")
+
+        fval = pb.FieldValue(handle=field.handle, data_type=field.data_type)
+        match fval.data_type:
+            case pb.FieldDataType_FIELD_DATA_TYPE_INT:
+                pass
+
+
+
+
+
 def list_series():
+    global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListSeriesRequest()
     for msg in stub.ListSeries(req):
-        print(msg)
+        print(text_format.MessageToString(msg))
 
+def list_runs():
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.ListRunsRequest()
+    for msg in stub.ListRuns(req):
+        print(text_format.MessageToString(msg))
+
+def list_fields():
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.ListFieldsRequest()
+    for msg in stub.ListFields(req):
+        print(text_format.MessageToString(msg))
 
 def main():
     init_grpc_uri()
@@ -79,7 +124,11 @@ def main():
     tasks = { 
              "create-field": create_field,
              "create-series": create_series,
+             "create-run": create_run,
+             "set-run-attributes": set_run_attributes,
              "list-series": list_series,
+             "list-runs": list_runs,
+             "list-fields": list_fields,
              # "web-serve": serve,
              "logging-demo": demo_sync_fn, 
              "logging-demo-async": demo_async_fn,

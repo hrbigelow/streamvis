@@ -29,59 +29,27 @@ $$ LANGUAGE plpgsql STABLE;
 
 CREATE VIEW series_vw AS
 SELECT
-  jsonb_build_object(
-    'series_name', s.series_name, 
-    'series_handle', s.series_handle, 
-    'fields', 
-    jsonb_agg(
-      jsonb_build_object(
-        'field_name', f.field_name, 
-        'field_handle', f.field_handle, 
-        'field_type', f.field_type,
-        'field_desc', f.field_desc
-      )
-    )
-  ) json_data
+  s.name,
+  s.handle,
+  array_agg(ROW(f.handle, f.name, f.data_type, f.description)::field_typ) fields
 FROM series s
-INNER JOIN coord c ON c.series_id = s.series_id
-INNER JOIN field f ON f.field_id = c.field_id
-GROUP BY series_name, series_handle;
+INNER JOIN coord c ON c.series_id = s.id
+INNER JOIN field f ON f.id = c.field_id
+GROUP BY s.name, s.handle;
 
 CREATE VIEW field_vw AS
-SELECT
-    field_handle, field_name, field_type, field_desc
+SELECT handle, name, data_type, description
 FROM field;
 
-
-/*
-CREATE OR REPLACE VIEW run_vw AS
-WITH base AS (
-  SELECT r.run_handle, r.started_at, att.attr_handle::UUID, att.attr_value
-  FROM run r
-  CROSS JOIN LATERAL jsonb_each(r.run_attrs) AS att(attr_handle, attr_value)
-),
-ra AS (
-  SELECT base.*, a.attr_type
-  FROM base, attr a
-  WHERE base.attr_handle = a.attr_handle
-),
-res AS (
-  SELECT ra.run_handle, ra.attr_handle, ra.started_at, 
-  CASE ra.attr_type
-    WHEN 'int' THEN jsonb_build_object('int_val', ra.attr_value)
-    WHEN 'float' THEN jsonb_build_object('float_val', ra.attr_value)
-    WHEN 'string' THEN jsonb_build_object('string_val', ra.attr_value)
-    WHEN 'bool' THEN jsonb_build_object('bool_val', ra.attr_value)
-  END wrapped_val
-  FROM ra
-)
-SELECT 
-run_handle, 
-COALESCE(jsonb_object_agg(attr_handle, wrapped_val), '{}'::jsonb) run_attrs,
-started_at
-FROM res
-GROUP BY run_handle, started_at;
-*/
+CREATE VIEW run_vw AS
+SELECT
+  r.handle,
+  r.tags,
+  r.started_at,
+  array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS NOT NULL) attrs
+FROM run r
+LEFT JOIN run_attr ra ON ra.run_id = r.id
+GROUP BY r.handle, r.tags, r.started_at;
 
 
 CREATE OR REPLACE FUNCTION filtered_by_attribute(

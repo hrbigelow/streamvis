@@ -10,8 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Store struct {
@@ -41,10 +39,13 @@ func registerCustomTypes(
 	conn *pgx.Conn,
 ) error {
 	types := []string{
+		"field_data_typ",
 		"field_typ",
+		"field_typ[]",
 		"enc_typ",
 		"enc_typ[]",
-		"attr_typ",
+		"field_value_typ",
+		"field_value_typ[]",
 		"attribute_filter_typ",
 		"attribute_filter_typ[]",
 		"tag_filter_typ",
@@ -58,26 +59,6 @@ func registerCustomTypes(
 	}
 	return nil
 
-}
-
-func unwrapAttributesMap(attrs map[string]*pb.Attribute) map[string]any {
-	result := make(map[string]any, len(attrs))
-	for key, attr := range attrs {
-		if attr == nil {
-			continue
-		}
-		switch v := attr.Value.(type) {
-		case *pb.Attribute_IntVal:
-			result[key] = v.IntVal
-		case *pb.Attribute_FloatVal:
-			result[key] = v.FloatVal
-		case *pb.Attribute_StringVal:
-			result[key] = v.StringVal
-		case *pb.Attribute_BoolVal:
-			result[key] = v.BoolVal
-		}
-	}
-	return result
 }
 
 func (st *Store) CreateField(
@@ -132,10 +113,7 @@ func (st *Store) CreateRun(
 	sql := `CALL create_run($1)`
 	var runHandle uuid.UUID
 	err := st.pool.QueryRow(ctx, sql, nil).Scan(&runHandle)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("error calling delete_run: %w\n", err)
-	}
-	return runHandle, nil
+	return runHandle, err
 }
 
 func (st *Store) ReplaceRun(
@@ -167,11 +145,18 @@ func (st *Store) DeleteRun(
 func (st *Store) SetRunAttributes(
 	ctx context.Context,
 	handle uuid.UUID,
-	attrs map[string]*pb.Attribute,
+	attrs []*pb.FieldValue,
 ) error {
 	sql := `CALL set_run_attributes($1, $2)`
-	unwrapped := unwrapAttributesMap(attrs)
-	_, err := st.pool.Exec(ctx, sql, handle, unwrapped)
+	unwrapped := make([]*FieldValueTyp, len(attrs))
+	var err error
+	for i, attr := range attrs {
+		unwrapped[i], err = NewFieldValueTyp(attr)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = st.pool.Exec(ctx, sql, handle, unwrapped)
 	return err
 }
 
@@ -245,11 +230,7 @@ func (st *Store) ListSeries(
 	ctx context.Context,
 ) (<-chan *pb.ListSeriesResponse, <-chan error) {
 	sql := `SELECT * from series_vw`
-	convert := func(row RawJsonRow) (pb.ListSeriesResponse, error) {
-		msg := pb.ListSeriesResponse{}
-		err := protojson.Unmarshal(row.JSONData, &msg)
-		return msg, err
-	}
+	convert := MakeToProtobufFunc[SeriesResponse, pb.ListSeriesResponse]()
 	return queryItemsConvert(ctx, st.pool, sql, convert)
 }
 
@@ -264,62 +245,19 @@ func (st *Store) DeleteEmptySeries(
 
 func (st *Store) ListFields(
 	ctx context.Context,
-) (<-chan *pb.ListFieldsResponse, <-chan error) {
+) (<-chan *pb.Field, <-chan error) {
 	sql := `SELECT * from field_vw`
-	return queryItems[pb.ListFieldsResponse](ctx, st.pool, sql)
-}
-
-type RunResult struct {
-	RunHandle string                    `db:"run_handle"`
-	RunAttrs  map[string]map[string]any `db:"run_attrs"`
-	StartedAt time.Time                 `db:"started_at"`
+	convert := MakeToProtobufFunc[FieldTyp, pb.Field]()
+	return queryItemsConvert(ctx, st.pool, sql, convert)
 }
 
 func (st *Store) ListRuns(
 	ctx context.Context,
 ) (<-chan *pb.ListRunsResponse, <-chan error) {
 	sql := `SELECT * from run_vw`
-	convert := func(row RunResult) (pb.ListRunsResponse, error) {
-		attrs := make(map[string]*pb.Attribute, len(row.RunAttrs))
-		for k, v := range row.RunAttrs {
-			if val, ok := v["int_val"]; ok {
-				if intVal, ok2 := val.(float64); ok2 {
-					attrs[k] = &pb.Attribute{Value: &pb.Attribute_IntVal{IntVal: int32(intVal)}}
-				} else {
-					err := fmt.Errorf("Attribute %s (int_val) was not a valid int32 value", row.RunHandle)
-					return pb.ListRunsResponse{}, err
-				}
-			}
-			if val, ok := v["float_val"]; ok {
-				if floatVal, ok2 := val.(float64); ok2 {
-					attrs[k] = &pb.Attribute{Value: &pb.Attribute_FloatVal{FloatVal: float32(floatVal)}}
-				} else {
-					err := fmt.Errorf("Attribute %s (float_val) was not a valid float32 value", row.RunHandle)
-					return pb.ListRunsResponse{}, err
-				}
-			}
-			if val, ok := v["string_val"]; ok {
-				if textVal, ok2 := val.(string); ok2 {
-					attrs[k] = &pb.Attribute{Value: &pb.Attribute_StringVal{StringVal: textVal}}
-				} else {
-					err := fmt.Errorf("Attribute %s (string_val) was not a valid string value", row.RunHandle)
-					return pb.ListRunsResponse{}, err
-				}
-			}
-			if val, ok := v["bool_val"]; ok {
-				if boolVal, ok2 := val.(bool); ok2 {
-					attrs[k] = &pb.Attribute{Value: &pb.Attribute_BoolVal{BoolVal: boolVal}}
-				} else {
-					err := fmt.Errorf("Attribute %s (bool_val) was not a valid bool value", row.RunHandle)
-					return pb.ListRunsResponse{}, err
-				}
-			}
-		}
-		return pb.ListRunsResponse{
-			RunHandle: row.RunHandle,
-			RunAttrs:  attrs,
-			StartedAt: timestamppb.New(row.StartedAt),
-		}, nil
+	convert := func(row RunsResponse) (pb.ListRunsResponse, error) {
+		msg, err := row.toProtobuf()
+		return msg, err
 	}
 	return queryItemsConvert(ctx, st.pool, sql, convert)
 }

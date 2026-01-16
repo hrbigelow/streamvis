@@ -16,10 +16,17 @@ Here, orig means the original tensor which is encoded by this scheme.
 
 For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 */
-CREATE TYPE field_typ AS ENUM ('int', 'float', 'string', 'bool');
+CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'string', 'bool');
+
+CREATE TYPE field_typ AS (
+  handle UUID,
+  name TEXT,
+  data_type field_data_typ,
+  description TEXT
+);
 
 CREATE TYPE enc_typ AS (
-  field_type field_typ,
+  data_type field_data_typ,
   base BYTEA,
   shape INT[],
   int_spans INT[],
@@ -29,8 +36,9 @@ CREATE TYPE enc_typ AS (
 );
 
 -- type used to store an attribute in the run_attr table
-CREATE TYPE attr_typ AS (
-  field_type field_typ,
+CREATE TYPE field_value_typ AS (
+  handle UUID,
+  data_type field_data_typ,
   int_val INT,
   float_val FLOAT,
   bool_val BOOLEAN,
@@ -41,7 +49,7 @@ CREATE TYPE attr_typ AS (
 CREATE TYPE attribute_filter_typ AS (
   attr_handle UUID,
   include_missing BOOLEAN,
-  field_type field_typ,
+  data_type field_data_typ,
   int_min INT,
   int_max INT,
   int_vals INT[],
@@ -57,13 +65,14 @@ CREATE TYPE tag_filter_typ AS (
 );
 
 
+
 CREATE FUNCTION valid_enc_typ(item enc_typ) 
 RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE sql 
 AS $$
 SELECT
-  CASE (item).field_type
+  CASE (item).data_type
     WHEN 'int' THEN
       (
         (item).int_spans IS NOT NULL AND
@@ -101,3 +110,41 @@ SELECT
   END CASE;
 $$;
 
+
+CREATE OR REPLACE FUNCTION valid_attr_value(
+  val field_value_typ
+)
+RETURNS BOOLEAN
+IMMUTABLE
+LANGUAGE sql
+AS $$
+SELECT 
+CASE (val).data_type
+  WHEN 'int' THEN
+    ((val).int_val IS NOT NULL AND
+      (val).float_val IS NULL AND
+      (val).bool_val IS NULL AND
+      (val).string_val IS NULL
+    )
+  WHEN 'float' THEN
+    ((val).int_val IS NULL AND
+      (val).float_val IS NOT NULL AND
+      (val).bool_val IS NULL AND
+      (val).string_val IS NULL
+    )
+  WHEN 'bool' THEN
+    ((val).int_val IS NULL AND
+      (val).float_val IS NULL AND
+      (val).bool_val IS NOT NULL AND
+      (val).string_val IS NULL
+    )
+  WHEN 'string' THEN
+    ((val).int_val IS NULL AND
+      (val).float_val IS NULL AND
+      (val).bool_val IS NULL AND
+      (val).string_val IS NOT NULL
+    )
+  ELSE
+    FALSE
+END CASE;
+$$;
