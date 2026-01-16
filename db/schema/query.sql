@@ -1,3 +1,4 @@
+\set QUIET 1
 /*
 -- definitions of views and table functions
 CREATE FUNCTION get_data(
@@ -27,6 +28,7 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 */
 
+\echo 'create series_vw'
 CREATE VIEW series_vw AS
 SELECT
   s.name,
@@ -37,21 +39,24 @@ INNER JOIN coord c ON c.series_id = s.id
 INNER JOIN field f ON f.id = c.field_id
 GROUP BY s.name, s.handle;
 
+\echo 'create field_vw'
 CREATE VIEW field_vw AS
 SELECT handle, name, data_type, description
 FROM field;
 
+\echo 'create run_vw'
 CREATE VIEW run_vw AS
 SELECT
   r.handle,
   r.tags,
   r.started_at,
-  array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS NOT NULL) attrs
+  array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs
 FROM run r
 LEFT JOIN run_attr ra ON ra.run_id = r.id
 GROUP BY r.handle, r.tags, r.started_at;
 
 
+\echo 'create filtered_by_attribute'
 CREATE OR REPLACE FUNCTION filtered_by_attribute(
   p_attr_type TEXT,
   p_attr_value JSONB,
@@ -113,6 +118,7 @@ END;
 $$;
 
 
+\echo 'create filtered_by_tags'
 CREATE OR REPLACE FUNCTION filtered_by_tags(
   p_run_tags TEXT[],
   p_tag_filter tag_filter_typ
@@ -134,6 +140,7 @@ END;
 $$;
 
 
+\echo 'create list_runs'
 CREATE OR REPLACE FUNCTION list_runs(
   IN p_attribute_filters JSONB,
   IN p_tag_filter JSONB,
@@ -219,3 +226,4 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 */
 
+\set QUIET 0

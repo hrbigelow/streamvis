@@ -140,11 +140,11 @@ func (s *Service) DeleteRun(
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
 	}
-	success, err := s.store.DeleteRun(ctx, handle)
+	err = s.store.DeleteRun(ctx, handle)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
-	return &pb.DeleteRunResponse{Success: success}, nil
+	return &pb.DeleteRunResponse{}, nil
 }
 
 func (s *Service) SetRunAttributes(

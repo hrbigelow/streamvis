@@ -101,34 +101,69 @@ func NewAttributeFilterValue(pb *pb.AttributeFilter) (*AttributeFilterValue, err
 }
 
 type FieldValueTyp struct {
-	Handle    uuid.UUID `db:"handle"`
-	DataType  string    `db:"data_type"`
-	IntVal    int32     `db:"int_val"`
-	FloatVal  float32   `db:"float_val"`
-	BoolVal   bool      `db:"bool_val"`
-	StringVal string    `db:"string_val"`
+	Handle    uuid.UUID `db:"field_handle"`
+	IntVal    *int32    `db:"int_val"`
+	FloatVal  *float32  `db:"float_val"`
+	BoolVal   *bool     `db:"bool_val"`
+	StringVal *string   `db:"string_val"`
 }
 
 func (fv FieldValueTyp) toProtobuf() (pb.FieldValue, error) {
-	dataType, err := dataTypeToProtobuf(fv.DataType)
-	if err != nil {
-		return pb.FieldValue{}, err
-	}
 	msg := pb.FieldValue{
-		Handle:   fv.Handle.String(),
-		DataType: dataType,
+		Handle: fv.Handle.String(),
 	}
-	switch dataType {
-	case pb.FieldDataType_FIELD_DATA_TYPE_INT:
-		msg.Value = &pb.FieldValue_IntVal{IntVal: fv.IntVal}
-	case pb.FieldDataType_FIELD_DATA_TYPE_FLOAT:
-		msg.Value = &pb.FieldValue_FloatVal{FloatVal: fv.FloatVal}
-	case pb.FieldDataType_FIELD_DATA_TYPE_STRING:
-		msg.Value = &pb.FieldValue_StringVal{StringVal: fv.StringVal}
-	case pb.FieldDataType_FIELD_DATA_TYPE_BOOL:
-		msg.Value = &pb.FieldValue_BoolVal{BoolVal: fv.BoolVal}
+	valuesSet := 0
+	if fv.IntVal != nil {
+		valuesSet++
+	}
+	if fv.FloatVal != nil {
+		valuesSet++
+	}
+	if fv.BoolVal != nil {
+		valuesSet++
+	}
+	if fv.StringVal != nil {
+		valuesSet++
+	}
+
+	if valuesSet != 1 {
+		return msg, fmt.Errorf("Exactly one value must be set.  Got %d", valuesSet)
+	}
+
+	if fv.IntVal != nil {
+		msg.Value = &pb.FieldValue_IntVal{IntVal: *fv.IntVal}
+	}
+	if fv.FloatVal != nil {
+		msg.Value = &pb.FieldValue_FloatVal{FloatVal: *fv.FloatVal}
+	}
+	if fv.BoolVal != nil {
+		msg.Value = &pb.FieldValue_BoolVal{BoolVal: *fv.BoolVal}
+	}
+	if fv.StringVal != nil {
+		msg.Value = &pb.FieldValue_StringVal{StringVal: *fv.StringVal}
 	}
 	return msg, nil
+}
+
+func NewFieldValueTyp(msg *pb.FieldValue) (FieldValueTyp, error) {
+	handle, err := uuid.Parse(msg.GetHandle())
+	if err != nil {
+		return FieldValueTyp{}, err
+	}
+	ret := FieldValueTyp{
+		Handle: handle,
+	}
+	switch v := msg.Value.(type) {
+	case *pb.FieldValue_IntVal:
+		ret.IntVal = &v.IntVal
+	case *pb.FieldValue_FloatVal:
+		ret.FloatVal = &v.FloatVal
+	case *pb.FieldValue_BoolVal:
+		ret.BoolVal = &v.BoolVal
+	case *pb.FieldValue_StringVal:
+		ret.StringVal = &v.StringVal
+	}
+	return ret, nil
 }
 
 func dataTypeToProtobuf(data_type string) (pb.FieldDataType, error) {
@@ -147,32 +182,6 @@ func dataTypeToProtobuf(data_type string) (pb.FieldDataType, error) {
 			"received data type %s.  Must be one of (int, float, string, bool)", data_type)
 		return dt, err
 	}
-}
-
-func NewFieldValueTyp(msg *pb.FieldValue) (*FieldValueTyp, error) {
-	handle, err := uuid.Parse(msg.GetHandle())
-	if err != nil {
-		return nil, err
-	}
-	ret := &FieldValueTyp{
-		Handle: handle,
-	}
-
-	switch msg.GetDataType() {
-	case pb.FieldDataType_FIELD_DATA_TYPE_INT:
-		ret.IntVal = msg.GetIntVal()
-		ret.DataType = "int"
-	case pb.FieldDataType_FIELD_DATA_TYPE_FLOAT:
-		ret.FloatVal = msg.GetFloatVal()
-		ret.DataType = "float"
-	case pb.FieldDataType_FIELD_DATA_TYPE_STRING:
-		ret.StringVal = msg.GetStringVal()
-		ret.DataType = "string"
-	case pb.FieldDataType_FIELD_DATA_TYPE_BOOL:
-		ret.BoolVal = msg.GetBoolVal()
-		ret.DataType = "bool"
-	}
-	return ret, nil
 }
 
 type FieldTyp struct {

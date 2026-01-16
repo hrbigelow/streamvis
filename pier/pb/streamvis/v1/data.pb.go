@@ -853,7 +853,6 @@ func (x *DeleteRunRequest) GetRunHandle() string {
 
 type DeleteRunResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -888,17 +887,9 @@ func (*DeleteRunResponse) Descriptor() ([]byte, []int) {
 	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *DeleteRunResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
 type FieldValue struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Handle   string                 `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
-	DataType FieldDataType          `protobuf:"varint,2,opt,name=data_type,json=dataType,proto3,enum=streamvis.v1.FieldDataType" json:"data_type,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Handle string                 `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
 	// Types that are valid to be assigned to Value:
 	//
 	//	*FieldValue_IntVal
@@ -945,13 +936,6 @@ func (x *FieldValue) GetHandle() string {
 		return x.Handle
 	}
 	return ""
-}
-
-func (x *FieldValue) GetDataType() FieldDataType {
-	if x != nil {
-		return x.DataType
-	}
-	return FieldDataType_FIELD_DATA_TYPE_UNSPECIFIED
 }
 
 func (x *FieldValue) GetValue() isFieldValue_Value {
@@ -1002,19 +986,19 @@ type isFieldValue_Value interface {
 }
 
 type FieldValue_IntVal struct {
-	IntVal int32 `protobuf:"varint,3,opt,name=int_val,json=intVal,proto3,oneof"`
+	IntVal int32 `protobuf:"varint,2,opt,name=int_val,json=intVal,proto3,oneof"`
 }
 
 type FieldValue_FloatVal struct {
-	FloatVal float32 `protobuf:"fixed32,4,opt,name=float_val,json=floatVal,proto3,oneof"`
+	FloatVal float32 `protobuf:"fixed32,3,opt,name=float_val,json=floatVal,proto3,oneof"`
 }
 
 type FieldValue_StringVal struct {
-	StringVal string `protobuf:"bytes,5,opt,name=string_val,json=stringVal,proto3,oneof"`
+	StringVal string `protobuf:"bytes,4,opt,name=string_val,json=stringVal,proto3,oneof"`
 }
 
 type FieldValue_BoolVal struct {
-	BoolVal bool `protobuf:"varint,6,opt,name=bool_val,json=boolVal,proto3,oneof"`
+	BoolVal bool `protobuf:"varint,5,opt,name=bool_val,json=boolVal,proto3,oneof"`
 }
 
 func (*FieldValue_IntVal) isFieldValue_Value() {}
@@ -2013,18 +1997,16 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x12ReplaceRunResponse\"1\n" +
 	"\x10DeleteRunRequest\x12\x1d\n" +
 	"\n" +
-	"run_handle\x18\x01 \x01(\tR\trunHandle\"-\n" +
-	"\x11DeleteRunResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xdf\x01\n" +
+	"run_handle\x18\x01 \x01(\tR\trunHandle\"\x13\n" +
+	"\x11DeleteRunResponse\"\xa5\x01\n" +
 	"\n" +
 	"FieldValue\x12\x16\n" +
-	"\x06handle\x18\x01 \x01(\tR\x06handle\x128\n" +
-	"\tdata_type\x18\x02 \x01(\x0e2\x1b.streamvis.v1.FieldDataTypeR\bdataType\x12\x19\n" +
-	"\aint_val\x18\x03 \x01(\x05H\x00R\x06intVal\x12\x1d\n" +
-	"\tfloat_val\x18\x04 \x01(\x02H\x00R\bfloatVal\x12\x1f\n" +
+	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x19\n" +
+	"\aint_val\x18\x02 \x01(\x05H\x00R\x06intVal\x12\x1d\n" +
+	"\tfloat_val\x18\x03 \x01(\x02H\x00R\bfloatVal\x12\x1f\n" +
 	"\n" +
-	"string_val\x18\x05 \x01(\tH\x00R\tstringVal\x12\x1b\n" +
-	"\bbool_val\x18\x06 \x01(\bH\x00R\aboolValB\a\n" +
+	"string_val\x18\x04 \x01(\tH\x00R\tstringVal\x12\x1b\n" +
+	"\bbool_val\x18\x05 \x01(\bH\x00R\aboolValB\a\n" +
 	"\x05value\"h\n" +
 	"\x17SetRunAttributesRequest\x12\x1d\n" +
 	"\n" +
@@ -2171,46 +2153,45 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	7,  // 2: streamvis.v1.IntValues.values:type_name -> streamvis.v1.OptionalInt
 	9,  // 3: streamvis.v1.FloatValues.values:type_name -> streamvis.v1.OptionalFloat
 	5,  // 4: streamvis.v1.AppendToSeriesRequest.field_vals:type_name -> streamvis.v1.EncTyp
-	0,  // 5: streamvis.v1.FieldValue.data_type:type_name -> streamvis.v1.FieldDataType
-	18, // 6: streamvis.v1.SetRunAttributesRequest.attrs:type_name -> streamvis.v1.FieldValue
-	0,  // 7: streamvis.v1.Field.data_type:type_name -> streamvis.v1.FieldDataType
-	23, // 8: streamvis.v1.ListSeriesResponse.fields:type_name -> streamvis.v1.Field
-	36, // 9: streamvis.v1.ListRunsResponse.started_at:type_name -> google.protobuf.Timestamp
-	18, // 10: streamvis.v1.ListRunsResponse.attrs:type_name -> streamvis.v1.FieldValue
-	30, // 11: streamvis.v1.AttributeFilter.int_range:type_name -> streamvis.v1.IntRange
-	29, // 12: streamvis.v1.AttributeFilter.int_list:type_name -> streamvis.v1.IntList
-	31, // 13: streamvis.v1.AttributeFilter.float_range:type_name -> streamvis.v1.FloatRange
-	32, // 14: streamvis.v1.AttributeFilter.bool_list:type_name -> streamvis.v1.BoolList
-	33, // 15: streamvis.v1.AttributeFilter.string_list:type_name -> streamvis.v1.StringList
-	33, // 16: streamvis.v1.TagFilter.has_any_tag:type_name -> streamvis.v1.StringList
-	33, // 17: streamvis.v1.TagFilter.has_all_tags:type_name -> streamvis.v1.StringList
-	1,  // 18: streamvis.v1.Service.CreateField:input_type -> streamvis.v1.CreateFieldRequest
-	3,  // 19: streamvis.v1.Service.CreateSeries:input_type -> streamvis.v1.CreateSeriesRequest
-	10, // 20: streamvis.v1.Service.AppendToSeries:input_type -> streamvis.v1.AppendToSeriesRequest
-	12, // 21: streamvis.v1.Service.CreateRun:input_type -> streamvis.v1.CreateRunRequest
-	14, // 22: streamvis.v1.Service.ReplaceRun:input_type -> streamvis.v1.ReplaceRunRequest
-	16, // 23: streamvis.v1.Service.DeleteRun:input_type -> streamvis.v1.DeleteRunRequest
-	19, // 24: streamvis.v1.Service.SetRunAttributes:input_type -> streamvis.v1.SetRunAttributesRequest
-	21, // 25: streamvis.v1.Service.DeleteEmptySeries:input_type -> streamvis.v1.DeleteEmptySeriesRequest
-	24, // 26: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
-	26, // 27: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
-	27, // 28: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
-	2,  // 29: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
-	4,  // 30: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
-	11, // 31: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
-	13, // 32: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
-	15, // 33: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
-	17, // 34: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
-	20, // 35: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
-	22, // 36: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
-	25, // 37: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.ListSeriesResponse
-	23, // 38: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
-	28, // 39: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.ListRunsResponse
-	29, // [29:40] is the sub-list for method output_type
-	18, // [18:29] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	18, // 5: streamvis.v1.SetRunAttributesRequest.attrs:type_name -> streamvis.v1.FieldValue
+	0,  // 6: streamvis.v1.Field.data_type:type_name -> streamvis.v1.FieldDataType
+	23, // 7: streamvis.v1.ListSeriesResponse.fields:type_name -> streamvis.v1.Field
+	36, // 8: streamvis.v1.ListRunsResponse.started_at:type_name -> google.protobuf.Timestamp
+	18, // 9: streamvis.v1.ListRunsResponse.attrs:type_name -> streamvis.v1.FieldValue
+	30, // 10: streamvis.v1.AttributeFilter.int_range:type_name -> streamvis.v1.IntRange
+	29, // 11: streamvis.v1.AttributeFilter.int_list:type_name -> streamvis.v1.IntList
+	31, // 12: streamvis.v1.AttributeFilter.float_range:type_name -> streamvis.v1.FloatRange
+	32, // 13: streamvis.v1.AttributeFilter.bool_list:type_name -> streamvis.v1.BoolList
+	33, // 14: streamvis.v1.AttributeFilter.string_list:type_name -> streamvis.v1.StringList
+	33, // 15: streamvis.v1.TagFilter.has_any_tag:type_name -> streamvis.v1.StringList
+	33, // 16: streamvis.v1.TagFilter.has_all_tags:type_name -> streamvis.v1.StringList
+	1,  // 17: streamvis.v1.Service.CreateField:input_type -> streamvis.v1.CreateFieldRequest
+	3,  // 18: streamvis.v1.Service.CreateSeries:input_type -> streamvis.v1.CreateSeriesRequest
+	10, // 19: streamvis.v1.Service.AppendToSeries:input_type -> streamvis.v1.AppendToSeriesRequest
+	12, // 20: streamvis.v1.Service.CreateRun:input_type -> streamvis.v1.CreateRunRequest
+	14, // 21: streamvis.v1.Service.ReplaceRun:input_type -> streamvis.v1.ReplaceRunRequest
+	16, // 22: streamvis.v1.Service.DeleteRun:input_type -> streamvis.v1.DeleteRunRequest
+	19, // 23: streamvis.v1.Service.SetRunAttributes:input_type -> streamvis.v1.SetRunAttributesRequest
+	21, // 24: streamvis.v1.Service.DeleteEmptySeries:input_type -> streamvis.v1.DeleteEmptySeriesRequest
+	24, // 25: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
+	26, // 26: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
+	27, // 27: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
+	2,  // 28: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
+	4,  // 29: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
+	11, // 30: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
+	13, // 31: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
+	15, // 32: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
+	17, // 33: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
+	20, // 34: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
+	22, // 35: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
+	25, // 36: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.ListSeriesResponse
+	23, // 37: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
+	28, // 38: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.ListRunsResponse
+	28, // [28:39] is the sub-list for method output_type
+	17, // [17:28] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_streamvis_v1_data_proto_init() }

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from typing import Any
 import numpy as np
+from .v1 import data_pb2 as pb
 
 @dataclass
 class Float32Data:
@@ -75,4 +77,30 @@ def decode_array(data: Float32Data | Int32Data) -> np.array:
     return np.add.reduce(terms).astype(base.dtype)
 
 
-def 
+def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
+    attr = pb.FieldValue(handle=field.handle)
+    match field.data_type:
+        case pb.FIELD_DATA_TYPE_INT: 
+            if not isinstance(val, int):
+                raise RuntimeError(
+                    f"value `{val}` given for field `{field.name}` was {type(val)} but expected int")
+            attr.int_val = val
+        case pb.FIELD_DATA_TYPE_FLOAT:
+            if not isinstance(val, float):
+                raise RuntimeError(
+                    f"value `{val}` given for field `{field.name}` was {type(val)} but expected float")
+            attr.float_val = val
+        case pb.FIELD_DATA_TYPE_STRING:
+            if not isinstance(val, str):
+                raise RuntimeError(
+                    f"value `{val}` given for field `{field.name}` was {type(val)} but expected str")
+            attr.string_val = val
+        case pb.FIELD_DATA_TYPE_BOOL:
+            if not isinstance(val, str):
+                raise RuntimeError(
+                    f"value `{val}` given for field `{field.name}` was {type(val)} but expected str")
+            attr.bool_val = val
+        case pb.FIELD_DATA_TYPE_UNSPECIFIED:
+            raise RuntimeError(f"database field `{field.name}` has undefined data type")
+    return attr
+

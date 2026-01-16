@@ -16,8 +16,12 @@ Here, orig means the original tensor which is encoded by this scheme.
 
 For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 */
+\set QUIET 1
+
+\echo 'field_data_typ'
 CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'string', 'bool');
 
+\echo 'field_typ'
 CREATE TYPE field_typ AS (
   handle UUID,
   name TEXT,
@@ -25,8 +29,9 @@ CREATE TYPE field_typ AS (
   description TEXT
 );
 
+\echo 'enc_typ'
 CREATE TYPE enc_typ AS (
-  data_type field_data_typ,
+  field_handle UUID,
   base BYTEA,
   shape INT[],
   int_spans INT[],
@@ -36,18 +41,18 @@ CREATE TYPE enc_typ AS (
 );
 
 -- type used to store an attribute in the run_attr table
+\echo 'field_value_typ'
 CREATE TYPE field_value_typ AS (
-  handle UUID,
-  data_type field_data_typ,
+  field_handle UUID,
   int_val INT,
   float_val FLOAT,
   bool_val BOOLEAN,
   string_val TEXT
 );
 
-
+\echo 'attribute_filter_typ'
 CREATE TYPE attribute_filter_typ AS (
-  attr_handle UUID,
+  field_handle UUID,
   include_missing BOOLEAN,
   data_type field_data_typ,
   int_min INT,
@@ -65,86 +70,114 @@ CREATE TYPE tag_filter_typ AS (
 );
 
 
-
+\echo 'valid_enc_typ'
 CREATE FUNCTION valid_enc_typ(item enc_typ) 
 RETURNS BOOLEAN
 IMMUTABLE
-LANGUAGE sql 
+LANGUAGE plpgsql
 AS $$
-SELECT
-  CASE (item).data_type
-    WHEN 'int' THEN
-      (
-        (item).int_spans IS NOT NULL AND
-        (item).float_spans IS NULL AND
-        (item).bool_bcast IS NULL AND
-        (item).string_bcast IS NULL AND
-        array_length((item).shape, 1) = array_length((item).int_spans, 1)
-      )
-    WHEN 'float' THEN
-      (
-        (item).int_spans IS NULL AND
-        (item).float_spans IS NOT NULL AND
-        (item).bool_bcast IS NULL AND
-        (item).string_bcast IS NULL AND
-        array_length((item).shape, 1) = array_length((item).float_spans, 1)
-      )
-    WHEN 'bool' THEN
-      (
-        (item).int_spans IS NULL AND
-        (item).float_spans IS NULL AND
-        (item).bool_bcast IS NOT NULL AND
-        (item).string_bcast IS NULL AND
-        array_length((item).shape, 1) = array_length((item).bool_bcast, 1)
-      )
-    WHEN 'string' THEN
-      (
-        (item).int_spans IS NULL AND
-        (item).float_spans IS NULL AND
-        (item).bool_bcast IS NULL AND
-        (item).string_bcast IS NOT NULL AND
-        array_length((item).shape, 1) = array_length((item).string_bcast, 1)
-      )
-    ELSE
-      FALSE
-  END CASE;
+DECLARE
+  v_data_type field_data_typ;
+BEGIN
+  SELECT f.data_type INTO v_data_type
+  FROM field f
+  WHERE f.handle = (val).field_handle;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  RETURN 
+    CASE v_data_type 
+      WHEN 'int' THEN
+        (
+          (item).int_spans IS NOT NULL AND
+          (item).float_spans IS NULL AND
+          (item).bool_bcast IS NULL AND
+          (item).string_bcast IS NULL AND
+          array_length((item).shape, 1) = array_length((item).int_spans, 1)
+        )
+      WHEN 'float' THEN
+        (
+          (item).int_spans IS NULL AND
+          (item).float_spans IS NOT NULL AND
+          (item).bool_bcast IS NULL AND
+          (item).string_bcast IS NULL AND
+          array_length((item).shape, 1) = array_length((item).float_spans, 1)
+        )
+      WHEN 'bool' THEN
+        (
+          (item).int_spans IS NULL AND
+          (item).float_spans IS NULL AND
+          (item).bool_bcast IS NOT NULL AND
+          (item).string_bcast IS NULL AND
+          array_length((item).shape, 1) = array_length((item).bool_bcast, 1)
+        )
+      WHEN 'string' THEN
+        (
+          (item).int_spans IS NULL AND
+          (item).float_spans IS NULL AND
+          (item).bool_bcast IS NULL AND
+          (item).string_bcast IS NOT NULL AND
+          array_length((item).shape, 1) = array_length((item).string_bcast, 1)
+        )
+      ELSE
+        FALSE
+    END CASE;
+END;
 $$;
 
 
+\echo 'valid_attr_value'
 CREATE OR REPLACE FUNCTION valid_attr_value(
   val field_value_typ
 )
 RETURNS BOOLEAN
 IMMUTABLE
-LANGUAGE sql
+LANGUAGE plpgsql
 AS $$
-SELECT 
-CASE (val).data_type
-  WHEN 'int' THEN
-    ((val).int_val IS NOT NULL AND
-      (val).float_val IS NULL AND
-      (val).bool_val IS NULL AND
-      (val).string_val IS NULL
-    )
-  WHEN 'float' THEN
-    ((val).int_val IS NULL AND
-      (val).float_val IS NOT NULL AND
-      (val).bool_val IS NULL AND
-      (val).string_val IS NULL
-    )
-  WHEN 'bool' THEN
-    ((val).int_val IS NULL AND
-      (val).float_val IS NULL AND
-      (val).bool_val IS NOT NULL AND
-      (val).string_val IS NULL
-    )
-  WHEN 'string' THEN
-    ((val).int_val IS NULL AND
-      (val).float_val IS NULL AND
-      (val).bool_val IS NULL AND
-      (val).string_val IS NOT NULL
-    )
-  ELSE
-    FALSE
-END CASE;
+DECLARE
+  v_data_type field_data_typ;
+BEGIN
+  SELECT f.data_type INTO v_data_type
+  FROM field f
+  WHERE f.handle = (val).field_handle;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  RETURN 
+  CASE v_data_type 
+    WHEN 'int' THEN
+      ((val).int_val IS NOT NULL AND
+        (val).float_val IS NULL AND
+        (val).bool_val IS NULL AND
+        (val).string_val IS NULL
+      )
+    WHEN 'float' THEN
+      ((val).int_val IS NULL AND
+        (val).float_val IS NOT NULL AND
+        (val).bool_val IS NULL AND
+        (val).string_val IS NULL
+      )
+    WHEN 'bool' THEN
+      ((val).int_val IS NULL AND
+        (val).float_val IS NULL AND
+        (val).bool_val IS NOT NULL AND
+        (val).string_val IS NULL
+      )
+    WHEN 'string' THEN
+      ((val).int_val IS NULL AND
+        (val).float_val IS NULL AND
+        (val).bool_val IS NULL AND
+        (val).string_val IS NOT NULL
+      )
+    ELSE
+      FALSE
+  END CASE;
+END;
 $$;
+
+\set QUIET 0
+

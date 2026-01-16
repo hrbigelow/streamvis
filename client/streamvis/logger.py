@@ -107,12 +107,6 @@ class BaseLogger:
             fields[fld.field_name] = fld
 
         req = pb.SetRunAttributesRequest(run_handle=self.run_handle)
-        STR_TO_ENUM = {
-            'int': pb.FIELD_TYPE_INT,
-            'float': pb.FIELD_TYPE_FLOAT,
-            'string': pb.FIELD_TYPE_STRING,
-            'bool': pb.FIELD_TYPE_BOOL
-        }
 
         for key, val in attrs.items():
             if key not in fields:
@@ -121,33 +115,8 @@ class BaseLogger:
                     "To create a new field, run one of:\n"
                     "streamvis create-field ...\n"
                     "grpcurl -plaintext $STREAMVIS_GRPC_URI streamvis.v1.Service/CreateField\n")
-            fld = fields[key]
-            field_type_enum = STR_TO_ENUM.get(fld.field_type, pb.FIELD_TYPE_UNSPECIFIED)
-            attr = pb.FieldValue(field_handle=fld.field_handle,
-                                 field_type=field_type_enum)
-            match field_type_enum:
-                case pb.FIELD_TYPE_INT: 
-                    if not isinstance(val, int):
-                        raise RuntimeError(
-                            f"value `{val}` given for field `{key}` was {type(val)} but expected int")
-                    attr.int_val = val
-                case pb.FIELD_TYPE_FLOAT:
-                    if not isinstance(val, float):
-                        raise RuntimeError(
-                            f"value `{val}` given for field `{key}` was {type(val)} but expected float")
-                    attr.float_val = val
-                case pb.FIELD_TYPE_STRING:
-                    if not isinstance(val, str):
-                        raise RuntimeError(
-                            f"value `{val}` given for field `{key}` was {type(val)} but expected str")
-                    attr.string_val = val
-                case pb.FIELD_TYPE_BOOL:
-                    if not isinstance(val, str):
-                        raise RuntimeError(
-                            f"value `{val}` given for field `{key}` was {type(val)} but expected str")
-                    attr.string_val = val
-                case pb.FIELD_TYPE_UNSPECIFIED:
-                    raise RuntimeError(f"database field `{key}` has undefined field type")
+            field = fields[key]
+            attr = dbutil.make_field_value(field, val)
             req.attrs.append(attr)
 
         _ = self.stub.SetRunAttributes(req)

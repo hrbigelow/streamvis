@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	pb "pier/pb/streamvis/v1"
@@ -53,9 +54,10 @@ func registerCustomTypes(
 	for _, ty := range types {
 		dbType, err := conn.LoadType(ctx, ty)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to load type %s: %w", ty, err)
 		}
 		conn.TypeMap().RegisterType(dbType)
+		log.Printf("Registered type: %s (OID: %d)", ty, dbType.OID)
 	}
 	return nil
 
@@ -107,39 +109,23 @@ func (st *Store) AppendToSeries(
 	return success, nil
 }
 
-func (st *Store) CreateRun(
-	ctx context.Context,
-) (uuid.UUID, error) {
+func (st *Store) CreateRun(ctx context.Context) (uuid.UUID, error) {
 	sql := `CALL create_run($1)`
 	var runHandle uuid.UUID
 	err := st.pool.QueryRow(ctx, sql, nil).Scan(&runHandle)
 	return runHandle, err
 }
 
-func (st *Store) ReplaceRun(
-	ctx context.Context,
-	runHandle uuid.UUID,
-) error {
+func (st *Store) ReplaceRun(ctx context.Context, runHandle uuid.UUID) error {
 	sql := `CALL replace_run($1)`
 	_, err := st.pool.Exec(ctx, sql, runHandle)
 	return err
 }
 
-func (st *Store) DeleteRun(
-	ctx context.Context,
-	handle uuid.UUID,
-) (bool, error) {
-	var success bool
-	sql := `CALL delete_run($1, $2)`
-
-	err := st.pool.QueryRow(
-		ctx, sql, handle, nil,
-	).Scan(&success)
-
-	if err != nil {
-		return false, fmt.Errorf("error calling delete_run: %w\n", err)
-	}
-	return success, nil
+func (st *Store) DeleteRun(ctx context.Context, runHandle uuid.UUID) error {
+	sql := `CALL delete_run($1)`
+	_, err := st.pool.Exec(ctx, sql, runHandle)
+	return err
 }
 
 func (st *Store) SetRunAttributes(
@@ -148,7 +134,7 @@ func (st *Store) SetRunAttributes(
 	attrs []*pb.FieldValue,
 ) error {
 	sql := `CALL set_run_attributes($1, $2)`
-	unwrapped := make([]*FieldValueTyp, len(attrs))
+	unwrapped := make([]FieldValueTyp, len(attrs))
 	var err error
 	for i, attr := range attrs {
 		unwrapped[i], err = NewFieldValueTyp(attr)

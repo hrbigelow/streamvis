@@ -79,7 +79,6 @@ message DeleteRunRequest {
 }
 
 message DeleteRunResponse {
-  bool success = 1;
 }
 
 enum FieldDataType {
@@ -92,12 +91,11 @@ enum FieldDataType {
 
 message FieldValue {
   string handle = 1;
-  FieldDataType data_type = 2;
   oneof value {
-    int32 int_val = 3;
-    float float_val = 4;
-    string string_val = 5;
-    bool bool_val = 6;
+    int32 int_val = 2;
+    float float_val = 3;
+    string string_val = 4;
+    bool bool_val = 5;
   }
 }
 

@@ -3,7 +3,9 @@ import fire
 import grpc
 from streamvis.v1 import data_pb2 as pb
 from streamvis.v1 import data_pb2_grpc as pb_grpc
+from streamvis import dbutil
 from google.protobuf import text_format
+from typing import Any
 
 from .demo import log_data, log_data_async
 
@@ -71,7 +73,7 @@ def create_run():
     print(text_format.MessageToString(resp))
 
 
-def set_run_attributes(run_handle, /, **attrs):
+def set_run_attributes(run_handle, /, attrs: dict[str, Any]):
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
@@ -84,14 +86,9 @@ def set_run_attributes(run_handle, /, **attrs):
         field = fields_map.get(field_name)
         if field is None:
             raise RuntimeError(f"No field named {field_name}")
-
-        fval = pb.FieldValue(handle=field.handle, data_type=field.data_type)
-        match fval.data_type:
-            case pb.FieldDataType_FIELD_DATA_TYPE_INT:
-                pass
-
-
-
+        attr = dbutil.make_field_value(field, value)
+        req.attrs.append(attr)
+    stub.SetRunAttributes(req)
 
 
 def list_series():
