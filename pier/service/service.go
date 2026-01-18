@@ -99,13 +99,13 @@ func (s *Service) AppendToSeries(
 		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
 	}
 
-	success, err := s.store.AppendToSeries(
-		ctx, seriesHandleUUID, runHandleUUID, req.GetFieldNames(), req.GetFieldVals(),
+	err = s.store.AppendToSeries(
+		ctx, seriesHandleUUID, runHandleUUID, req.GetFieldVals(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "database store error: %v", err)
 	}
-	return &pb.AppendToSeriesResponse{Success: success}, nil
+	return &pb.AppendToSeriesResponse{}, nil
 
 }
 
@@ -165,10 +165,10 @@ func (s *Service) SetRunAttributes(
 func (s *Service) ListSeries(
 	ctx context.Context,
 	req *pb.ListSeriesRequest,
-	stream *connect.ServerStream[pb.ListSeriesResponse],
+	stream *connect.ServerStream[pb.Series],
 ) error {
 	dataCh, errCh := s.store.ListSeries(ctx)
-	return streamRecords[pb.ListSeriesResponse](ctx, *stream, dataCh, errCh)
+	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) DeleteEmptySeries(
@@ -191,8 +191,8 @@ func (s *Service) ListFields(
 func (s *Service) ListRuns(
 	ctx context.Context,
 	req *pb.ListRunsRequest,
-	stream *connect.ServerStream[pb.ListRunsResponse],
+	stream *connect.ServerStream[pb.Run],
 ) error {
 	dataCh, errCh := s.store.ListRuns(ctx)
-	return streamRecords[pb.ListRunsResponse](ctx, *stream, dataCh, errCh)
+	return streamRecords[pb.Run](ctx, *stream, dataCh, errCh)
 }

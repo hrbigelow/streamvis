@@ -5,92 +5,45 @@ from typing import Literal
 import threading
 import time
 from . import dbutil
+from .dbutil import SeriesValues
 
 from .v1 import data_pb2 as pb
 from .v1 import data_pb2_grpc as pb_grpc
 
-# Store in little endian
-SIG_TO_DTYPE = {
-    'float': np.dtype('<f4'),
-    'int': np.dtype('<i4'),
-}
-
-
-class Series:
-    def __init__(self, handle: str, structure: dict[str, str]):
-        self.handle = handle
-        self.queue = asyncio.Queue()
-        self.structure = dict(structure)
-        self.field_names = tuple(self.structure.keys())
-        self.field_types = tuple(self.structure[fn] for fn in self.field_names)
 
 class BaseLogger:
     def __init__(
         self,
         grpc_uri: str,
-        tensor_type: Literal["jax", "torch", "numpy"],
         max_chunk_size: int,
         flush_every: float,
     ):
-        self.logged_series = {} # series_name => Series
+        self.queues = {} # series_name => Queue
+        self.array_types = {} # series_name => tuple(field_type, ...)
         self.chan = grpc.insecure_channel(grpc_uri)
         self.stub = pb_grpc.ServiceStub(self.chan)
         self.max_chunk_size = max_chunk_size
         self.flush_every = flush_every
         self.run_handle = None
 
-        match tensor_type:
-            case "jax":
-                import jax.numpy as jnp
-                self.to_array = jnp.array
-                self.concat = jnp.concatenate 
-                self.stack_arrays = jnp.stack
-                self.to_numpy = lambda ary: np.array(ary)
-                self.broadcast_arrays = jnp.broadcast_arrays
-                self.tensor_size = jnp.size
-                self.tensor_shape = jnp.shape
-                self.is_float = lambda ary: jnp.issubdtype(ary.dtype, jnp.floating)
-            case "numpy":
-                def downcast(ary):
-                    if np.issubdtype(ary.dtype, np.integer):
-                        return ary.astype(np.int32)
-                    elif np.issubdtype(ary.dtype, np.floating):
-                        return ary.astype(np.float32)
-                    else:
-                        return ary
-
-                self.to_array = lambda x: downcast(np.array(x))
-                self.concat = np.concat
-                self.stack_arrays = np.stack
-                self.to_numpy = lambda x: x
-                self.broadcast_arrays = np.broadcast_arrays
-                self.tensor_size = np.size
-                self.tensor_shape = np.shape
-                self.is_float = lambda ary: np.issubdtype(ary.dtype, np.floating)
-            case "torch":
-                import torch
-                self.to_array = torch.tensor
-                self.concat = lambda arrays, axis: torch.cat(arrays, dim=axis)
-                self.stack_arrays = torch.stack
-                self.to_numpy = lambda ary: ary.detach().numpy()
-                self.broadcast_arrays = torch.broadcast_tensors 
-                self.tensor_size = torch.numel
-                self.tensor_shape = lambda ary: tuple(ary.shape)
-                self.is_float = lambda ary: ary.is_floating_point() 
-            case other:
-                raise RuntimeError(f"unsupported tensor type: '{other}'")
-
     def _get_series(self):
         self.all_series = {}
         req = pb.ListSeriesRequest()
         for msg in self.stub.ListSeries(req):
-            self.all_series[msg.series_name] = msg
+            self.all_series[msg.name] = msg
+
+    def _get_fields(self):
+        self.all_fields = {}
+        req = pb.ListFieldsRequest()
+        for msg in self.stub.ListFields(req):
+            self.all_fields[msg.name] = msg
 
     def _create_run(self):
         req = pb.CreateRunRequest()
         resp = self.stub.CreateRun(req) # always succeeds
         self.run_handle = resp.run_handle
         self._get_series()
+        self._get_fields()
 
     def set_run_attributes(self, attrs: dict):
         """Write a set of attributes to associate with this run.
@@ -101,111 +54,119 @@ class BaseLogger:
         if self.run_handle is None:
             raise RuntimeError(f"Cannot call set_run_attrs until run started")
 
-        req = pb.ListFieldsRequest()
-        fields = {}
-        for fld in self.stub.ListFields(req):
-            fields[fld.field_name] = fld
-
         req = pb.SetRunAttributesRequest(run_handle=self.run_handle)
 
         for key, val in attrs.items():
-            if key not in fields:
+            field = self.all_fields.get(key)
+            if field is None:
                 raise RuntimeError(
                     f"There is no Field named `{key}`.  "
                     "To create a new field, run one of:\n"
                     "streamvis create-field ...\n"
                     "grpcurl -plaintext $STREAMVIS_GRPC_URI streamvis.v1.Service/CreateField\n")
-            field = fields[key]
             attr = dbutil.make_field_value(field, val)
             req.attrs.append(attr)
 
         _ = self.stub.SetRunAttributes(req)
 
-    def write(self, series_name: str, /, **fields):
+    def write(self, series_name: str, /, **field_values):
         """
         Append data to a series.
-        If this is the first call to write to this `series_name`,
-        creates it if needed.  If the series already exists, the structure must
-        match, otherwise it is an error
-
-        series_name: the name of the series to be appended
-        fields: a dict containing tensor-like (or scalar) values.  The set of all
+        series_name: the name of the Series to be appended.  This must
+          exist in the database.  See streamvis list-series / create-series
+        fields: a dict containing values matching the field data type of Field in the Series 
         shapes must be broadcastable to a common shape.
         """
-        structure = self._get_structure(**fields)
-
-        if series_name not in self.logged_series:
-            msg = self.all_series.get(series_name)
-            if msg is None:
-                raise RuntimeError(
-                    f"Series {series_name} doesn't exist.  Create it with:\n"
-                    f"`streamvis create-series` or\n"
-                    f"`grpcurl ... streamvis.v1.Service/CreateSeries`\n")
-            self.logged_series[series_name] = Series(msg.series_handle, msg.structure)
-
-        series = self.logged_series[series_name]
-        if structure != series.structure:
+        series = self.all_series.get(series_name)
+        if series is None:
             raise RuntimeError(
-                    f"Field structure doesn't match:\n"
-                    f"Existing structure: {series.structure}\n"
-                    f"Current structure: {structure}\n")
+                f"Unknown series: {series_name}\n"
+                f"To see available series, run\n"
+                "streamvis list-series")
+
+        if series_name not in self.array_types:
+            self.array_types[series_name] = names = {}
+            for arg, val in field_values.items():
+                names[arg] = dbutil.get_array_type(val)
+
+        # check consistent types
+        _types = self.array_types[series_name]
+        for arg, val in field_values.items():
+            target_type = _types.get(arg, None)
+            if target_type != dbutil.get_array_type(val):
+                raise RuntimeError(
+                    f"Argument {arg} previously had type {target_type}"
+                    f"but now has type {dbutil.get_array_type(val)}. "
+                    f"write must use consistent types across calls")
 
         # append data
+        # each entry in arrays is one of (np.ndarray, jax.Array, or torch.Tensor)
+        arrays = [] # field values in Series.Field order.
+        array_types = [] # numpy, torch, or jax
+        shapes = []
+        for field in series.fields:
+            val = field_values.pop(field.name, None) 
+            if val is None:
+                raise RuntimeError(
+                    f"Series {series_name} field {field.name} value missing from input"
+                    f"Values given are: {', '.join(field_values.keys())}")
+            try:
+                ary = dbutil.convert_to_array(val)
+                field_type = dbutil.get_element_type(ary)
+                if field_type != field.data_type:
+                    raise ValueError(
+                        f"Series field type is {field.data_type} but given {field_type}") 
+
+            except ValueError as ve:
+                raise ValueError(f"Error processing value for field {field.name}: {ve}")
+            shapes.append(dbutil.array_shape(ary))
+            arrays.append(ary) 
+
+        if len(field_values) != 0:
+            raise RuntimeError(
+                f"Value provided for field names {', '.join(field_values.keys())}"
+                f"which are not fields of series {series_name}")
+
         try:
-            arrays = tuple(self.to_array(fields[fn]) for fn in series.field_names)
-        except BaseException as ex:
-            raise RuntimeError(f"Couldn't convert data to tensors")
-        try:
-            arrays = self.broadcast_arrays(*arrays)
-        except BaseException:
-            z = zip(series.field_names, arrays)
+            bcast_shape = np.broadcast_shapes(*shapes)
+        except ValueError as ve:
+            z = zip(series.fields, shapes)
             raise RuntimeError(
                 f"Field data were not broadcastable: "
-                ", ".join(f"{k}: {v.shape}" for k, v in z))
+                ", ".join(f"{f.name}: {sh}" for f, sh in z))
 
-        series.queue.put_nowait(arrays)
-
-    def _get_structure(self, **fields):
-        structure = {}
-        for name, ary in fields.items():
-            is_float = self.is_float(self.to_array(ary))  
-            structure[name] = 'float' if is_float else 'int'
-        return structure
+        if series_name not in self.queues:
+            self.queues[series_name] = asyncio.Queue() 
+        
+        points = SeriesValues(tuple(arrays), bcast_shape)
+        self.queues[series_name].put_nowait(points)
 
     def _flush_all_series(self) -> bool:
-        finished = {}
-        for series in self.logged_series.values():
-            finished[series.handle] = self._flush_series(series)
-        return all(finished.values())
+        all_done = True 
+        for series_name in self.queues.keys():
+            queue = self.queues[series_name]
+            series = self.all_series[series_name]
+            all_done = all_done and self._flush_series(series, queue)
+        return all_done 
 
-    def _flush_series(self, series: Series) -> bool:
+    def _flush_series(self, series: pb.Series, queue: asyncio.Queue) -> bool:
         current_chunk = []
         current_shape = None
         current_size = 0
         finished = False
 
-        def _item_size(item):
-            return self.tensor_size(item[0])
-
-        def _item_shape(item):
-            return self.tensor_shape(item[0])
-
-        while not series.queue.empty():
-            item = series.queue.get_nowait()
+        while not queue.empty():
+            item = queue.get_nowait()
             if item is None:
                 finished = True
 
             should_process = (
                     item is None
-                    or (current_shape is not None and _item_shape(item) != current_shape)
-                    or (current_size + _item_size(item) > self.max_chunk_size))
+                    or (current_shape is not None and item.shape() != current_shape)
+                    or (current_size + item.num_points() > self.max_chunk_size))
 
             if should_process and current_chunk:
-                self._process_chunk(
-                    current_chunk, 
-                    series.handle, 
-                    series.field_names,
-                    series.field_types)
+                self._process_chunk(current_chunk, series)
                 current_chunk = []
                 current_shape = None
                 current_size = 0
@@ -214,58 +175,27 @@ class BaseLogger:
                 break
 
             current_chunk.append(item)
-            current_shape = _item_shape(item)
-            current_size += _item_size(item)
+            current_shape = item.shape() 
+            current_size += item.num_points() 
 
         return finished 
 
     def _process_chunk(
         self, 
-        chunk: list[any], 
-        series_handle: str, 
-        field_names: list[str],
-        field_types: list[str]
+        chunk: list[SeriesValues], 
+        series: pb.Series,
     ):
-        """
-        1) transpose the list of lists
-        2) stack each inner list
-        3) convert to numpy
-        4) encode the stacked array
-        5) instantiate the pb.EncTyp
-        6) launch the Append request
-        """
-        req = pb.AppendToSeriesRequest(
-            series_handle=series_handle,
-            run_handle=self.run_handle,
-            field_names=field_names
-        )
+        req = pb.AppendToSeriesRequest(series_handle=series.handle, run_handle=self.run_handle)
+        _types = self.array_types[series.name]
+        array_types = tuple(_types[f.name] for f in series.fields)
+        chunk = dbutil.stack_series_values(array_types, chunk)
+        field_datas = chunk.to_exported()
 
-        fields = tuple(zip(*tuple(chunk)))
-        for fname, ftype, ary in zip(field_names, field_types, fields):
-            stacked = self.stack_arrays(ary)
-            npary = self.to_numpy(stacked).astype(SIG_TO_DTYPE[ftype])
-            enc = dbutil.encode_array(npary)
-            if ftype == 'float':
-                optvals = tuple(pb.OptionalFloat(value=sp) for sp in enc.range_spans)
-                msg = pb.EncTyp(
-                    base=enc.base.tobytes(), 
-                    shape=enc.shape,
-                    fval=pb.FloatValues(values=optvals)
-                )
-            elif ftype == 'int':
-                optvals = tuple(pb.OptionalInt(value=sp) for sp in enc.range_spans)
-                msg = pb.EncTyp(
-                    base=enc.base.tobytes(), 
-                    shape=enc.shape,
-                    ival=pb.IntValues(values=optvals)
-                )
-            else:
-                raise RuntimeError(f"Invalid ftype: {ftype}")
+        for field, ary in zip(series.fields, field_datas):
+            msg = dbutil.encode_array(field.handle, ary)
             req.field_vals.append(msg)
 
         resp = self.stub.AppendToSeries(req)
-        if not resp.success:
-            raise RuntimeError(f"AppendToSeries request failed")
 
 
 class AsyncDataLogger(BaseLogger):
@@ -273,11 +203,10 @@ class AsyncDataLogger(BaseLogger):
     def __init__(
         self, 
         grpc_uri: str,
-        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
         max_chunk_size: int=100000,
         flush_every: float=2.0
     ):
-        super().__init__(grpc_uri, tensor_type, max_chunk_size, flush_every)
+        super().__init__(grpc_uri, max_chunk_size, flush_every)
         self.exiting = False
 
     async def flush_buffer(self):
@@ -299,8 +228,8 @@ class AsyncDataLogger(BaseLogger):
         return self
 
     async def __aexit__(self, *args):
-        for series in self.logged_series.values():
-            series.queue.put_nowait(None)
+        for queue in self.queues.values():
+            queue.put_nowait(None)
         self.exiting = True
         await self._task_group.__aexit__(*args)
         self.chan.close()
@@ -334,11 +263,10 @@ class DataLogger(BaseLogger):
     def __init__(
         self, 
         grpc_uri: str,
-        tensor_type: Literal["jax", "torch", "numpy"]="numpy",
         max_chunk_size: int=100000,
         flush_every: float=2.0
     ):
-        super().__init__(grpc_uri, tensor_type, max_chunk_size, flush_every)
+        super().__init__(grpc_uri, max_chunk_size, flush_every)
         self.exiting = False
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
@@ -355,8 +283,8 @@ class DataLogger(BaseLogger):
 
     def stop(self):
         self.exiting = True
-        for series in self.logged_series.values():
-            series.queue.put_nowait(None)
+        for queue in self.queues.values():
+            queue.put_nowait(None)
         self._flush_thread.join()
 
     def write(self, series_name: str, /, **data):

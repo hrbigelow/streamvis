@@ -39,10 +39,10 @@ D4=$(cat <<EOF
 EOF
 )
 
-# grpcurl -d "$D1" $OPTS $HOST $SVC/CreateField 
-# grpcurl -d "$D2" $OPTS $HOST $SVC/CreateField 
-# grpcurl -d "$D3" $OPTS $HOST $SVC/CreateField 
-# grpcurl -d "$D4" $OPTS $HOST $SVC/CreateField 
+grpcurl -d "$D1" $OPTS $HOST $SVC/CreateField 
+grpcurl -d "$D2" $OPTS $HOST $SVC/CreateField 
+grpcurl -d "$D3" $OPTS $HOST $SVC/CreateField 
+grpcurl -d "$D4" $OPTS $HOST $SVC/CreateField 
 
 D5=$(cat <<EOF
 {

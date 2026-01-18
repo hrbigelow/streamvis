@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	pb "pier/pb/streamvis/v1"
@@ -57,7 +56,7 @@ func registerCustomTypes(
 			return fmt.Errorf("failed to load type %s: %w", ty, err)
 		}
 		conn.TypeMap().RegisterType(dbType)
-		log.Printf("Registered type: %s (OID: %d)", ty, dbType.OID)
+		// log.Printf("Registered type: %s (OID: %d)", ty, dbType.OID)
 	}
 	return nil
 
@@ -88,25 +87,19 @@ func (st *Store) AppendToSeries(
 	ctx context.Context,
 	seriesHandle uuid.UUID,
 	runHandle uuid.UUID,
-	fieldName []string,
 	fieldVals []*pb.EncTyp,
-) (bool, error) {
+) error {
+	var err error
 	wrapped := make([]*EncTypValue, len(fieldVals))
 	for i, et := range fieldVals {
-		wrapped[i] = NewEncTypValue(et)
+		wrapped[i], err = NewEncTypValue(et)
+		if err != nil {
+			return err
+		}
 	}
-
-	var success bool
-	sql := `CALL append_to_series($1, $2, $3, $4, $5)`
-
-	err := st.pool.QueryRow(
-		ctx, sql, seriesHandle, runHandle, fieldName, wrapped, nil,
-	).Scan(&success)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to call append_to_series: %w\n", err)
-	}
-	return success, nil
+	sql := `CALL append_to_series($1, $2, $3)`
+	_, err = st.pool.Exec(ctx, sql, seriesHandle, runHandle, wrapped)
+	return err
 }
 
 func (st *Store) CreateRun(ctx context.Context) (uuid.UUID, error) {
@@ -214,9 +207,9 @@ func queryItemsConvert[Row, Item any](
 
 func (st *Store) ListSeries(
 	ctx context.Context,
-) (<-chan *pb.ListSeriesResponse, <-chan error) {
+) (<-chan *pb.Series, <-chan error) {
 	sql := `SELECT * from series_vw`
-	convert := MakeToProtobufFunc[SeriesResponse, pb.ListSeriesResponse]()
+	convert := MakeToProtobufFunc[Series, pb.Series]()
 	return queryItemsConvert(ctx, st.pool, sql, convert)
 }
 
@@ -239,9 +232,9 @@ func (st *Store) ListFields(
 
 func (st *Store) ListRuns(
 	ctx context.Context,
-) (<-chan *pb.ListRunsResponse, <-chan error) {
+) (<-chan *pb.Run, <-chan error) {
 	sql := `SELECT * from run_vw`
-	convert := func(row RunsResponse) (pb.ListRunsResponse, error) {
+	convert := func(row Run) (pb.Run, error) {
 		msg, err := row.toProtobuf()
 		return msg, err
 	}

@@ -1,72 +1,106 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 import numpy as np
 from .v1 import data_pb2 as pb
-
-@dataclass
-class Float32Data:
-    # See db/schema.sql float32_data type
-    base: np.array
-    shape: tuple[int]
-    range_spans: tuple[float|None]
-
-@dataclass
-class Int32Data:
-    # See db/schema.sql int32_data type
-    base: np.array
-    shape: tuple[int]
-    range_spans: tuple[int|None]
-
 
 def slice_in_dim(ary: np.array, _slice: slice | int, dim: int):
     indices = [slice(None)] * ary.ndim
     indices[dim] = _slice 
     return ary[tuple(indices)]
 
-def encode_array(
-    data: np.array, 
+def encode_numeric_array(
+    field_handle: str,
+    ary: np.array, 
     dim_threshold: int = 5, 
     rtol: float = 1e-10
-) -> Float32Data|Int32Data:
+) -> pb.EncTyp:
     """
-    Converts the data into a normal form using broadcast / increment checks
+    Converts the ary into a normal form using broadcast / increment checks
     """
-    ctor = { np.dtype("float32"): Float32Data, np.dtype("int32"): Int32Data }
-    if data.dtype not in ctor:
-        raise RuntimeError(f"data must be either float32 or int32 type.  got {data.dtype}")
+    if ary.dtype not in (np.dtype('float32'), np.dtype('int32')):
+        raise RuntimeError(
+            f"Array has dtype {ary.dtype} but expected 'int32' or 'float32'")
 
-    shape = tuple(data.shape)
-    range_spans = [None] * data.ndim
+    shape = tuple(ary.shape)
+    range_spans = [None] * ary.ndim
 
-    for d in range(data.ndim):
-        if data.shape[d] < dim_threshold:
+    for d in range(ary.ndim):
+        if ary.shape[d] < dim_threshold:
             continue
-        diffs = slice_in_dim(data, slice(0, -1), d) - slice_in_dim(data, slice(1, None), d)
+        diffs = slice_in_dim(ary, slice(0, -1), d) - slice_in_dim(ary, slice(1, None), d)
         lo, hi = diffs.min(), diffs.max()
         magnitude = np.abs(hi + lo) / 2.0
         if hi == lo or (hi - lo) / magnitude < rtol:
-            spans = slice_in_dim(data, -1, d) - slice_in_dim(data, 0, d)
+            spans = slice_in_dim(ary, -1, d) - slice_in_dim(ary, 0, d)
             span = spans.flatten()[0].item()
             range_spans[d] = span 
 
-    range_spans = tuple(range_spans)
     indices = tuple(slice(None) if s is None else 0 for s in range_spans)
-    slice_data = data[indices]
-    
-    return ctor[data.dtype](slice_data.flatten(), shape, range_spans)
+    slice_data = ary[indices]
 
-def decode_array(data: Float32Data | Int32Data) -> np.array:
+    msg = pb.EncTyp(field_handle=field_handle, base=slice_data.tobytes(), shape=shape)
+    if ary.dtype == np.dtype('int32'):
+        range_spans = tuple(pb.OptionalInt(value=sp) for sp in range_spans)
+        msg.int_spans.values.extend(range_spans)
+    else:
+        range_spans = tuple(pb.OptionalFloat(value=sp) for sp in range_spans)
+        msg.float_spans.values.extend(range_spans)
+    return msg
+    
+
+def encode_bool_or_string_array(
+    field_handle: str,
+    ary: np.ndarray
+) -> pb.EncTyp: 
+    if not (np.issubdtype(ary.dtype, np.str_) or np.issubdtype(ary.dtype, np.bool)):
+        raise RuntimeError(
+            f"Array has dtype {ary.dtype}, but expected 'str_' or 'bool'")
+    bcast = [None] * ary.ndim
+    for d in range(ary.ndim):
+        slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
+        bcast[d] = np.all(ary[slices] == ary).item()
+    indices = tuple(0 if bc else slice(None) for bc in bcast)
+    slice_data = ary[indices]
+
+    msg = pb.EncTyp(field_handle=field_handle, base=slice_data.tobytes(), shape=ary.shape)
+    if np.issubdtype(ary.dtype, np.str_):
+        msg.bool_bcast.values.extend(bcast)
+    else:
+        msg.string_bcast.values.extend(bcast)
+    return msg
+
+def encode_array(field_handle: str, ary: np.ndarray) -> pb.EncTyp:
+    if ary.dtype in (np.dtype('int32'), np.dtype('float32')):
+        return encode_numeric_array(field_handle, ary)
+    else:
+        return encode_bool_or_string_array(field_handle, ary)
+
+
+def decode_numeric_array(enc: pb.EncTyp) -> np.array:
     """
     Converts the normalized data back into a plain np.array.  The original shape
     of the array is preserved, to satisfy the invariant:
 
     ary == decode_array(encode_array(ary))
     """
-    N = len(data.shape)
-    shape = tuple(sz if sp is None else 1 for sz, sp in zip(data.shape, data.range_spans))
-    base = data.base.reshape(*shape)
+    set_field = enc.WhichOneof('spans')
+    if set_field not in ('int_spans', 'float_spans'):
+        raise RuntimeError(
+            f"The active spans field is {set_field}, but expected"
+            f"'int_spans' or 'float_spans'")
+
+    if set_field == 'int_spans':
+        range_spans = enc.int_spans
+        base = np.frombuffer(enc.base, dtype=np.int32)
+    else:
+        range_spans = enc.float_spans
+        base = np.frombuffer(enc.base, dtype=np.float32)
+
+    N = len(enc.shape)
+    shape = tuple(sz if sp is None else 1 for sz, sp in zip(enc.shape, range_spans))
+    base = base(*shape)
     ranges = []
-    for i, (sz, sp) in enumerate(zip(data.shape, data.range_spans)):
+    for i, (sz, sp) in enumerate(zip(enc.shape, range_spans)):
         if sp is None:
             continue
         rng = np.linspace(0, sp, sz)
@@ -103,4 +137,161 @@ def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
         case pb.FIELD_DATA_TYPE_UNSPECIFIED:
             raise RuntimeError(f"database field `{field.name}` has undefined data type")
     return attr
+
+# Store in little endian
+SIG_TO_DTYPE = {
+    pb.FIELD_DATA_TYPE_INT: np.dtype('<i4'),
+    pb.FIELD_DATA_TYPE_FLOAT: np.dtype('<f4'),
+    pb.FIELD_DATA_TYPE_BOOL: np.dtype('bool'),
+    pb.FIELD_DATA_TYPE_STRING: np.dtype('str_')
+}
+
+DTYPE_TO_SIG = {
+    np.dtype('<i4'): pb.FIELD_DATA_TYPE_INT,
+    np.dtype('<f4'): pb.FIELD_DATA_TYPE_FLOAT,
+    np.dtype('bool'): pb.FIELD_DATA_TYPE_BOOL,
+    np.dtype('str_'): pb.FIELD_DATA_TYPE_STRING
+}
+
+# Use strings so as not to import unnecessary frameworks
+ArrayLike = Union[np.ndarray, 'jax.Array', 'torch.Tensor']
+
+def convert_to_array(val) -> Any:
+    """
+    Convert the argument to an array, preserving the type and location of
+    any existing value if it is already and array
+    """
+    if isinstance(val, (int, float, str, bool, list, tuple)):
+        return np.array(val)
+    try:
+        _ = get_array_type(val) # if succeeds, it is one of 
+        return val 
+    except ValueError:
+        raise ValueError("Cannot convert val of type {type(val)} into an array type")
+
+def get_array_type(ary):
+    mod = type(ary).__module__
+    if mod.startswith('jax'):
+        return 'jax'
+    elif mod.startswith('torch'):
+        return 'torch'
+    elif mod.startswith('numpy'):
+        return 'numpy'
+    elif mod == 'builtins':
+        return 'POD'
+    else:
+        raise ValueError(f"Unknown array type: {mod}")
+
+def concat_arrays(arrays: list[Any]):
+    if len(arrays) == 0:
+        raise ValueError("empty list")
+
+    array_type = get_array_type(arrays[0])
+
+    if array_type == 'jax':
+        import jax.numpy as jnp
+        return jnp.concatenate(arrays)
+    elif array_type == 'torch':
+        import torch
+        return torch.cat(arrays)
+    elif array_type == 'numpy':
+        import numpy as np
+        return np.concatenate(arrays)
+
+def array_shape(ary) -> tuple[int]:
+    return tuple(ary.shape)
+
+def get_element_type(ary) -> int:
+    array_type = get_array_type(ary)
+
+    if array_type == 'jax':
+        import jax.numpy as jnp
+        if jnp.issubdtype(ary.dtype, jnp.integer):
+            return pb.FIELD_DATA_TYPE_INT
+        elif jnp.issubdtype(ary.dtype, jnp.floating):
+            return pb.FIELD_DATA_TYPE_FLOAT
+        elif jnp.issubdtype(ary.dtype, jnp.bool):
+            return pb.FIELD_DATA_TYPE_BOOL
+        else:
+            raise ValueError("Invalid dtype for jax array: {ary.dtype}")
+
+    elif array_type == 'torch':
+        import torch
+        if ary.dtype in {torch.int8, torch.int16, torch.int32, torch.int64, torch.uint32}:
+            return pb.FIELD_DATA_TYPE_INT
+        elif ary.dtype in {torch.float16, torch.float32, torch.float64}:
+            return pb.FIELD_DATA_TYPE_FLOAT
+        elif ary.dtype == torch.bool:
+            return pb.FIELD_DATA_TYPE_BOOL
+        else:
+            raise ValueError("Invalid dtype for torch tensor: {ary.dtype}")
+
+    elif array_type == 'numpy':
+        import numpy as np
+        if np.issubdtype(ary.dtype, np.integer):
+            return pb.FIELD_DATA_TYPE_INT
+        elif np.issubdtype(ary.dtype, np.floating):
+            return pb.FIELD_DATA_TYPE_FLOAT
+        elif np.issubdtype(ary.dtype, np.bool):
+            return pb.FIELD_DATA_TYPE_BOOL
+        elif np.issubdtype(ary.dtype, np.str_):
+            return pb.FIELD_DATA_TYPE_STRING
+        else:
+            raise ValueError("Invalid dtype for numpy array: {ary.dtype}")
+
+def stack_array_list(array_type: str, arrays: list[ArrayLike]) -> ArrayLike:
+    match array_type:
+        case 'jax':
+            return jnp.stack(arrays)
+        case 'numpy':
+            return np.stack(arrays)
+        case 'torch':
+            return torch.stack(arrays)
+
+def convert_and_downcast(ary) -> np.ndarray:
+    ary = np.array(ary)
+    if ary.dtype == np.float64:
+        return ary.astype(np.float32)
+    elif ary.dtype == np.int64:
+        return ary.astype(np.int32)
+    else:
+        return ary
+
+@dataclass
+class SeriesValues:
+    fields: tuple[ArrayLike, ...]
+    broadcast_shape: tuple[int]
+
+    def num_points(self):
+        return np.prod(self.broadcast_shape).item()
+
+    def shape(self):
+        return self.broadcast_shape
+
+    def to_exported(self) -> tuple[np.ndarray]:
+        fields = tuple(convert_and_downcast(field) for field in self.fields)
+        return np.broadcast_arrays(*fields)
+
+
+def stack_series_values(
+    array_types: list[str], 
+    series_values_list: list[SeriesValues]
+) -> SeriesValues:
+    fields_list = tuple(sv.fields for sv in series_values_list) # series, field
+    by_field = tuple(zip(*fields_list)) # field, series
+    if len(array_types) != len(by_field):
+        raise RuntimeError(
+            f"stack_points got {len(array_types)} array_types but "
+            f"{len(by_field)} fields")
+
+    stacked_fields = []
+    shapes = []
+    for array_type, field in zip(array_types, by_field):
+        stacked = stack_array_list(array_type, field)
+        stacked_fields.append(stacked)
+        shapes.append(array_shape(stacked))
+
+    bcast_shape = np.broadcast_shapes(*shapes)
+    return SeriesValues(tuple(stacked_fields), bcast_shape)
+
 

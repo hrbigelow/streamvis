@@ -143,7 +143,7 @@ BEGIN
   END IF;
 
   SELECT id INTO v_run_id
-  FROM runp
+  FROM run
   WHERE handle = p_run_handle;
 
   IF NOT FOUND THEN
@@ -163,22 +163,20 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF array_length(p_field_vals, 1) != array_length(v_series_field_handles) THEN
+  IF array_length(p_field_vals, 1) != array_length(v_series_field_handles, 1) THEN
     RAISE EXCEPTION 'Received incorrect number of field_vals';
   END IF;
 
   INSERT INTO chunk (series_id, run_id, num_points)
-  VALUES (v_series_id, v_run_id, array_product(p_field_vals[0].shape))
+  VALUES (v_series_id, v_run_id, array_product(p_field_vals[1].shape))
   RETURNING id INTO v_chunk_id;
 
   INSERT INTO coord_data (coord_id, chunk_id, enc_vals)
-  SELECT f.field_id, v_chunk_id, sub.fv
-  FROM (
-    SELECT unnest(field_name) AS fn, unnest(field_vals) as fv
-  ) AS sub,
-  field f
-  WHERE sub.fn = f.name
-  AND f.series_id = v_series_id;
+  SELECT c.id, v_chunk_id, fv
+  FROM unnest(p_field_vals) AS fv
+  JOIN field f ON f.handle = (fv).field_handle
+  JOIN coord c ON c.field_id = f.id
+  WHERE c.series_id = v_series_id;
 
 END;
 $$;

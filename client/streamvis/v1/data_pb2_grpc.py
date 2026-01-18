@@ -77,7 +77,7 @@ class ServiceStub(object):
         self.ListSeries = channel.unary_stream(
                 '/streamvis.v1.Service/ListSeries',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.FromString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.Series.FromString,
                 _registered_method=True)
         self.ListFields = channel.unary_stream(
                 '/streamvis.v1.Service/ListFields',
@@ -87,7 +87,7 @@ class ServiceStub(object):
         self.ListRuns = channel.unary_stream(
                 '/streamvis.v1.Service/ListRuns',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.ListRunsResponse.FromString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.Run.FromString,
                 _registered_method=True)
 
 
@@ -207,7 +207,7 @@ def add_ServiceServicer_to_server(servicer, server):
             'ListSeries': grpc.unary_stream_rpc_method_handler(
                     servicer.ListSeries,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.SerializeToString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.Series.SerializeToString,
             ),
             'ListFields': grpc.unary_stream_rpc_method_handler(
                     servicer.ListFields,
@@ -217,7 +217,7 @@ def add_ServiceServicer_to_server(servicer, server):
             'ListRuns': grpc.unary_stream_rpc_method_handler(
                     servicer.ListRuns,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.ListRunsResponse.SerializeToString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.Run.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -462,7 +462,7 @@ class Service(object):
             target,
             '/streamvis.v1.Service/ListSeries',
             streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.ListSeriesResponse.FromString,
+            streamvis_dot_v1_dot_data__pb2.Series.FromString,
             options,
             channel_credentials,
             insecure,
@@ -516,7 +516,7 @@ class Service(object):
             target,
             '/streamvis.v1.Service/ListRuns',
             streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.ListRunsResponse.FromString,
+            streamvis_dot_v1_dot_data__pb2.Run.FromString,
             options,
             channel_credentials,
             insecure,

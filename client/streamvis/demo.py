@@ -45,11 +45,7 @@ class Sinusoidal(SynthData):
 
 def log_data(grpc_uri, num_steps, step_sleep_ms=0):
     """Demo of the Synchronous DataLogger."""
-    logger = DataLogger(
-        grpc_uri=grpc_uri,
-        tensor_type="numpy",
-        flush_every=2.0,
-    )
+    logger = DataLogger(grpc_uri=grpc_uri, flush_every=2.0)
 
     cloud = Cloud(num_points=10000, num_steps=num_steps)
     sinusoidal = Sinusoidal()
@@ -57,12 +53,12 @@ def log_data(grpc_uri, num_steps, step_sleep_ms=0):
     # Call start before any logging
     logger.start()
     logger.set_run_attributes({"start-time": time.time()})
-    logger.set_run_attributes({"mixing-noise": 1.5})
+    logger.set_run_attributes({"noisy-channel-epsilon": 1.5})
 
     for step in range(0, num_steps):
 
         xs, top_data = sinusoidal.step(step, num_points=1)
-        logger.write('sinusoidal', x=xs, y=top_data)
+        logger.write('sinusoidal', step=xs, data=top_data)
         time.sleep(step_sleep_ms / 1000)
 
         # points = cloud.step(step)
@@ -79,11 +75,7 @@ def log_data(grpc_uri, num_steps, step_sleep_ms=0):
 
 async def log_data_async(grpc_uri, num_steps):
     """Demo of the AsyncDataLogger."""
-    logger = AsyncDataLogger(
-        grpc_uri=grpc_uri, 
-        tensor_type="numpy", 
-        flush_every=1.0,
-    )
+    logger = AsyncDataLogger(grpc_uri=grpc_uri, flush_every=1.0)
 
     cloud = Cloud(num_points=10000, num_steps=num_steps)
     sinusoidal = Sinusoidal()

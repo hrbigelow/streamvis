@@ -9,7 +9,7 @@ import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
  * Describes the file streamvis/v1/data.proto.
  */
 export const file_streamvis_v1_data = /*@__PURE__*/
-  fileDesc("ChdzdHJlYW12aXMvdjEvZGF0YS5wcm90bxIMc3RyZWFtdmlzLnYxIkoKEkNyZWF0ZUZpZWxkUmVxdWVzdBIMCgRuYW1lGAEgASgJEhEKCWRhdGFfdHlwZRgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCSIVChNDcmVhdGVGaWVsZFJlc3BvbnNlIj8KE0NyZWF0ZVNlcmllc1JlcXVlc3QSEwoLc2VyaWVzX25hbWUYASABKAkSEwoLZmllbGRfbmFtZXMYAiADKAkiFgoUQ3JlYXRlU2VyaWVzUmVzcG9uc2UiggEKBkVuY1R5cBIMCgRiYXNlGAEgASgMEg0KBXNoYXBlGAIgAygNEicKBGl2YWwYAyABKAsyFy5zdHJlYW12aXMudjEuSW50VmFsdWVzSAASKQoEZnZhbBgEIAEoCzIZLnN0cmVhbXZpcy52MS5GbG9hdFZhbHVlc0gAQgcKBXNwYW5zIjYKCUludFZhbHVlcxIpCgZ2YWx1ZXMYASADKAsyGS5zdHJlYW12aXMudjEuT3B0aW9uYWxJbnQiKwoLT3B0aW9uYWxJbnQSEgoFdmFsdWUYASABKAVIAIgBAUIICgZfdmFsdWUiOgoLRmxvYXRWYWx1ZXMSKwoGdmFsdWVzGAEgAygLMhsuc3RyZWFtdmlzLnYxLk9wdGlvbmFsRmxvYXQiLQoNT3B0aW9uYWxGbG9hdBISCgV2YWx1ZRgBIAEoAkgAiAEBQggKBl92YWx1ZSKBAQoVQXBwZW5kVG9TZXJpZXNSZXF1ZXN0EhUKDXNlcmllc19oYW5kbGUYASABKAkSEgoKcnVuX2hhbmRsZRgCIAEoCRITCgtmaWVsZF9uYW1lcxgDIAMoCRIoCgpmaWVsZF92YWxzGAQgAygLMhQuc3RyZWFtdmlzLnYxLkVuY1R5cCIpChZBcHBlbmRUb1Nlcmllc1Jlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgiEgoQQ3JlYXRlUnVuUmVxdWVzdCInChFDcmVhdGVSdW5SZXNwb25zZRISCgpydW5faGFuZGxlGAEgASgJIicKEVJlcGxhY2VSdW5SZXF1ZXN0EhIKCnJ1bl9oYW5kbGUYASABKAkiFAoSUmVwbGFjZVJ1blJlc3BvbnNlIiYKEERlbGV0ZVJ1blJlcXVlc3QSEgoKcnVuX2hhbmRsZRgBIAEoCSITChFEZWxldGVSdW5SZXNwb25zZSJ3CgpGaWVsZFZhbHVlEg4KBmhhbmRsZRgBIAEoCRIRCgdpbnRfdmFsGAIgASgFSAASEwoJZmxvYXRfdmFsGAMgASgCSAASFAoKc3RyaW5nX3ZhbBgEIAEoCUgAEhIKCGJvb2xfdmFsGAUgASgISABCBwoFdmFsdWUiVgoXU2V0UnVuQXR0cmlidXRlc1JlcXVlc3QSEgoKcnVuX2hhbmRsZRgBIAEoCRInCgVhdHRycxgCIAMoCzIYLnN0cmVhbXZpcy52MS5GaWVsZFZhbHVlIhoKGFNldFJ1bkF0dHJpYnV0ZXNSZXNwb25zZSIvChhEZWxldGVFbXB0eVNlcmllc1JlcXVlc3QSEwoLc2VyaWVzX25hbWUYASABKAkiGwoZRGVsZXRlRW1wdHlTZXJpZXNSZXNwb25zZSJqCgVGaWVsZBIOCgZoYW5kbGUYASABKAkSDAoEbmFtZRgCIAEoCRIuCglkYXRhX3R5cGUYAyABKA4yGy5zdHJlYW12aXMudjEuRmllbGREYXRhVHlwZRITCgtkZXNjcmlwdGlvbhgEIAEoCSITChFMaXN0U2VyaWVzUmVxdWVzdCJlChJMaXN0U2VyaWVzUmVzcG9uc2USEwoLc2VyaWVzX25hbWUYASABKAkSFQoNc2VyaWVzX2hhbmRsZRgCIAEoCRIjCgZmaWVsZHMYAyADKAsyEy5zdHJlYW12aXMudjEuRmllbGQiEwoRTGlzdEZpZWxkc1JlcXVlc3QiEQoPTGlzdFJ1bnNSZXF1ZXN0Io0BChBMaXN0UnVuc1Jlc3BvbnNlEhIKCnJ1bl9oYW5kbGUYASABKAkSDAoEdGFncxgCIAMoCRIuCgpzdGFydGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBInCgVhdHRycxgEIAMoCzIYLnN0cmVhbXZpcy52MS5GaWVsZFZhbHVlIhcKB0ludExpc3QSDAoEdmFscxgBIAMoBSJCCghJbnRSYW5nZRIRCgRpbWluGAEgASgFSACIAQESEQoEaW1heBgCIAEoBUgBiAEBQgcKBV9pbWluQgcKBV9pbWF4IkQKCkZsb2F0UmFuZ2USEQoEZm1pbhgBIAEoAkgAiAEBEhEKBGZtYXgYAiABKAJIAYgBAUIHCgVfZm1pbkIHCgVfZm1heCIYCghCb29sTGlzdBIMCgR2YWxzGAEgAygIIhoKClN0cmluZ0xpc3QSDAoEdmFscxgBIAMoCSKvAgoPQXR0cmlidXRlRmlsdGVyEhMKC2F0dHJfaGFuZGxlGAEgASgJEhcKD2luY2x1ZGVfbWlzc2luZxgCIAEoCBIrCglpbnRfcmFuZ2UYAyABKAsyFi5zdHJlYW12aXMudjEuSW50UmFuZ2VIABIpCghpbnRfbGlzdBgEIAEoCzIVLnN0cmVhbXZpcy52MS5JbnRMaXN0SAASLwoLZmxvYXRfcmFuZ2UYBSABKAsyGC5zdHJlYW12aXMudjEuRmxvYXRSYW5nZUgAEisKCWJvb2xfbGlzdBgGIAEoCzIWLnN0cmVhbXZpcy52MS5Cb29sTGlzdEgAEi8KC3N0cmluZ19saXN0GAcgASgLMhguc3RyZWFtdmlzLnYxLlN0cmluZ0xpc3RIAEIHCgV2YWx1ZSJ3CglUYWdGaWx0ZXISLwoLaGFzX2FueV90YWcYASABKAsyGC5zdHJlYW12aXMudjEuU3RyaW5nTGlzdEgAEjAKDGhhc19hbGxfdGFncxgCIAEoCzIYLnN0cmVhbXZpcy52MS5TdHJpbmdMaXN0SABCBwoFdmFsdWUqmgEKDUZpZWxkRGF0YVR5cGUSHwobRklFTERfREFUQV9UWVBFX1VOU1BFQ0lGSUVEEAASFwoTRklFTERfREFUQV9UWVBFX0lOVBABEhkKFUZJRUxEX0RBVEFfVFlQRV9GTE9BVBACEhoKFkZJRUxEX0RBVEFfVFlQRV9TVFJJTkcQAxIYChRGSUVMRF9EQVRBX1RZUEVfQk9PTBAEMq0HCgdTZXJ2aWNlElIKC0NyZWF0ZUZpZWxkEiAuc3RyZWFtdmlzLnYxLkNyZWF0ZUZpZWxkUmVxdWVzdBohLnN0cmVhbXZpcy52MS5DcmVhdGVGaWVsZFJlc3BvbnNlElUKDENyZWF0ZVNlcmllcxIhLnN0cmVhbXZpcy52MS5DcmVhdGVTZXJpZXNSZXF1ZXN0GiIuc3RyZWFtdmlzLnYxLkNyZWF0ZVNlcmllc1Jlc3BvbnNlElsKDkFwcGVuZFRvU2VyaWVzEiMuc3RyZWFtdmlzLnYxLkFwcGVuZFRvU2VyaWVzUmVxdWVzdBokLnN0cmVhbXZpcy52MS5BcHBlbmRUb1Nlcmllc1Jlc3BvbnNlEkwKCUNyZWF0ZVJ1bhIeLnN0cmVhbXZpcy52MS5DcmVhdGVSdW5SZXF1ZXN0Gh8uc3RyZWFtdmlzLnYxLkNyZWF0ZVJ1blJlc3BvbnNlEk8KClJlcGxhY2VSdW4SHy5zdHJlYW12aXMudjEuUmVwbGFjZVJ1blJlcXVlc3QaIC5zdHJlYW12aXMudjEuUmVwbGFjZVJ1blJlc3BvbnNlEkwKCURlbGV0ZVJ1bhIeLnN0cmVhbXZpcy52MS5EZWxldGVSdW5SZXF1ZXN0Gh8uc3RyZWFtdmlzLnYxLkRlbGV0ZVJ1blJlc3BvbnNlEmEKEFNldFJ1bkF0dHJpYnV0ZXMSJS5zdHJlYW12aXMudjEuU2V0UnVuQXR0cmlidXRlc1JlcXVlc3QaJi5zdHJlYW12aXMudjEuU2V0UnVuQXR0cmlidXRlc1Jlc3BvbnNlEmQKEURlbGV0ZUVtcHR5U2VyaWVzEiYuc3RyZWFtdmlzLnYxLkRlbGV0ZUVtcHR5U2VyaWVzUmVxdWVzdBonLnN0cmVhbXZpcy52MS5EZWxldGVFbXB0eVNlcmllc1Jlc3BvbnNlElEKCkxpc3RTZXJpZXMSHy5zdHJlYW12aXMudjEuTGlzdFNlcmllc1JlcXVlc3QaIC5zdHJlYW12aXMudjEuTGlzdFNlcmllc1Jlc3BvbnNlMAESRAoKTGlzdEZpZWxkcxIfLnN0cmVhbXZpcy52MS5MaXN0RmllbGRzUmVxdWVzdBoTLnN0cmVhbXZpcy52MS5GaWVsZDABEksKCExpc3RSdW5zEh0uc3RyZWFtdmlzLnYxLkxpc3RSdW5zUmVxdWVzdBoeLnN0cmVhbXZpcy52MS5MaXN0UnVuc1Jlc3BvbnNlMAFCI1ohcGllci9wYi9zdHJlYW12aXMvdjE7c3RyZWFtdmlzX3YxYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("ChdzdHJlYW12aXMvdjEvZGF0YS5wcm90bxIMc3RyZWFtdmlzLnYxIkoKEkNyZWF0ZUZpZWxkUmVxdWVzdBIMCgRuYW1lGAEgASgJEhEKCWRhdGFfdHlwZRgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCSIVChNDcmVhdGVGaWVsZFJlc3BvbnNlIj8KE0NyZWF0ZVNlcmllc1JlcXVlc3QSEwoLc2VyaWVzX25hbWUYASABKAkSEwoLZmllbGRfbmFtZXMYAiADKAkiFgoUQ3JlYXRlU2VyaWVzUmVzcG9uc2UihgIKBkVuY1R5cBIUCgxmaWVsZF9oYW5kbGUYASABKAkSDAoEYmFzZRgCIAEoDBINCgVzaGFwZRgDIAMoDRIsCglpbnRfc3BhbnMYBCABKAsyFy5zdHJlYW12aXMudjEuSW50VmFsdWVzSAASMAoLZmxvYXRfc3BhbnMYBSABKAsyGS5zdHJlYW12aXMudjEuRmxvYXRWYWx1ZXNIABIuCgpib29sX2JjYXN0GAYgASgLMhguc3RyZWFtdmlzLnYxLkJvb2xWYWx1ZXNIABIwCgxzdHJpbmdfYmNhc3QYByABKAsyGC5zdHJlYW12aXMudjEuQm9vbFZhbHVlc0gAQgcKBXNwYW5zIjYKCUludFZhbHVlcxIpCgZ2YWx1ZXMYASADKAsyGS5zdHJlYW12aXMudjEuT3B0aW9uYWxJbnQiKwoLT3B0aW9uYWxJbnQSEgoFdmFsdWUYASABKAVIAIgBAUIICgZfdmFsdWUiOgoLRmxvYXRWYWx1ZXMSKwoGdmFsdWVzGAEgAygLMhsuc3RyZWFtdmlzLnYxLk9wdGlvbmFsRmxvYXQiLQoNT3B0aW9uYWxGbG9hdBISCgV2YWx1ZRgBIAEoAkgAiAEBQggKBl92YWx1ZSIcCgpCb29sVmFsdWVzEg4KBnZhbHVlcxgBIAMoCCJsChVBcHBlbmRUb1Nlcmllc1JlcXVlc3QSFQoNc2VyaWVzX2hhbmRsZRgBIAEoCRISCgpydW5faGFuZGxlGAIgASgJEigKCmZpZWxkX3ZhbHMYBCADKAsyFC5zdHJlYW12aXMudjEuRW5jVHlwIhgKFkFwcGVuZFRvU2VyaWVzUmVzcG9uc2UiEgoQQ3JlYXRlUnVuUmVxdWVzdCInChFDcmVhdGVSdW5SZXNwb25zZRISCgpydW5faGFuZGxlGAEgASgJIicKEVJlcGxhY2VSdW5SZXF1ZXN0EhIKCnJ1bl9oYW5kbGUYASABKAkiFAoSUmVwbGFjZVJ1blJlc3BvbnNlIiYKEERlbGV0ZVJ1blJlcXVlc3QSEgoKcnVuX2hhbmRsZRgBIAEoCSITChFEZWxldGVSdW5SZXNwb25zZSJ3CgpGaWVsZFZhbHVlEg4KBmhhbmRsZRgBIAEoCRIRCgdpbnRfdmFsGAIgASgFSAASEwoJZmxvYXRfdmFsGAMgASgCSAASFAoKc3RyaW5nX3ZhbBgEIAEoCUgAEhIKCGJvb2xfdmFsGAUgASgISABCBwoFdmFsdWUiVgoXU2V0UnVuQXR0cmlidXRlc1JlcXVlc3QSEgoKcnVuX2hhbmRsZRgBIAEoCRInCgVhdHRycxgCIAMoCzIYLnN0cmVhbXZpcy52MS5GaWVsZFZhbHVlIhoKGFNldFJ1bkF0dHJpYnV0ZXNSZXNwb25zZSIvChhEZWxldGVFbXB0eVNlcmllc1JlcXVlc3QSEwoLc2VyaWVzX25hbWUYASABKAkiGwoZRGVsZXRlRW1wdHlTZXJpZXNSZXNwb25zZSJqCgVGaWVsZBIOCgZoYW5kbGUYASABKAkSDAoEbmFtZRgCIAEoCRIuCglkYXRhX3R5cGUYAyABKA4yGy5zdHJlYW12aXMudjEuRmllbGREYXRhVHlwZRITCgtkZXNjcmlwdGlvbhgEIAEoCSJLCgZTZXJpZXMSDgoGaGFuZGxlGAEgASgJEgwKBG5hbWUYAiABKAkSIwoGZmllbGRzGAMgAygLMhMuc3RyZWFtdmlzLnYxLkZpZWxkIhMKEUxpc3RTZXJpZXNSZXF1ZXN0IhMKEUxpc3RGaWVsZHNSZXF1ZXN0IhEKD0xpc3RSdW5zUmVxdWVzdCJ8CgNSdW4SDgoGaGFuZGxlGAEgASgJEgwKBHRhZ3MYAiADKAkSLgoKc3RhcnRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASJwoFYXR0cnMYBCADKAsyGC5zdHJlYW12aXMudjEuRmllbGRWYWx1ZSIXCgdJbnRMaXN0EgwKBHZhbHMYASADKAUiQgoISW50UmFuZ2USEQoEaW1pbhgBIAEoBUgAiAEBEhEKBGltYXgYAiABKAVIAYgBAUIHCgVfaW1pbkIHCgVfaW1heCJECgpGbG9hdFJhbmdlEhEKBGZtaW4YASABKAJIAIgBARIRCgRmbWF4GAIgASgCSAGIAQFCBwoFX2ZtaW5CBwoFX2ZtYXgiGAoIQm9vbExpc3QSDAoEdmFscxgBIAMoCCIaCgpTdHJpbmdMaXN0EgwKBHZhbHMYASADKAkirwIKD0F0dHJpYnV0ZUZpbHRlchITCgthdHRyX2hhbmRsZRgBIAEoCRIXCg9pbmNsdWRlX21pc3NpbmcYAiABKAgSKwoJaW50X3JhbmdlGAMgASgLMhYuc3RyZWFtdmlzLnYxLkludFJhbmdlSAASKQoIaW50X2xpc3QYBCABKAsyFS5zdHJlYW12aXMudjEuSW50TGlzdEgAEi8KC2Zsb2F0X3JhbmdlGAUgASgLMhguc3RyZWFtdmlzLnYxLkZsb2F0UmFuZ2VIABIrCglib29sX2xpc3QYBiABKAsyFi5zdHJlYW12aXMudjEuQm9vbExpc3RIABIvCgtzdHJpbmdfbGlzdBgHIAEoCzIYLnN0cmVhbXZpcy52MS5TdHJpbmdMaXN0SABCBwoFdmFsdWUidwoJVGFnRmlsdGVyEi8KC2hhc19hbnlfdGFnGAEgASgLMhguc3RyZWFtdmlzLnYxLlN0cmluZ0xpc3RIABIwCgxoYXNfYWxsX3RhZ3MYAiABKAsyGC5zdHJlYW12aXMudjEuU3RyaW5nTGlzdEgAQgcKBXZhbHVlKpoBCg1GaWVsZERhdGFUeXBlEh8KG0ZJRUxEX0RBVEFfVFlQRV9VTlNQRUNJRklFRBAAEhcKE0ZJRUxEX0RBVEFfVFlQRV9JTlQQARIZChVGSUVMRF9EQVRBX1RZUEVfRkxPQVQQAhIaChZGSUVMRF9EQVRBX1RZUEVfU1RSSU5HEAMSGAoURklFTERfREFUQV9UWVBFX0JPT0wQBDKUBwoHU2VydmljZRJSCgtDcmVhdGVGaWVsZBIgLnN0cmVhbXZpcy52MS5DcmVhdGVGaWVsZFJlcXVlc3QaIS5zdHJlYW12aXMudjEuQ3JlYXRlRmllbGRSZXNwb25zZRJVCgxDcmVhdGVTZXJpZXMSIS5zdHJlYW12aXMudjEuQ3JlYXRlU2VyaWVzUmVxdWVzdBoiLnN0cmVhbXZpcy52MS5DcmVhdGVTZXJpZXNSZXNwb25zZRJbCg5BcHBlbmRUb1NlcmllcxIjLnN0cmVhbXZpcy52MS5BcHBlbmRUb1Nlcmllc1JlcXVlc3QaJC5zdHJlYW12aXMudjEuQXBwZW5kVG9TZXJpZXNSZXNwb25zZRJMCglDcmVhdGVSdW4SHi5zdHJlYW12aXMudjEuQ3JlYXRlUnVuUmVxdWVzdBofLnN0cmVhbXZpcy52MS5DcmVhdGVSdW5SZXNwb25zZRJPCgpSZXBsYWNlUnVuEh8uc3RyZWFtdmlzLnYxLlJlcGxhY2VSdW5SZXF1ZXN0GiAuc3RyZWFtdmlzLnYxLlJlcGxhY2VSdW5SZXNwb25zZRJMCglEZWxldGVSdW4SHi5zdHJlYW12aXMudjEuRGVsZXRlUnVuUmVxdWVzdBofLnN0cmVhbXZpcy52MS5EZWxldGVSdW5SZXNwb25zZRJhChBTZXRSdW5BdHRyaWJ1dGVzEiUuc3RyZWFtdmlzLnYxLlNldFJ1bkF0dHJpYnV0ZXNSZXF1ZXN0GiYuc3RyZWFtdmlzLnYxLlNldFJ1bkF0dHJpYnV0ZXNSZXNwb25zZRJkChFEZWxldGVFbXB0eVNlcmllcxImLnN0cmVhbXZpcy52MS5EZWxldGVFbXB0eVNlcmllc1JlcXVlc3QaJy5zdHJlYW12aXMudjEuRGVsZXRlRW1wdHlTZXJpZXNSZXNwb25zZRJFCgpMaXN0U2VyaWVzEh8uc3RyZWFtdmlzLnYxLkxpc3RTZXJpZXNSZXF1ZXN0GhQuc3RyZWFtdmlzLnYxLlNlcmllczABEkQKCkxpc3RGaWVsZHMSHy5zdHJlYW12aXMudjEuTGlzdEZpZWxkc1JlcXVlc3QaEy5zdHJlYW12aXMudjEuRmllbGQwARI+CghMaXN0UnVucxIdLnN0cmVhbXZpcy52MS5MaXN0UnVuc1JlcXVlc3QaES5zdHJlYW12aXMudjEuUnVuMAFCI1ohcGllci9wYi9zdHJlYW12aXMvdjE7c3RyZWFtdmlzX3YxYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * Describes the message streamvis.v1.CreateFieldRequest.
@@ -75,186 +75,193 @@ export const OptionalFloatSchema = /*@__PURE__*/
   messageDesc(file_streamvis_v1_data, 8);
 
 /**
+ * Describes the message streamvis.v1.BoolValues.
+ * Use `create(BoolValuesSchema)` to create a new message.
+ */
+export const BoolValuesSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 9);
+
+/**
  * Describes the message streamvis.v1.AppendToSeriesRequest.
  * Use `create(AppendToSeriesRequestSchema)` to create a new message.
  */
 export const AppendToSeriesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 9);
+  messageDesc(file_streamvis_v1_data, 10);
 
 /**
  * Describes the message streamvis.v1.AppendToSeriesResponse.
  * Use `create(AppendToSeriesResponseSchema)` to create a new message.
  */
 export const AppendToSeriesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 10);
+  messageDesc(file_streamvis_v1_data, 11);
 
 /**
  * Describes the message streamvis.v1.CreateRunRequest.
  * Use `create(CreateRunRequestSchema)` to create a new message.
  */
 export const CreateRunRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 11);
+  messageDesc(file_streamvis_v1_data, 12);
 
 /**
  * Describes the message streamvis.v1.CreateRunResponse.
  * Use `create(CreateRunResponseSchema)` to create a new message.
  */
 export const CreateRunResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 12);
+  messageDesc(file_streamvis_v1_data, 13);
 
 /**
  * Describes the message streamvis.v1.ReplaceRunRequest.
  * Use `create(ReplaceRunRequestSchema)` to create a new message.
  */
 export const ReplaceRunRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 13);
+  messageDesc(file_streamvis_v1_data, 14);
 
 /**
  * Describes the message streamvis.v1.ReplaceRunResponse.
  * Use `create(ReplaceRunResponseSchema)` to create a new message.
  */
 export const ReplaceRunResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 14);
+  messageDesc(file_streamvis_v1_data, 15);
 
 /**
  * Describes the message streamvis.v1.DeleteRunRequest.
  * Use `create(DeleteRunRequestSchema)` to create a new message.
  */
 export const DeleteRunRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 15);
+  messageDesc(file_streamvis_v1_data, 16);
 
 /**
  * Describes the message streamvis.v1.DeleteRunResponse.
  * Use `create(DeleteRunResponseSchema)` to create a new message.
  */
 export const DeleteRunResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 16);
+  messageDesc(file_streamvis_v1_data, 17);
 
 /**
  * Describes the message streamvis.v1.FieldValue.
  * Use `create(FieldValueSchema)` to create a new message.
  */
 export const FieldValueSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 17);
+  messageDesc(file_streamvis_v1_data, 18);
 
 /**
  * Describes the message streamvis.v1.SetRunAttributesRequest.
  * Use `create(SetRunAttributesRequestSchema)` to create a new message.
  */
 export const SetRunAttributesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 18);
+  messageDesc(file_streamvis_v1_data, 19);
 
 /**
  * Describes the message streamvis.v1.SetRunAttributesResponse.
  * Use `create(SetRunAttributesResponseSchema)` to create a new message.
  */
 export const SetRunAttributesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 19);
+  messageDesc(file_streamvis_v1_data, 20);
 
 /**
  * Describes the message streamvis.v1.DeleteEmptySeriesRequest.
  * Use `create(DeleteEmptySeriesRequestSchema)` to create a new message.
  */
 export const DeleteEmptySeriesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 20);
+  messageDesc(file_streamvis_v1_data, 21);
 
 /**
  * Describes the message streamvis.v1.DeleteEmptySeriesResponse.
  * Use `create(DeleteEmptySeriesResponseSchema)` to create a new message.
  */
 export const DeleteEmptySeriesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 21);
+  messageDesc(file_streamvis_v1_data, 22);
 
 /**
  * Describes the message streamvis.v1.Field.
  * Use `create(FieldSchema)` to create a new message.
  */
 export const FieldSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 22);
+  messageDesc(file_streamvis_v1_data, 23);
+
+/**
+ * Describes the message streamvis.v1.Series.
+ * Use `create(SeriesSchema)` to create a new message.
+ */
+export const SeriesSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 24);
 
 /**
  * Describes the message streamvis.v1.ListSeriesRequest.
  * Use `create(ListSeriesRequestSchema)` to create a new message.
  */
 export const ListSeriesRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 23);
-
-/**
- * Describes the message streamvis.v1.ListSeriesResponse.
- * Use `create(ListSeriesResponseSchema)` to create a new message.
- */
-export const ListSeriesResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 24);
+  messageDesc(file_streamvis_v1_data, 25);
 
 /**
  * Describes the message streamvis.v1.ListFieldsRequest.
  * Use `create(ListFieldsRequestSchema)` to create a new message.
  */
 export const ListFieldsRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 25);
+  messageDesc(file_streamvis_v1_data, 26);
 
 /**
  * Describes the message streamvis.v1.ListRunsRequest.
  * Use `create(ListRunsRequestSchema)` to create a new message.
  */
 export const ListRunsRequestSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 26);
+  messageDesc(file_streamvis_v1_data, 27);
 
 /**
- * Describes the message streamvis.v1.ListRunsResponse.
- * Use `create(ListRunsResponseSchema)` to create a new message.
+ * Describes the message streamvis.v1.Run.
+ * Use `create(RunSchema)` to create a new message.
  */
-export const ListRunsResponseSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 27);
+export const RunSchema = /*@__PURE__*/
+  messageDesc(file_streamvis_v1_data, 28);
 
 /**
  * Describes the message streamvis.v1.IntList.
  * Use `create(IntListSchema)` to create a new message.
  */
 export const IntListSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 28);
+  messageDesc(file_streamvis_v1_data, 29);
 
 /**
  * Describes the message streamvis.v1.IntRange.
  * Use `create(IntRangeSchema)` to create a new message.
  */
 export const IntRangeSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 29);
+  messageDesc(file_streamvis_v1_data, 30);
 
 /**
  * Describes the message streamvis.v1.FloatRange.
  * Use `create(FloatRangeSchema)` to create a new message.
  */
 export const FloatRangeSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 30);
+  messageDesc(file_streamvis_v1_data, 31);
 
 /**
  * Describes the message streamvis.v1.BoolList.
  * Use `create(BoolListSchema)` to create a new message.
  */
 export const BoolListSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 31);
+  messageDesc(file_streamvis_v1_data, 32);
 
 /**
  * Describes the message streamvis.v1.StringList.
  * Use `create(StringListSchema)` to create a new message.
  */
 export const StringListSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 32);
+  messageDesc(file_streamvis_v1_data, 33);
 
 /**
  * Describes the message streamvis.v1.AttributeFilter.
  * Use `create(AttributeFilterSchema)` to create a new message.
  */
 export const AttributeFilterSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 33);
+  messageDesc(file_streamvis_v1_data, 34);
 
 /**
  * Describes the message streamvis.v1.TagFilter.
  * Use `create(TagFilterSchema)` to create a new message.
  */
 export const TagFilterSchema = /*@__PURE__*/
-  messageDesc(file_streamvis_v1_data, 34);
+  messageDesc(file_streamvis_v1_data, 35);
 
 /**
  * Describes the enum streamvis.v1.FieldDataType.

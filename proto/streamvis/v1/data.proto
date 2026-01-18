@@ -26,11 +26,14 @@ message CreateSeriesResponse {
 }
 
 message EncTyp {
-  bytes base = 1;
-  repeated uint32 shape = 2;
+  string field_handle = 1;
+  bytes base = 2;
+  repeated uint32 shape = 3;
   oneof spans {
-    IntValues ival = 3;
-    FloatValues fval = 4;
+    IntValues int_spans = 4;
+    FloatValues float_spans = 5;
+    BoolValues bool_bcast = 6;
+    BoolValues string_bcast = 7;
   }
 }
 
@@ -50,15 +53,17 @@ message OptionalFloat {
   optional float value = 1;
 }
 
+message BoolValues {
+  repeated bool values = 1;
+}
+
 message AppendToSeriesRequest {
   string series_handle = 1;
   string run_handle = 2;
-  repeated string field_names = 3;
   repeated EncTyp field_vals = 4;
 }
 
 message AppendToSeriesResponse {
-  bool success = 1;
 }
 
 message CreateRunRequest { }
@@ -121,20 +126,20 @@ message Field {
   string description = 4;
 }
 
-message ListSeriesRequest {}
-
-message ListSeriesResponse {
-  string series_name = 1;
-  string series_handle = 2;
+message Series {
+  string handle = 1;
+  string name = 2;
   repeated Field fields = 3;
 }
+
+message ListSeriesRequest {}
 
 message ListFieldsRequest {}
 
 message ListRunsRequest {}
 
-message ListRunsResponse {
-  string run_handle = 1;
+message Run {
+  string handle = 1;
   repeated string tags = 2;
   google.protobuf.Timestamp started_at = 3;
   repeated FieldValue attrs = 4;
@@ -193,8 +198,8 @@ service Service {
   rpc DeleteRun (DeleteRunRequest) returns (DeleteRunResponse);
   rpc SetRunAttributes (SetRunAttributesRequest) returns (SetRunAttributesResponse);
   rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
-  rpc ListSeries (ListSeriesRequest) returns (stream ListSeriesResponse);
+  rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
-  rpc ListRuns (ListRunsRequest) returns (stream ListRunsResponse);
+  rpc ListRuns (ListRunsRequest) returns (stream Run);
   // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
 }

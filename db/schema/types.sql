@@ -71,7 +71,7 @@ CREATE TYPE tag_filter_typ AS (
 
 
 \echo 'valid_enc_typ'
-CREATE FUNCTION valid_enc_typ(item enc_typ) 
+CREATE FUNCTION valid_enc_typ(val enc_typ) 
 RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE plpgsql
@@ -91,35 +91,35 @@ BEGIN
     CASE v_data_type 
       WHEN 'int' THEN
         (
-          (item).int_spans IS NOT NULL AND
-          (item).float_spans IS NULL AND
-          (item).bool_bcast IS NULL AND
-          (item).string_bcast IS NULL AND
-          array_length((item).shape, 1) = array_length((item).int_spans, 1)
+          (val).int_spans IS NOT NULL AND
+          (val).float_spans IS NULL AND
+          (val).bool_bcast IS NULL AND
+          (val).string_bcast IS NULL AND
+          array_length((val).shape, 1) = array_length((val).int_spans, 1)
         )
       WHEN 'float' THEN
         (
-          (item).int_spans IS NULL AND
-          (item).float_spans IS NOT NULL AND
-          (item).bool_bcast IS NULL AND
-          (item).string_bcast IS NULL AND
-          array_length((item).shape, 1) = array_length((item).float_spans, 1)
+          (val).int_spans IS NULL AND
+          (val).float_spans IS NOT NULL AND
+          (val).bool_bcast IS NULL AND
+          (val).string_bcast IS NULL AND
+          array_length((val).shape, 1) = array_length((val).float_spans, 1)
         )
       WHEN 'bool' THEN
         (
-          (item).int_spans IS NULL AND
-          (item).float_spans IS NULL AND
-          (item).bool_bcast IS NOT NULL AND
-          (item).string_bcast IS NULL AND
-          array_length((item).shape, 1) = array_length((item).bool_bcast, 1)
+          (val).int_spans IS NULL AND
+          (val).float_spans IS NULL AND
+          (val).bool_bcast IS NOT NULL AND
+          (val).string_bcast IS NULL AND
+          array_length((val).shape, 1) = array_length((val).bool_bcast, 1)
         )
       WHEN 'string' THEN
         (
-          (item).int_spans IS NULL AND
-          (item).float_spans IS NULL AND
-          (item).bool_bcast IS NULL AND
-          (item).string_bcast IS NOT NULL AND
-          array_length((item).shape, 1) = array_length((item).string_bcast, 1)
+          (val).int_spans IS NULL AND
+          (val).float_spans IS NULL AND
+          (val).bool_bcast IS NULL AND
+          (val).string_bcast IS NOT NULL AND
+          array_length((val).shape, 1) = array_length((val).string_bcast, 1)
         )
       ELSE
         FALSE

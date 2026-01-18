@@ -22,39 +22,55 @@ func MakeToProtobufFunc[A ToProtobuffer[B], B any]() func(A) (B, error) {
 }
 
 type EncTypValue struct {
-	Base     []byte          `db:"base"`
-	Shape    []uint32        `db:"shape"`
-	I32Spans []pgtype.Int4   `db:"int_spans"`
-	F32Spans []pgtype.Float4 `db:"float_spans"`
+	FieldHandle uuid.UUID       `db:"field_handle"`
+	Base        []byte          `db:"base"`
+	Shape       []uint32        `db:"shape"`
+	IntSpans    []pgtype.Int4   `db:"int_spans"`
+	FloatSpans  []pgtype.Float4 `db:"float_spans"`
+	BoolBcast   []bool          `db:"bool_bcast"`
+	StringBcast []bool          `db:string_bcast"`
 }
 
-func NewEncTypValue(pb *pb.EncTyp) *EncTypValue {
+func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
+	fieldHandle, err := uuid.Parse(pb.GetFieldHandle())
+	if err != nil {
+		return nil, err
+	}
 	v := &EncTypValue{
-		Base:  pb.Base,
-		Shape: pb.Shape,
+		FieldHandle: fieldHandle,
+		Base:        pb.Base,
+		Shape:       pb.Shape,
 	}
 
-	if pb.GetIval() != nil {
-		vals := pb.GetIval().GetValues()
-		v.I32Spans = make([]pgtype.Int4, len(vals))
+	if pb.GetIntSpans() != nil {
+		vals := pb.GetIntSpans().GetValues()
+		v.IntSpans = make([]pgtype.Int4, len(vals))
 		for i, opt := range vals {
 			if opt.Value != nil {
-				v.I32Spans[i] = pgtype.Int4{Int32: *opt.Value, Valid: true}
+				v.IntSpans[i] = pgtype.Int4{Int32: *opt.Value, Valid: true}
 			}
 		}
 	}
 
-	if pb.GetFval() != nil {
-		vals := pb.GetFval().GetValues()
-		v.F32Spans = make([]pgtype.Float4, len(vals))
+	if pb.GetFloatSpans() != nil {
+		vals := pb.GetFloatSpans().GetValues()
+		v.FloatSpans = make([]pgtype.Float4, len(vals))
 		for i, opt := range vals {
 			if opt.Value != nil {
-				v.F32Spans[i] = pgtype.Float4{Float32: *opt.Value, Valid: true}
+				v.FloatSpans[i] = pgtype.Float4{Float32: *opt.Value, Valid: true}
 			}
 		}
 	}
 
-	return v
+	if pb.GetBoolBcast() != nil {
+		v.BoolBcast = pb.GetBoolBcast().GetValues()
+	}
+
+	if pb.GetStringBcast() != nil {
+		v.StringBcast = pb.GetStringBcast().GetValues()
+	}
+
+	return v, nil
 }
 
 type AttributeFilterValue struct {
@@ -206,16 +222,16 @@ func (ft FieldTyp) toProtobuf() (pb.Field, error) {
 	return msg, nil
 }
 
-type SeriesResponse struct {
-	SeriesName   string      `db:"name"`
-	SeriesHandle uuid.UUID   `db:"handle"`
-	Fields       []*FieldTyp `db:"fields"`
+type Series struct {
+	Name   string      `db:"name"`
+	Handle uuid.UUID   `db:"handle"`
+	Fields []*FieldTyp `db:"fields"`
 }
 
-func (sr SeriesResponse) toProtobuf() (pb.ListSeriesResponse, error) {
-	msg := pb.ListSeriesResponse{
-		SeriesName:   sr.SeriesName,
-		SeriesHandle: sr.SeriesHandle.String(),
+func (sr Series) toProtobuf() (pb.Series, error) {
+	msg := pb.Series{
+		Name:   sr.Name,
+		Handle: sr.Handle.String(),
 	}
 	msg.Fields = make([]*pb.Field, len(sr.Fields))
 	for i, field := range sr.Fields {
@@ -228,16 +244,16 @@ func (sr SeriesResponse) toProtobuf() (pb.ListSeriesResponse, error) {
 	return msg, nil
 }
 
-type RunsResponse struct {
-	RunHandle uuid.UUID        `db:"handle"`
+type Run struct {
+	Handle    uuid.UUID        `db:"handle"`
 	Tags      []string         `db:"tags"`
 	StartedAt time.Time        `db:"started_at"`
 	Attrs     []*FieldValueTyp `db:"attrs"`
 }
 
-func (rr RunsResponse) toProtobuf() (pb.ListRunsResponse, error) {
-	msg := pb.ListRunsResponse{
-		RunHandle: rr.RunHandle.String(),
+func (rr Run) toProtobuf() (pb.Run, error) {
+	msg := pb.Run{
+		Handle:    rr.Handle.String(),
 		Tags:      rr.Tags,
 		StartedAt: timestamppb.New(rr.StartedAt),
 	}
@@ -245,7 +261,7 @@ func (rr RunsResponse) toProtobuf() (pb.ListRunsResponse, error) {
 	for i, attr := range rr.Attrs {
 		pbvalue, err := attr.toProtobuf()
 		if err != nil {
-			return pb.ListRunsResponse{}, err
+			return pb.Run{}, err
 		}
 		msg.Attrs[i] = &pbvalue
 	}
