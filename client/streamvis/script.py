@@ -90,6 +90,12 @@ def set_run_attributes(run_handle, /, attrs: dict[str, Any]):
         req.attrs.append(attr)
     stub.SetRunAttributes(req)
 
+def delete_empty_series(series_name: str):
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.DeleteEmptySeriesRequest(series_name=series_name)
+    _ = stub.DeleteEmptySeries(req)
 
 def list_series():
     global GRPC_URI
@@ -123,6 +129,7 @@ def main():
              "create-series": create_series,
              "create-run": create_run,
              "set-run-attributes": set_run_attributes,
+             "delete-empty-series": delete_empty_series,
              "list-series": list_series,
              "list-runs": list_runs,
              "list-fields": list_fields,

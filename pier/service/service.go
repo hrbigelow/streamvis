@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	pb "pier/pb/streamvis/v1"
 
@@ -195,4 +196,41 @@ func (s *Service) ListRuns(
 ) error {
 	dataCh, errCh := s.store.ListRuns(ctx)
 	return streamRecords[pb.Run](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) QueryRunData(
+	ctx context.Context,
+	req *pb.QueryRunDataRequest,
+	stream *connect.ServerStream[pb.ChunkData],
+) error {
+	fieldHandles := make([]uuid.UUID, len(req.FieldHandles))
+	for i, handleStr := range req.GetFieldHandles() {
+		handle, err := uuid.Parse(handleStr)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "FieldHandle is invalid UUID: %v", err)
+		}
+		fieldHandles[i] = handle
+	}
+	attrFilters := make([]*AttributeFilterValue, len(req.AttributeFilters))
+	var err error
+	for i, filter := range req.GetAttributeFilters() {
+		attrFilters[i], err = NewAttributeFilterValue(filter)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "AttributeFilter invalid: %v", err)
+		}
+	}
+	tagFilter := NewTagFilterValue(req.GetTagFilter())
+	var minStartedAt, maxStartedAt *time.Time
+	if req.MinStartedAt != nil {
+		t := req.MinStartedAt.AsTime()
+		minStartedAt = &t
+	}
+	if req.MaxStartedAt != nil {
+		t := req.MaxStartedAt.AsTime()
+		maxStartedAt = &t
+	}
+	dataCh, errCh := s.store.QueryRunData(
+		ctx, fieldHandles, attrFilters, &tagFilter, minStartedAt, maxStartedAt,
+	)
+	return streamRecords[pb.ChunkData](ctx, *stream, dataCh, errCh)
 }

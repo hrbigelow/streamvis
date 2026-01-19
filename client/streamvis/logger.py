@@ -1,5 +1,6 @@
 import asyncio
 import grpc
+import uuid
 import numpy as np
 from typing import Literal
 import threading
@@ -38,12 +39,21 @@ class BaseLogger:
         for msg in self.stub.ListFields(req):
             self.all_fields[msg.name] = msg
 
-    def _create_run(self):
-        req = pb.CreateRunRequest()
-        resp = self.stub.CreateRun(req) # always succeeds
-        self.run_handle = resp.run_handle
-        self._get_series()
-        self._get_fields()
+    def _create_or_replace_run(self):
+        if self.run_handle is not None:
+            req = pb.ReplaceRunRequest(run_handle=self.run_handle)
+            _ = self.stub.ReplaceRun(req)
+        else:
+            req = pb.CreateRunRequest()
+            resp = self.stub.CreateRun(req) # always succeeds
+            self.run_handle = resp.run_handle
+
+    def set_run_handle(self, handle: str):
+        try:
+            uuid.UUID(handle)
+        except ValueError as ve:
+            raise RuntimeError(f"handle `{handle}` is not a valid UUID string: %s", ve)
+        self.run_handle = handle
 
     def set_run_attributes(self, attrs: dict):
         """Write a set of attributes to associate with this run.
@@ -124,7 +134,7 @@ class BaseLogger:
 
         if len(field_values) != 0:
             raise RuntimeError(
-                f"Value provided for field names {', '.join(field_values.keys())}"
+                f"Value provided for field names {', '.join(field_values.keys())} "
                 f"which are not fields of series {series_name}")
 
         try:
@@ -223,7 +233,9 @@ class AsyncDataLogger(BaseLogger):
     async def __aenter__(self):
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
-        self._create_run()
+        self._create_or_replace_run()
+        self._get_series()
+        self._get_fields()
         self._task_group.create_task(self.flush_buffer())
         return self
 
@@ -271,7 +283,9 @@ class DataLogger(BaseLogger):
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
     def start(self):
-        self._create_run()
+        self._create_or_replace_run()
+        self._get_series()
+        self._get_fields()
         self._flush_thread.start()
 
     def flush_buffer(self):

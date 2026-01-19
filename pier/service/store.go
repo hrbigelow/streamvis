@@ -240,3 +240,26 @@ func (st *Store) ListRuns(
 	}
 	return queryItemsConvert(ctx, st.pool, sql, convert)
 }
+
+func (st *Store) QueryRunData(
+	ctx context.Context,
+	fieldHandles []uuid.UUID,
+	attributeFilters []*AttributeFilterValue,
+	tagFilter *TagFilterValue,
+	minStartedAt *time.Time,
+	maxStartedAt *time.Time,
+) (<-chan *pb.ChunkData, <-chan error) {
+	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6)`
+	convert := func(row ChunkData) (pb.ChunkData, error) {
+		row.EncVal.FieldHandle = uuid.Nil
+		return row.toProtobuf()
+	}
+	return queryItemsConvert(
+		ctx, st.pool, sql, convert,
+		fieldHandles,
+		attributeFilters,
+		tagFilter,
+		minStartedAt,
+		maxStartedAt,
+	)
+}

@@ -57,6 +57,8 @@ const (
 	ServiceListFieldsProcedure = "/streamvis.v1.Service/ListFields"
 	// ServiceListRunsProcedure is the fully-qualified name of the Service's ListRuns RPC.
 	ServiceListRunsProcedure = "/streamvis.v1.Service/ListRuns"
+	// ServiceQueryRunDataProcedure is the fully-qualified name of the Service's QueryRunData RPC.
+	ServiceQueryRunDataProcedure = "/streamvis.v1.Service/QueryRunData"
 )
 
 // ServiceClient is a client for the streamvis.v1.Service service.
@@ -72,6 +74,7 @@ type ServiceClient interface {
 	ListSeries(context.Context, *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListFields(context.Context, *v1.ListFieldsRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListRuns(context.Context, *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.Run], error)
+	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error)
 }
 
 // NewServiceClient constructs a client for the streamvis.v1.Service service. By default, it uses
@@ -151,6 +154,12 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("ListRuns")),
 			connect.WithClientOptions(opts...),
 		),
+		queryRunData: connect.NewClient[v1.QueryRunDataRequest, v1.ChunkData](
+			httpClient,
+			baseURL+ServiceQueryRunDataProcedure,
+			connect.WithSchema(serviceMethods.ByName("QueryRunData")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -167,6 +176,7 @@ type serviceClient struct {
 	listSeries        *connect.Client[v1.ListSeriesRequest, v1.Series]
 	listFields        *connect.Client[v1.ListFieldsRequest, v1.Field]
 	listRuns          *connect.Client[v1.ListRunsRequest, v1.Run]
+	queryRunData      *connect.Client[v1.QueryRunDataRequest, v1.ChunkData]
 }
 
 // CreateField calls streamvis.v1.Service.CreateField.
@@ -256,6 +266,11 @@ func (c *serviceClient) ListRuns(ctx context.Context, req *v1.ListRunsRequest) (
 	return c.listRuns.CallServerStream(ctx, connect.NewRequest(req))
 }
 
+// QueryRunData calls streamvis.v1.Service.QueryRunData.
+func (c *serviceClient) QueryRunData(ctx context.Context, req *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error) {
+	return c.queryRunData.CallServerStream(ctx, connect.NewRequest(req))
+}
+
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
 	CreateField(context.Context, *v1.CreateFieldRequest) (*v1.CreateFieldResponse, error)
@@ -269,6 +284,7 @@ type ServiceHandler interface {
 	ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error
 	ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error
+	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error
 }
 
 // NewServiceHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -344,6 +360,12 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("ListRuns")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceQueryRunDataHandler := connect.NewServerStreamHandlerSimple(
+		ServiceQueryRunDataProcedure,
+		svc.QueryRunData,
+		connect.WithSchema(serviceMethods.ByName("QueryRunData")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/streamvis.v1.Service/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceCreateFieldProcedure:
@@ -368,6 +390,8 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceListFieldsHandler.ServeHTTP(w, r)
 		case ServiceListRunsProcedure:
 			serviceListRunsHandler.ServeHTTP(w, r)
+		case ServiceQueryRunDataProcedure:
+			serviceQueryRunDataHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -419,4 +443,8 @@ func (UnimplementedServiceHandler) ListFields(context.Context, *v1.ListFieldsReq
 
 func (UnimplementedServiceHandler) ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListRuns is not implemented"))
+}
+
+func (UnimplementedServiceHandler) QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.QueryRunData is not implemented"))
 }

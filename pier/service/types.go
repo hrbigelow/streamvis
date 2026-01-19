@@ -22,13 +22,13 @@ func MakeToProtobufFunc[A ToProtobuffer[B], B any]() func(A) (B, error) {
 }
 
 type EncTypValue struct {
-	FieldHandle uuid.UUID       `db:"field_handle"`
-	Base        []byte          `db:"base"`
-	Shape       []uint32        `db:"shape"`
-	IntSpans    []pgtype.Int4   `db:"int_spans"`
-	FloatSpans  []pgtype.Float4 `db:"float_spans"`
-	BoolBcast   []bool          `db:"bool_bcast"`
-	StringBcast []bool          `db:string_bcast"`
+	FieldHandle uuid.UUID        `db:"field_handle"`
+	Base        []byte           `db:"base"`
+	Shape       []uint32         `db:"shape"`
+	IntSpans    *[]pgtype.Int4   `db:"int_spans"`
+	FloatSpans  *[]pgtype.Float4 `db:"float_spans"`
+	BoolBcast   *[]bool          `db:"bool_bcast"`
+	StringBcast *[]bool          `db:string_bcast"`
 }
 
 func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
@@ -44,37 +44,74 @@ func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
 
 	if pb.GetIntSpans() != nil {
 		vals := pb.GetIntSpans().GetValues()
-		v.IntSpans = make([]pgtype.Int4, len(vals))
+		spans := make([]pgtype.Int4, len(vals))
+		v.IntSpans = &spans
 		for i, opt := range vals {
 			if opt.Value != nil {
-				v.IntSpans[i] = pgtype.Int4{Int32: *opt.Value, Valid: true}
+				spans[i] = pgtype.Int4{Int32: *opt.Value, Valid: true}
 			}
 		}
 	}
 
 	if pb.GetFloatSpans() != nil {
 		vals := pb.GetFloatSpans().GetValues()
-		v.FloatSpans = make([]pgtype.Float4, len(vals))
+		spans := make([]pgtype.Float4, len(vals))
+		v.FloatSpans = &spans
 		for i, opt := range vals {
 			if opt.Value != nil {
-				v.FloatSpans[i] = pgtype.Float4{Float32: *opt.Value, Valid: true}
+				spans[i] = pgtype.Float4{Float32: *opt.Value, Valid: true}
 			}
 		}
 	}
 
 	if pb.GetBoolBcast() != nil {
-		v.BoolBcast = pb.GetBoolBcast().GetValues()
+		bcast := pb.GetBoolBcast().GetValues()
+		v.BoolBcast = &bcast
 	}
 
 	if pb.GetStringBcast() != nil {
-		v.StringBcast = pb.GetStringBcast().GetValues()
+		bcast := pb.GetStringBcast().GetValues()
+		v.StringBcast = &bcast
 	}
 
 	return v, nil
 }
 
+func (ev *EncTypValue) toProtobuf() pb.EncTyp {
+	msg := pb.EncTyp{
+		FieldHandle: ev.FieldHandle.String(),
+		Base:        ev.Base,
+		Shape:       ev.Shape,
+	}
+	if ev.IntSpans != nil {
+		ivals := make([]*pb.OptionalInt, len(*ev.IntSpans))
+		for i, i4 := range *ev.IntSpans {
+			if i4.Valid {
+				ivals[i] = &pb.OptionalInt{Value: &i4.Int32}
+			}
+		}
+		msg.Spans = &pb.EncTyp_IntSpans{IntSpans: &pb.IntValues{Values: ivals}}
+	}
+	if ev.FloatSpans != nil {
+		fvals := make([]*pb.OptionalFloat, len(*ev.FloatSpans))
+		for i, f4 := range *ev.FloatSpans {
+			if f4.Valid {
+				fvals[i] = &pb.OptionalFloat{Value: &f4.Float32}
+			}
+		}
+		msg.Spans = &pb.EncTyp_FloatSpans{FloatSpans: &pb.FloatValues{Values: fvals}}
+	}
+	if ev.BoolBcast != nil {
+		msg.Spans = &pb.EncTyp_BoolBcast{BoolBcast: &pb.BoolValues{Values: *ev.BoolBcast}}
+	}
+	if ev.StringBcast != nil {
+		msg.Spans = &pb.EncTyp_StringBcast{StringBcast: &pb.BoolValues{Values: *ev.StringBcast}}
+	}
+	return msg
+}
+
 type AttributeFilterValue struct {
-	AttrHandle     uuid.UUID `db:"attr_handle"`
+	FieldHandle    uuid.UUID `db:"field_handle"`
 	IncludeMissing bool      `db:"include_missing"`
 	IntMin         int32     `db:"int_min"`
 	IntMax         int32     `db:"int_max"`
@@ -86,13 +123,13 @@ type AttributeFilterValue struct {
 }
 
 func NewAttributeFilterValue(pb *pb.AttributeFilter) (*AttributeFilterValue, error) {
-	attrHandle, err := uuid.Parse(pb.GetAttrHandle())
+	fieldHandle, err := uuid.Parse(pb.GetFieldHandle())
 	if err != nil {
 		return nil, err
 	}
 
 	v := &AttributeFilterValue{
-		AttrHandle:     attrHandle,
+		FieldHandle:    fieldHandle,
 		IncludeMissing: pb.GetIncludeMissing(),
 	}
 
@@ -270,6 +307,43 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 }
 
 type TagFilterValue struct {
-	HasAnyTag  []string `db:"has_any_tag"`
-	HasAllTags []string `db:"has_all_tags"`
+	HasAnyTag  *[]string `db:"has_any_tag"`
+	HasAllTags *[]string `db:"has_all_tags"`
+}
+
+func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
+	var hasAny, hasAll *[]string
+	if msg.GetHasAnyTag() != nil {
+		hasAny = &msg.GetHasAnyTag().Vals
+	}
+	if msg.GetHasAllTags() != nil {
+		hasAll = &msg.GetHasAllTags().Vals
+	}
+
+	val := TagFilterValue{
+		HasAnyTag:  hasAny,
+		HasAllTags: hasAll,
+	}
+	return val
+}
+
+type ChunkData struct {
+	ChunkId    int64       `db:"chunk_id"`
+	SeriesName string      `db:"series_name"`
+	FieldName  string      `db:"field_name"`
+	RunHandle  uuid.UUID   `db:"run_handle"`
+	EncVal     EncTypValue `db:"enc_val"`
+}
+
+func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
+	encVal := cd.EncVal.toProtobuf()
+
+	msg := pb.ChunkData{
+		ChunkId:    cd.ChunkId,
+		SeriesName: cd.SeriesName,
+		FieldName:  cd.FieldName,
+		RunHandle:  cd.RunHandle.String(),
+		EncVal:     &encVal,
+	}
+	return msg, nil
 }

@@ -54,7 +54,6 @@ CREATE TYPE field_value_typ AS (
 CREATE TYPE attribute_filter_typ AS (
   field_handle UUID,
   include_missing BOOLEAN,
-  data_type field_data_typ,
   int_min INT,
   int_max INT,
   int_vals INT[],

@@ -145,6 +145,13 @@ message Run {
   repeated FieldValue attrs = 4;
 }
 
+message ChunkData {
+  int64 chunk_id = 1;
+  string series_name = 2;
+  string field_name = 3;
+  string run_handle = 4;
+  EncTyp enc_val = 5;
+}
 
 message IntList {
   repeated int32 vals = 1;
@@ -169,7 +176,7 @@ message StringList {
 }
 
 message AttributeFilter {
-  string attr_handle = 1;
+  string field_handle = 1;
   bool include_missing = 2;
   oneof value {
     IntRange int_range = 3;
@@ -187,6 +194,14 @@ message TagFilter {
   }
 }
 
+message QueryRunDataRequest {
+  repeated string field_handles = 1;
+  int64 last_chunk_id = 2;
+  repeated AttributeFilter attribute_filters = 3;
+  TagFilter tag_filter = 4;
+  google.protobuf.Timestamp min_started_at = 5;
+  google.protobuf.Timestamp max_started_at = 6;
+}
 
 
 service Service {
@@ -201,5 +216,6 @@ service Service {
   rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
   rpc ListRuns (ListRunsRequest) returns (stream Run);
+  rpc QueryRunData (QueryRunDataRequest) returns (stream ChunkData);
   // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
 }
