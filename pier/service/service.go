@@ -61,6 +61,18 @@ func streamRecords[R any](
 	}
 }
 
+func parseUUIDs(uuidStr []string, tag string) ([]uuid.UUID, error) {
+	objs := make([]uuid.UUID, len(uuidStr))
+	for i, str := range uuidStr {
+		obj, err := uuid.Parse(str)
+		if err != nil {
+			return objs, status.Errorf(codes.InvalidArgument, "%s is invalid UUID: %v", tag, err)
+		}
+		objs[i] = obj
+	}
+	return objs, nil
+}
+
 func (s *Service) CreateField(
 	ctx context.Context,
 	req *pb.CreateFieldRequest,
@@ -192,10 +204,28 @@ func (s *Service) ListFields(
 func (s *Service) ListRuns(
 	ctx context.Context,
 	req *pb.ListRunsRequest,
-	stream *connect.ServerStream[pb.Run],
+	stream *connect.ServerStream[pb.RunId],
 ) error {
-	dataCh, errCh := s.store.ListRuns(ctx)
-	return streamRecords[pb.Run](ctx, *stream, dataCh, errCh)
+	var err error
+	attrFilters := make([]*AttributeFilterValue, len(req.AttributeFilters))
+	for i, filter := range req.GetAttributeFilters() {
+		attrFilters[i], err = NewAttributeFilterValue(filter)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "AttributeFilter invalid: %v", err)
+		}
+	}
+	tagFilter := NewTagFilterValue(req.GetTagFilter())
+	var minStartedAt, maxStartedAt *time.Time
+	if req.MinStartedAt != nil {
+		t := req.MinStartedAt.AsTime()
+		minStartedAt = &t
+	}
+	if req.MaxStartedAt != nil {
+		t := req.MaxStartedAt.AsTime()
+		maxStartedAt = &t
+	}
+	dataCh, errCh := s.store.ListRuns(ctx, attrFilters, tagFilter, minStartedAt, maxStartedAt)
+	return streamRecords[pb.RunId](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) QueryRunData(
@@ -203,16 +233,15 @@ func (s *Service) QueryRunData(
 	req *pb.QueryRunDataRequest,
 	stream *connect.ServerStream[pb.ChunkData],
 ) error {
-	fieldHandles := make([]uuid.UUID, len(req.FieldHandles))
-	for i, handleStr := range req.GetFieldHandles() {
-		handle, err := uuid.Parse(handleStr)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "FieldHandle is invalid UUID: %v", err)
-		}
-		fieldHandles[i] = handle
+	attrHandles, err := parseUUIDs(req.AttrHandles, "AttrHandle")
+	if err != nil {
+		return err
+	}
+	coordHandles, err := parseUUIDs(req.CoordHandles, "CoordHandle")
+	if err != nil {
+		return err
 	}
 	attrFilters := make([]*AttributeFilterValue, len(req.AttributeFilters))
-	var err error
 	for i, filter := range req.GetAttributeFilters() {
 		attrFilters[i], err = NewAttributeFilterValue(filter)
 		if err != nil {
@@ -230,7 +259,33 @@ func (s *Service) QueryRunData(
 		maxStartedAt = &t
 	}
 	dataCh, errCh := s.store.QueryRunData(
-		ctx, fieldHandles, attrFilters, &tagFilter, minStartedAt, maxStartedAt,
+		ctx, attrHandles, coordHandles, attrFilters, tagFilter, minStartedAt, maxStartedAt,
 	)
 	return streamRecords[pb.ChunkData](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) ListCommonAttributes(
+	ctx context.Context,
+	req *pb.ListCommonAttributesRequest,
+	stream *connect.ServerStream[pb.Field],
+) error {
+	runHandles, err := parseUUIDs(req.RunHandles, "RunHandle")
+	if err != nil {
+		return err
+	}
+	dataCh, errCh := s.store.ListCommonAttributes(ctx, runHandles)
+	return streamRecords[pb.Field](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) ListCommonSeries(
+	ctx context.Context,
+	req *pb.ListCommonSeriesRequest,
+	stream *connect.ServerStream[pb.Series],
+) error {
+	runHandles, err := parseUUIDs(req.RunHandles, "RunHandle")
+	if err != nil {
+		return err
+	}
+	dataCh, errCh := s.store.ListCommonSeries(ctx, runHandles)
+	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
 }

@@ -1,19 +1,6 @@
-import { Service, DType } from '../streamvis/v1/data_pb.js';  
-import { createClient } from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-web";
+import { DType } from './gen/streamvis/v1/data_pb.js';  
 import * as THREE from 'three';
 
-/**
- * create a gRPC client
- * @param {string} host - string with host:port for gRPC server
- */
-function getServiceClient(url) {
-  const transport = createConnectTransport({
-    baseUrl: url,
-    httpVersion: "1.1"
-  });
-  return createClient(Service, transport);
-}
 
 function optParseInt(value, prev) {
   return parseInt(value);
@@ -127,7 +114,6 @@ function printVector(vec, tag) {
 
 
 export {
-  getServiceClient,
   getAxes,
   resizeToWindow,
   resizeToCanvas,

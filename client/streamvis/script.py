@@ -109,7 +109,9 @@ def list_runs():
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
-    req = pb.ListRunsRequest()
+    req = pb.ListRunsRequest(
+        attribute_filters=[],
+        tag_filter=pb.TagFilter(has_any_tag=pb.StringList()))
     for msg in stub.ListRuns(req):
         print(text_format.MessageToString(msg))
 

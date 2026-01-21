@@ -118,7 +118,7 @@ class BaseLogger:
             val = field_values.pop(field.name, None) 
             if val is None:
                 raise RuntimeError(
-                    f"Series {series_name} field {field.name} value missing from input"
+                    f"Series {series_name} field {field.name} value missing from input.  "
                     f"Values given are: {', '.join(field_values.keys())}")
             try:
                 ary = dbutil.convert_to_array(val)
@@ -196,9 +196,7 @@ class BaseLogger:
         series: pb.Series,
     ):
         req = pb.AppendToSeriesRequest(series_handle=series.handle, run_handle=self.run_handle)
-        _types = self.array_types[series.name]
-        array_types = tuple(_types[f.name] for f in series.fields)
-        chunk = dbutil.stack_series_values(array_types, chunk)
+        chunk = dbutil.stack_series_values(chunk)
         field_datas = chunk.to_exported()
 
         for field, ary in zip(series.fields, field_datas):

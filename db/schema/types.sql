@@ -18,10 +18,10 @@ For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 */
 \set QUIET 1
 
-\echo 'field_data_typ'
+\echo 'create field_data_typ'
 CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'string', 'bool');
 
-\echo 'field_typ'
+\echo 'create field_typ'
 CREATE TYPE field_typ AS (
   handle UUID,
   name TEXT,
@@ -29,7 +29,7 @@ CREATE TYPE field_typ AS (
   description TEXT
 );
 
-\echo 'enc_typ'
+\echo 'create enc_typ'
 CREATE TYPE enc_typ AS (
   field_handle UUID,
   base BYTEA,
@@ -41,7 +41,7 @@ CREATE TYPE enc_typ AS (
 );
 
 -- type used to store an attribute in the run_attr table
-\echo 'field_value_typ'
+\echo 'create field_value_typ'
 CREATE TYPE field_value_typ AS (
   field_handle UUID,
   int_val INT,
@@ -50,7 +50,7 @@ CREATE TYPE field_value_typ AS (
   string_val TEXT
 );
 
-\echo 'attribute_filter_typ'
+\echo 'create attribute_filter_typ'
 CREATE TYPE attribute_filter_typ AS (
   field_handle UUID,
   include_missing BOOLEAN,
@@ -69,7 +69,7 @@ CREATE TYPE tag_filter_typ AS (
 );
 
 
-\echo 'valid_enc_typ'
+\echo 'create valid_enc_typ'
 CREATE FUNCTION valid_enc_typ(val enc_typ) 
 RETURNS BOOLEAN
 IMMUTABLE
@@ -127,7 +127,7 @@ END;
 $$;
 
 
-\echo 'valid_attr_value'
+\echo 'create valid_attr_value'
 CREATE OR REPLACE FUNCTION valid_attr_value(
   val field_value_typ
 )
@@ -177,6 +177,46 @@ BEGIN
   END CASE;
 END;
 $$;
+
+
+/* Convert a scalar field_value_typ into a broadcasted enc_typ.
+   Assume the field_val is valid.
+*/
+\echo 'create project_field_value'
+CREATE FUNCTION project_field_value(
+  field_val field_value_typ,
+  num_points INT
+)
+RETURNS enc_typ 
+IMMUTABLE
+LANGUAGE plpgsql
+AS $$
+DECLARE v_enc_val enc_typ := ROW(
+  field_val.field_handle, 
+  field_val.base,
+  ARRAY[num_points],
+  NULL,
+  NULL,
+  NULL,
+  NULL)::enc_typ;
+BEGIN
+  CASE 
+    WHEN field_val.int_val IS NOT NULL THEN
+      v_enc_val.int_spans := ARRAY[0];
+    WHEN field_val.float_val IS NOT NULL THEN
+      v_enc_val.float_spans := ARRAY[0.0];
+    WHEN field_val.bool_bcast IS NOT NULL THEN
+      v_enc_val.bool_bcast := ARRAY[TRUE];
+    WHEN field_val.string_bcast IS NOT NULL THEN
+      v_enc_val.string_bcast := ARRAY[TRUE];
+    ELSE
+      RAISE EXCEPTION 'field_val has no non-null fields';
+  END CASE;
+
+  RETURN v_enc_val;
+END;
+$$;
+
 
 \set QUIET 0
 

@@ -87,12 +87,22 @@ class ServiceStub(object):
         self.ListRuns = channel.unary_stream(
                 '/streamvis.v1.Service/ListRuns',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.Run.FromString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.RunId.FromString,
                 _registered_method=True)
         self.QueryRunData = channel.unary_stream(
                 '/streamvis.v1.Service/QueryRunData',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.QueryRunDataRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.ChunkData.FromString,
+                _registered_method=True)
+        self.ListCommonAttributes = channel.unary_stream(
+                '/streamvis.v1.Service/ListCommonAttributes',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListCommonAttributesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.Field.FromString,
+                _registered_method=True)
+        self.ListCommonSeries = channel.unary_stream(
+                '/streamvis.v1.Service/ListCommonSeries',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.Series.FromString,
                 _registered_method=True)
 
 
@@ -166,6 +176,18 @@ class ServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def QueryRunData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCommonAttributes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCommonSeries(self, request, context):
         """rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -228,12 +250,22 @@ def add_ServiceServicer_to_server(servicer, server):
             'ListRuns': grpc.unary_stream_rpc_method_handler(
                     servicer.ListRuns,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.Run.SerializeToString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.RunId.SerializeToString,
             ),
             'QueryRunData': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRunData,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.QueryRunDataRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.ChunkData.SerializeToString,
+            ),
+            'ListCommonAttributes': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListCommonAttributes,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListCommonAttributesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.Field.SerializeToString,
+            ),
+            'ListCommonSeries': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListCommonSeries,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.Series.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -532,7 +564,7 @@ class Service(object):
             target,
             '/streamvis.v1.Service/ListRuns',
             streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.Run.FromString,
+            streamvis_dot_v1_dot_data__pb2.RunId.FromString,
             options,
             channel_credentials,
             insecure,
@@ -560,6 +592,60 @@ class Service(object):
             '/streamvis.v1.Service/QueryRunData',
             streamvis_dot_v1_dot_data__pb2.QueryRunDataRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.ChunkData.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCommonAttributes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListCommonAttributes',
+            streamvis_dot_v1_dot_data__pb2.ListCommonAttributesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.Field.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCommonSeries(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListCommonSeries',
+            streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.Series.FromString,
             options,
             channel_credentials,
             insecure,

@@ -1,18 +1,26 @@
 <script>
   import { onMount } from 'svelte';
-  import { getServiceClient } from './util.js';
+  import { getServiceClient } from './clientUtil.js';
   import { create } from '@bufbuild/protobuf';
   import {
-    ScopeRequestSchema,
-    NamesRequestSchema
-  } from '../streamvis/v1/data_pb.js';
+    ListFieldsRequestSchema,
+    ListSeriesRequestSchema,
+    ListCommonAttributesRequestSchema,
+    ListCommonSeriesRequestSchema,
+    ListRunsRequestSchema,
+  } from './gen/streamvis/v1/data_pb.js';
   let { streamvisUrl } = $props();
 
-  let allScopes = $state([]);
-  let selectedScopes = $state(new Set());
-
-  let visibleNames = $state([]);
-  let selectedNames = $state(new Set());
+  let allFields = $state([]); 
+  let allSeries = $state([]);
+  let commonSeries = $state([]); 
+  let commonAttributes = $state([]);
+  let tagsLogic = $state(''); // 
+  let tagsList = $state('');
+  let minStartedAt = $state('');
+  let maxStartedAt = $state('');
+  let attributeFilter = $state([]);
+  let includedRuns = $state([]);
 
   let visibleFields = $state([]);
   let xAxisField = $state('');
@@ -32,66 +40,61 @@
   let client;
   let mounted = false;
 
-  function clearSelections() {
-    selectedScopes = new Set();
-    selectedNames = new Set();
-    selectedFilters = new Set();
-    selectedGroups = new Set();
-  }
-
-  async function fetchScopes() {
-    const req = create(ScopeRequestSchema, { scopeRegex: ".*" });
-    const newScopes = [];
-    for await (const resp of client.scopes(req)) {
-      const { scope } = resp;
-      newScopes.push(scope);
-    }
-    allScopes = newScopes.sort(); // for Svelte to catch
-    const next = new Set();
-    for (const scope of selectedScopes) {
-      if (allScopes.includes(scope)) {
-        next.add(scope);
-      }
-    }
-    selectedScopes = next;
-  }
-
-  function makeRegex(items) {
-    const ary = Array.from(items);
-    if (ary.length == 0) {
-      return "^$";
-    } else {
-      return ary.map(s => `^${s}$`).join("|");
-    }
-  }
-
-  async function fetchNames() {
-    const scopeRegex = makeRegex(selectedScopes)
-    const req = create(NamesRequestSchema, { scopeRegex, nameRegex: ".*" });
-    const newNames = new Set();
-    for await (const resp of client.names(req)) {
-      const { name } = resp;
-      newNames.add(name);
-    }
-    visibleNames = [...newNames].sort();
-    await fetchFields()
-  }
-
   async function fetchFields() {
-    const scopeRegex = makeRegex(selectedScopes);
-    const activeNames = [...selectedNames].filter(el => visibleNames.includes(el));
-    const newFields = new Set();
-    const nameRegex = makeRegex(activeNames);
-    const req = create(NamesRequestSchema, { scopeRegex, nameRegex });
-    for await (const resp of client.names(req)) {
-      const { fields } = resp;
-      for (const field of fields) {
-        newFields.add(field.name);
-      }
+    const req = create(ListFieldsRequestSchema, {});
+    const fields = [];
+    for await (const resp of client.listFields(req)) {
+      fields.push(resp);
     }
-    visibleFields = [...newFields].sort();
+    allFields = fields;
   }
 
+  async function fetchSeries() {
+    const req = create(ListSeriesRequestSchema, {});
+    const series = [];
+    for await (const resp of client.listSeries(req)) {
+      series.push(resp);
+    }
+    allSeries = series;
+  }
+
+  async function fetchCommonSeries() {
+    const req = create(ListCommonSeriesRequestSchema, {
+      runHandles: includedRuns,
+    });
+    const series = [];
+    for await (const resp of client.listCommonSeries(req)) {
+      series.push(resp);
+    }
+    commonSeries = series;
+  }
+
+  async function fetchCommonAttributes() {
+    const req = create(ListCommonAttributesRequestSchema, {
+      runHandles: includedRuns,
+    });
+    const attrs = [];
+    for await (const resp of client.listCommonAttributes(req)) {
+      attrs.push(resp);
+    }
+    commonAttributes = attrs;
+  }
+
+  async function updateSelectedRuns() {
+    const req = create(ListRunsRequestSchema, {
+      attributeFilters: [],
+      tagFilter: {
+        hasAnyTag: []
+      },
+      minStartedAt: null,
+      maxStartedAt: null
+    });
+    const handles = [];
+    for await (const resp of client.listRuns(req)) {
+      handles.push(resp.handle);
+    }
+    includedRuns = handles;
+  }
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -106,38 +109,6 @@
       }
       await sleep(delay_ms);
     }
-  }
-
-  async function toggleScope(scope) {
-    const next = new Set(selectedScopes);
-    if (next.has(scope)) {
-      next.delete(scope);
-    } else {
-      next.add(scope);
-    }
-    selectedScopes = next;
-    await fetchNames();
-  }
-
-  async function toggleName(name) {
-    const next = new Set(selectedNames);
-    if (next.has(name)) {
-      next.delete(name);
-    } else {
-      next.add(name);
-    }
-    selectedNames = next;
-    await fetchFields();
-  }
-
-  async function toggleFilter(field) {
-    const next = new Set(selectedFilters);
-    if (next.has(field)) {
-      next.delete(field);
-    } else {
-      next.add(field);
-    }
-    selectedFilters = next;
   }
 
   async function toggleGroup(field) {
@@ -175,13 +146,61 @@
 
   onMount(() => {
     client = getServiceClient('/');
-    refreshEvery(fetchScopes, 10_000);
+    refreshEvery(fetchFields, 10_000);
   });
 
+  $effect(() => {
+    updateSelectedRuns();
+  });
+
+  $effect(() => {
+    fetchCommonSeries();
+    fetchCommonAttributes();
+  });
 
 
 </script>
 
+<div class="filter-run-table">
+  <div class="guide">Filter Run:</div>
+  <label class="guide" for="tags">Tags:
+    {#each ["has any", "has all"] as condition}
+      <label>
+        <input type="radio" name="tags" value={condition} bind:group={tagsLogic} />
+        {condition}
+      </label>
+    {/each}
+    <input id="tags-list" bind:value={tagsList} />
+  </label>
+  <label class="guide" for="started-at-after">Started At After:
+    <input id="started-at-after" type="range" bind:value={minStartedAt} />
+  </label>
+  <label class="guide" for="started-at-before">Started At Before:
+    <input id="started-at-before" type="range" bind:value={maxStartedAt} />
+  </label>
+  <label class="guide">Attribute Filters:</label>
+  {#each [0, 1, 2, 3, 4] as it}
+    <select bind:value={attributeFilter[it]}>
+      {#each allFields as attr}
+        <option value={attr.handle}>
+        {attr.name}
+        </option>
+      {/each}
+    </select>
+  {/each}
+</div>
+
+<div class="selected-runs-table">
+  <div class="guide">Included Runs</div>
+  <div>{includedRuns.length}</div>
+  <div class="guide">Series:</div>
+  {#each commonSeries as series}
+    <div>{series.name}</div>
+  {/each}
+</div>
+
+
+<!--
 <div class="top-table">
   <label class="guide" for="plot-title">Plot Title</label>
   <input id="plot-title" bind:value={plotTitle} />
@@ -316,15 +335,25 @@
 
 </div>
 
-
+-->
 
 <style>
 
-  .table {
+  .filter-run-table {
+    display: grid;
+    grid-template-rows: repeat(5, min-content);
+    /* grid-template-columns: 25% 15% 15% 15% 15% 15%; */
+    grid-template-columns: repeat(1, min-content);
+    gap: 1ch 5ch;
+    width 100vw;
+    box-sizing: border-box;
+  }
+
+  .selected-runs-table {
     display: grid;
     grid-template-rows: repeat(2, min-content);
     /* grid-template-columns: 25% 15% 15% 15% 15% 15%; */
-    grid-template-columns: repeat(7, min-content);
+    grid-template-columns: repeat(2, min-content);
     gap: 1ch 5ch;
     width 100vw;
     box-sizing: border-box;
@@ -351,7 +380,7 @@
     font-size: 110%;
     font-weight: bold;
     white-space: nowrap;
-    text-align: right;
+    text-align: left;
   }
 
   .field-row {

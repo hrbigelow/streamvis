@@ -2,7 +2,7 @@
 /* A series is conceptually an unordered set of points, each point having the same
  * set of coordinates.
  */
-\echo 'series'
+\echo 'create table series'
 CREATE TABLE series (
   id SERIAL PRIMARY KEY,
   handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -13,7 +13,7 @@ CREATE TABLE series (
 Holds the notion of a "field" which will provide basic type enforcement 
 (int, float, string, bool) for the associated value.
 */
-\echo 'field'
+\echo 'create table field'
 CREATE TABLE field (
   id SERIAL PRIMARY KEY,
   handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -22,24 +22,10 @@ CREATE TABLE field (
   description TEXT 
 );
 
-/*
-An entry in the run table describes the notion of a "run" in the sense of
-running a program or script to generate data.  It is useful to be able to delete
-all data associated with a given run, for example if the run parameters or code
-are deemed faulty.
-*/
-\echo 'run'
-CREATE TABLE run (
-  id SERIAL PRIMARY KEY,
-  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  tags TEXT[] NOT NULL DEFAULT '{}'::TEXT[], 
-  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 /* Represents a member of a conceptual 'Point', which is the data type of a given
  * series
 */
-\echo 'coord'
+\echo 'create table coord'
 CREATE TABLE coord (
   id SERIAL PRIMARY KEY,
   handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -49,9 +35,22 @@ CREATE TABLE coord (
 );
 
 /*
-Holds attribute values associated with runs
+An entry in the run table describes the notion of a "run" in the sense of
+running a program or script to generate data.  It is useful to be able to delete
+all data associated with a given run, for example if the run parameters or code
+are deemed faulty.
 */
-\echo 'run_attr'
+\echo 'create table run'
+CREATE TABLE run (
+  id SERIAL PRIMARY KEY,
+  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  tags TEXT[] NOT NULL DEFAULT '{}'::TEXT[], 
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+/* Holds attribute values associated with runs
+*/
+\echo 'create table run_attr'
 CREATE TABLE run_attr (
   run_id INT NOT NULL REFERENCES run(id) ON DELETE CASCADE,
   field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
@@ -64,7 +63,7 @@ A chunk is the unit of incrementally logging data to a series.  In the logging
 application, it represents the data that has accumulated since the last buffer flush. 
 I use BIGSERIAL for chunk_id here since 
 */
-\echo 'chunk'
+\echo 'create table chunk'
 CREATE TABLE chunk (
   id BIGSERIAL PRIMARY KEY,
   series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
@@ -74,7 +73,7 @@ CREATE TABLE chunk (
 
 /* Holds one chunk of data for a given coordinate
  */
-\echo 'coord_data'
+\echo 'create table coord_data'
 CREATE TABLE coord_data (
   coord_id INT NOT NULL REFERENCES coord(id) ON DELETE CASCADE,
   chunk_id BIGINT NOT NULL REFERENCES chunk(id) ON DELETE CASCADE,
@@ -87,7 +86,7 @@ CREATE TABLE coord_data (
 /*
 Holds locks to prevent resource contention
 */
-\echo 'data_lock'
+\echo 'create table data_lock'
 CREATE TABLE data_lock (
   handle UUID NOT NULL UNIQUE,
   lock_type TEXT NOT NULL,

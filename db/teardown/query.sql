@@ -1,4 +1,6 @@
 \set QUIET 1
+\echo 'drop query_run_data'
+DROP FUNCTION IF EXISTS query_run_data;
 
 \echo 'drop get_data'
 DROP FUNCTION IF EXISTS get_data;
@@ -21,8 +23,11 @@ DROP FUNCTION IF EXISTS filtered_by_tags;
 \echo 'drop list_runs'
 DROP FUNCTION IF EXISTS list_runs;
 
-\echo 'drop get_common_attributes'
-DROP FUNCTION IF EXISTS get_common_attributes;
+\echo 'drop function list_common_attributes'
+DROP FUNCTION IF EXISTS list_common_attributes;
+
+\echo 'drop function list_common_series'
+DROP FUNCTION IF EXISTS list_common_series;
 
 \set QUIET 0
 

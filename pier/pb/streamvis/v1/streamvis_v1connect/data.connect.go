@@ -59,6 +59,12 @@ const (
 	ServiceListRunsProcedure = "/streamvis.v1.Service/ListRuns"
 	// ServiceQueryRunDataProcedure is the fully-qualified name of the Service's QueryRunData RPC.
 	ServiceQueryRunDataProcedure = "/streamvis.v1.Service/QueryRunData"
+	// ServiceListCommonAttributesProcedure is the fully-qualified name of the Service's
+	// ListCommonAttributes RPC.
+	ServiceListCommonAttributesProcedure = "/streamvis.v1.Service/ListCommonAttributes"
+	// ServiceListCommonSeriesProcedure is the fully-qualified name of the Service's ListCommonSeries
+	// RPC.
+	ServiceListCommonSeriesProcedure = "/streamvis.v1.Service/ListCommonSeries"
 )
 
 // ServiceClient is a client for the streamvis.v1.Service service.
@@ -73,8 +79,10 @@ type ServiceClient interface {
 	DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error)
 	ListSeries(context.Context, *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListFields(context.Context, *v1.ListFieldsRequest) (*connect.ServerStreamForClient[v1.Field], error)
-	ListRuns(context.Context, *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.Run], error)
+	ListRuns(context.Context, *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.RunId], error)
 	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error)
+	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest) (*connect.ServerStreamForClient[v1.Field], error)
+	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 }
 
 // NewServiceClient constructs a client for the streamvis.v1.Service service. By default, it uses
@@ -148,7 +156,7 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("ListFields")),
 			connect.WithClientOptions(opts...),
 		),
-		listRuns: connect.NewClient[v1.ListRunsRequest, v1.Run](
+		listRuns: connect.NewClient[v1.ListRunsRequest, v1.RunId](
 			httpClient,
 			baseURL+ServiceListRunsProcedure,
 			connect.WithSchema(serviceMethods.ByName("ListRuns")),
@@ -160,23 +168,37 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("QueryRunData")),
 			connect.WithClientOptions(opts...),
 		),
+		listCommonAttributes: connect.NewClient[v1.ListCommonAttributesRequest, v1.Field](
+			httpClient,
+			baseURL+ServiceListCommonAttributesProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListCommonAttributes")),
+			connect.WithClientOptions(opts...),
+		),
+		listCommonSeries: connect.NewClient[v1.ListCommonSeriesRequest, v1.Series](
+			httpClient,
+			baseURL+ServiceListCommonSeriesProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListCommonSeries")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // serviceClient implements ServiceClient.
 type serviceClient struct {
-	createField       *connect.Client[v1.CreateFieldRequest, v1.CreateFieldResponse]
-	createSeries      *connect.Client[v1.CreateSeriesRequest, v1.CreateSeriesResponse]
-	appendToSeries    *connect.Client[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse]
-	createRun         *connect.Client[v1.CreateRunRequest, v1.CreateRunResponse]
-	replaceRun        *connect.Client[v1.ReplaceRunRequest, v1.ReplaceRunResponse]
-	deleteRun         *connect.Client[v1.DeleteRunRequest, v1.DeleteRunResponse]
-	setRunAttributes  *connect.Client[v1.SetRunAttributesRequest, v1.SetRunAttributesResponse]
-	deleteEmptySeries *connect.Client[v1.DeleteEmptySeriesRequest, v1.DeleteEmptySeriesResponse]
-	listSeries        *connect.Client[v1.ListSeriesRequest, v1.Series]
-	listFields        *connect.Client[v1.ListFieldsRequest, v1.Field]
-	listRuns          *connect.Client[v1.ListRunsRequest, v1.Run]
-	queryRunData      *connect.Client[v1.QueryRunDataRequest, v1.ChunkData]
+	createField          *connect.Client[v1.CreateFieldRequest, v1.CreateFieldResponse]
+	createSeries         *connect.Client[v1.CreateSeriesRequest, v1.CreateSeriesResponse]
+	appendToSeries       *connect.Client[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse]
+	createRun            *connect.Client[v1.CreateRunRequest, v1.CreateRunResponse]
+	replaceRun           *connect.Client[v1.ReplaceRunRequest, v1.ReplaceRunResponse]
+	deleteRun            *connect.Client[v1.DeleteRunRequest, v1.DeleteRunResponse]
+	setRunAttributes     *connect.Client[v1.SetRunAttributesRequest, v1.SetRunAttributesResponse]
+	deleteEmptySeries    *connect.Client[v1.DeleteEmptySeriesRequest, v1.DeleteEmptySeriesResponse]
+	listSeries           *connect.Client[v1.ListSeriesRequest, v1.Series]
+	listFields           *connect.Client[v1.ListFieldsRequest, v1.Field]
+	listRuns             *connect.Client[v1.ListRunsRequest, v1.RunId]
+	queryRunData         *connect.Client[v1.QueryRunDataRequest, v1.ChunkData]
+	listCommonAttributes *connect.Client[v1.ListCommonAttributesRequest, v1.Field]
+	listCommonSeries     *connect.Client[v1.ListCommonSeriesRequest, v1.Series]
 }
 
 // CreateField calls streamvis.v1.Service.CreateField.
@@ -262,13 +284,23 @@ func (c *serviceClient) ListFields(ctx context.Context, req *v1.ListFieldsReques
 }
 
 // ListRuns calls streamvis.v1.Service.ListRuns.
-func (c *serviceClient) ListRuns(ctx context.Context, req *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.Run], error) {
+func (c *serviceClient) ListRuns(ctx context.Context, req *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.RunId], error) {
 	return c.listRuns.CallServerStream(ctx, connect.NewRequest(req))
 }
 
 // QueryRunData calls streamvis.v1.Service.QueryRunData.
 func (c *serviceClient) QueryRunData(ctx context.Context, req *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error) {
 	return c.queryRunData.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListCommonAttributes calls streamvis.v1.Service.ListCommonAttributes.
+func (c *serviceClient) ListCommonAttributes(ctx context.Context, req *v1.ListCommonAttributesRequest) (*connect.ServerStreamForClient[v1.Field], error) {
+	return c.listCommonAttributes.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListCommonSeries calls streamvis.v1.Service.ListCommonSeries.
+func (c *serviceClient) ListCommonSeries(ctx context.Context, req *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error) {
+	return c.listCommonSeries.CallServerStream(ctx, connect.NewRequest(req))
 }
 
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
@@ -283,8 +315,10 @@ type ServiceHandler interface {
 	DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error)
 	ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error
-	ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error
+	ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.RunId]) error
 	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error
+	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error
+	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error
 }
 
 // NewServiceHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -366,6 +400,18 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("QueryRunData")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceListCommonAttributesHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListCommonAttributesProcedure,
+		svc.ListCommonAttributes,
+		connect.WithSchema(serviceMethods.ByName("ListCommonAttributes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serviceListCommonSeriesHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListCommonSeriesProcedure,
+		svc.ListCommonSeries,
+		connect.WithSchema(serviceMethods.ByName("ListCommonSeries")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/streamvis.v1.Service/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceCreateFieldProcedure:
@@ -392,6 +438,10 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceListRunsHandler.ServeHTTP(w, r)
 		case ServiceQueryRunDataProcedure:
 			serviceQueryRunDataHandler.ServeHTTP(w, r)
+		case ServiceListCommonAttributesProcedure:
+			serviceListCommonAttributesHandler.ServeHTTP(w, r)
+		case ServiceListCommonSeriesProcedure:
+			serviceListCommonSeriesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -441,10 +491,18 @@ func (UnimplementedServiceHandler) ListFields(context.Context, *v1.ListFieldsReq
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListFields is not implemented"))
 }
 
-func (UnimplementedServiceHandler) ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error {
+func (UnimplementedServiceHandler) ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.RunId]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListRuns is not implemented"))
 }
 
 func (UnimplementedServiceHandler) QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.QueryRunData is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListCommonAttributes is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListCommonSeries is not implemented"))
 }

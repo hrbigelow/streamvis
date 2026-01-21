@@ -306,6 +306,17 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 	return msg, nil
 }
 
+type RunId struct {
+	Handle uuid.UUID `db:handle"`
+}
+
+func (r RunId) toProtobuf() (pb.RunId, error) {
+	msg := pb.RunId{
+		Handle: r.Handle.String(),
+	}
+	return msg, nil
+}
+
 type TagFilterValue struct {
 	HasAnyTag  *[]string `db:"has_any_tag"`
 	HasAllTags *[]string `db:"has_all_tags"`
@@ -328,22 +339,20 @@ func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
 }
 
 type ChunkData struct {
-	ChunkId    int64       `db:"chunk_id"`
-	SeriesName string      `db:"series_name"`
-	FieldName  string      `db:"field_name"`
-	RunHandle  uuid.UUID   `db:"run_handle"`
-	EncVal     EncTypValue `db:"enc_val"`
+	ChunkId int64          `db:"chunk_id"`
+	EncVals []*EncTypValue `db:"enc_val"`
 }
 
 func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
-	encVal := cd.EncVal.toProtobuf()
+	encVals := make([]*pb.EncTyp, len(cd.EncVals))
+	for i, encVal := range cd.EncVals {
+		val := encVal.toProtobuf()
+		encVals[i] = &val
+	}
 
 	msg := pb.ChunkData{
-		ChunkId:    cd.ChunkId,
-		SeriesName: cd.SeriesName,
-		FieldName:  cd.FieldName,
-		RunHandle:  cd.RunHandle.String(),
-		EncVal:     &encVal,
+		ChunkId: cd.ChunkId,
+		EncVals: encVals,
 	}
 	return msg, nil
 }

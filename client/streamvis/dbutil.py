@@ -242,11 +242,18 @@ def get_element_type(ary) -> int:
 def stack_array_list(array_type: str, arrays: list[ArrayLike]) -> ArrayLike:
     match array_type:
         case 'jax':
+            import jax.numpy as jnp
             return jnp.stack(arrays)
         case 'numpy':
             return np.stack(arrays)
         case 'torch':
+            import torch
             return torch.stack(arrays)
+        case 'POD':
+            raise RuntimeError(f"Got POD type.  This shouldn't happen")
+        case _:
+            raise RuntimeError(f"Invalid array_type: {array_type}")
+        
 
 def convert_and_downcast(ary) -> np.ndarray:
     ary = np.array(ary)
@@ -274,15 +281,11 @@ class SeriesValues:
 
 
 def stack_series_values(
-    array_types: list[str], 
     series_values_list: list[SeriesValues]
 ) -> SeriesValues:
     fields_list = tuple(sv.fields for sv in series_values_list) # series, field
     by_field = tuple(zip(*fields_list)) # field, series
-    if len(array_types) != len(by_field):
-        raise RuntimeError(
-            f"stack_points got {len(array_types)} array_types but "
-            f"{len(by_field)} fields")
+    array_types = tuple(get_array_type(f[0]) for f in by_field)
 
     stacked_fields = []
     shapes = []

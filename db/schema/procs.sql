@@ -46,9 +46,21 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_series_id INT;
+  v_missing_names TEXT[];
 BEGIN
   IF p_series_name IS NULL OR p_series_name = '' THEN
     RAISE EXCEPTION 'p_series_name must be a non-empty string';
+  END IF;
+
+  SELECT array_agg(field_name) INTO v_missing_names
+  FROM unnest(p_field_names) AS n(field_name)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM field f WHERE f.name = n.field_name
+  );
+
+  IF array_length(v_missing_names, 1) != 0 THEN
+    RAISE EXCEPTION 'Some field names are not registered fields: %', 
+    array_to_string(v_missing_names, ', ');
   END IF;
 
   INSERT INTO series (name)
@@ -58,7 +70,7 @@ BEGIN
   INSERT INTO coord (series_id, field_id)
   SELECT v_series_id, f.id 
   FROM field f 
-  INNER JOIN unnest(p_field_names) AS n(field_name)
+  JOIN unnest(p_field_names) AS n(field_name)
   ON f.name = n.field_name;
 
   -- TODO: check number inserted

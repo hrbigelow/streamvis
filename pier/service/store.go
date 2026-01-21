@@ -232,34 +232,58 @@ func (st *Store) ListFields(
 
 func (st *Store) ListRuns(
 	ctx context.Context,
-) (<-chan *pb.Run, <-chan error) {
-	sql := `SELECT * from run_vw`
-	convert := func(row Run) (pb.Run, error) {
-		msg, err := row.toProtobuf()
-		return msg, err
-	}
-	return queryItemsConvert(ctx, st.pool, sql, convert)
-}
-
-func (st *Store) QueryRunData(
-	ctx context.Context,
-	fieldHandles []uuid.UUID,
 	attributeFilters []*AttributeFilterValue,
-	tagFilter *TagFilterValue,
+	tagFilter TagFilterValue,
 	minStartedAt *time.Time,
 	maxStartedAt *time.Time,
-) (<-chan *pb.ChunkData, <-chan error) {
-	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6)`
-	convert := func(row ChunkData) (pb.ChunkData, error) {
-		row.EncVal.FieldHandle = uuid.Nil
-		return row.toProtobuf()
-	}
+) (<-chan *pb.RunId, <-chan error) {
+	sql := `SELECT * FROM list_runs($1, $2, $3, $4)`
+	convert := MakeToProtobufFunc[RunId, pb.RunId]()
 	return queryItemsConvert(
 		ctx, st.pool, sql, convert,
-		fieldHandles,
 		attributeFilters,
 		tagFilter,
 		minStartedAt,
 		maxStartedAt,
 	)
+}
+
+func (st *Store) QueryRunData(
+	ctx context.Context,
+	attrHandles []uuid.UUID,
+	coordHandles []uuid.UUID,
+	attributeFilters []*AttributeFilterValue,
+	tagFilter TagFilterValue,
+	minStartedAt *time.Time,
+	maxStartedAt *time.Time,
+) (<-chan *pb.ChunkData, <-chan error) {
+	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
+	convert := MakeToProtobufFunc[ChunkData, pb.ChunkData]()
+	return queryItemsConvert(
+		ctx, st.pool, sql, convert,
+		attrHandles,
+		coordHandles,
+		attributeFilters,
+		tagFilter,
+		minStartedAt,
+		maxStartedAt,
+	)
+}
+
+func (st *Store) ListCommonAttributes(
+	ctx context.Context,
+	runHandles []uuid.UUID,
+) (<-chan *pb.Field, <-chan error) {
+	sql := `SELECT * from list_common_attributes($1)`
+	convert := MakeToProtobufFunc[FieldTyp, pb.Field]()
+	return queryItemsConvert(ctx, st.pool, sql, convert, runHandles)
+}
+
+func (st *Store) ListCommonSeries(
+	ctx context.Context,
+	runHandles []uuid.UUID,
+) (<-chan *pb.Series, <-chan error) {
+	sql := `SELECT * from list_common_series($1)`
+	convert := MakeToProtobufFunc[Series, pb.Series]()
+	return queryItemsConvert(ctx, st.pool, sql, convert, runHandles)
 }
