@@ -136,7 +136,12 @@ message ListSeriesRequest {}
 
 message ListFieldsRequest {}
 
-message ListRunsRequest {}
+message ListRunsRequest {
+  repeated AttributeFilter attribute_filters = 1;
+  TagFilter tag_filter = 2;
+  google.protobuf.Timestamp min_started_at = 3;
+  google.protobuf.Timestamp max_started_at = 4;
+}
 
 message Run {
   string handle = 1;
@@ -145,12 +150,13 @@ message Run {
   repeated FieldValue attrs = 4;
 }
 
+message RunId {
+  string handle = 1;
+}
+
 message ChunkData {
   int64 chunk_id = 1;
-  string series_name = 2;
-  string field_name = 3;
-  string run_handle = 4;
-  EncTyp enc_val = 5;
+  repeated EncTyp enc_vals = 2;
 }
 
 message IntList {
@@ -195,12 +201,21 @@ message TagFilter {
 }
 
 message QueryRunDataRequest {
-  repeated string field_handles = 1;
-  int64 last_chunk_id = 2;
-  repeated AttributeFilter attribute_filters = 3;
-  TagFilter tag_filter = 4;
-  google.protobuf.Timestamp min_started_at = 5;
-  google.protobuf.Timestamp max_started_at = 6;
+  repeated string attr_handles = 1;
+  repeated string coord_handles = 2;
+  int64 last_chunk_id = 3;
+  repeated AttributeFilter attribute_filters = 4;
+  TagFilter tag_filter = 5;
+  google.protobuf.Timestamp min_started_at = 6;
+  google.protobuf.Timestamp max_started_at = 7;
+}
+
+message ListCommonAttributesRequest {
+  repeated string run_handles = 1;
+}
+
+message ListCommonSeriesRequest {
+  repeated string run_handles = 1;
 }
 
 
@@ -215,7 +230,9 @@ service Service {
   rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
   rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
-  rpc ListRuns (ListRunsRequest) returns (stream Run);
+  rpc ListRuns (ListRunsRequest) returns (stream RunId);
   rpc QueryRunData (QueryRunDataRequest) returns (stream ChunkData);
+  rpc ListCommonAttributes (ListCommonAttributesRequest) returns (stream Field);
+  rpc ListCommonSeries (ListCommonSeriesRequest) returns (stream Series);
   // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
 }
