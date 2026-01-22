@@ -98,16 +98,16 @@ END;
 $$;
 
 
-\echo 'create list_runs'
+\echo 'create list_runs_internal'
 /* 
 */
-CREATE OR REPLACE FUNCTION list_runs(
+CREATE OR REPLACE FUNCTION list_runs_internal(
   IN p_attribute_filters attribute_filter_typ[],
   IN p_tag_filter tag_filter_typ,
   IN p_min_started_at TIMESTAMPTZ,
   IN p_max_started_at TIMESTAMPTZ
 ) RETURNS TABLE (
-  handle UUID
+  run_id INT
 ) 
 LANGUAGE sql
 AS $$
@@ -121,13 +121,34 @@ AS $$
     WHERE filtered_by_attribute(f.data_type, ra.attr_value, filter_obj)
     GROUP BY r.id
   )
-    SELECT r.handle
+    SELECT r.id
     FROM run r
     LEFT JOIN excluded_runs er ON er.run_id = r.id
     WHERE er.run_id IS NULL -- anti-join
     AND NOT filtered_by_tags(r.tags, p_tag_filter)
     AND (p_min_started_at IS NULL OR p_min_started_at <= r.started_at)
     AND (p_max_started_at IS NULL OR r.started_at <= p_max_started_at);
+$$;
+
+\echo 'create list_runs'
+CREATE OR REPLACE FUNCTION list_runs(
+  IN p_attribute_filters attribute_filter_typ[],
+  IN p_tag_filter tag_filter_typ,
+  IN p_min_started_at TIMESTAMPTZ,
+  IN p_max_started_at TIMESTAMPTZ
+) RETURNS TABLE (
+  handle UUID
+) 
+LANGUAGE sql
+AS $$
+  SELECT r.handle
+  FROM run r
+  JOIN list_runs_internal(
+    p_attribute_filters,
+    p_tag_filter,
+    p_min_started_at,
+    p_max_started_at
+  ) ri ON ri.run_id = r.id;
 $$;
 
 
@@ -139,7 +160,7 @@ p_attr_handles into enc_typ.  The returned table packs the enc_vals into the ord
 */
 \echo 'create get_data'
 CREATE FUNCTION get_data(
-  p_run_handles UUID[],
+  p_run_ids INT[],
   p_attr_handles UUID[],   -- field handles of attributes to return
   p_coord_handles UUID[],
   p_last_chunk_id BIGINT 
@@ -178,10 +199,9 @@ BEGIN
       a.ord field_order, 
       project_field_value(ra.attr_value, c.num_points) val
     FROM run_attr ra
-    JOIN run r ON r.id = ra.run_id
+    JOIN unnest(p_run_ids) AS rh(run_id) ON rh.run_id = ra.run_id
     JOIN field f ON f.id = ra.field_id
     JOIN chunk ch ON ch.run_id = r.id
-    JOIN unnest(p_run_handles) AS rh(handle) ON rh.handle = r.handle
     JOIN unnest(p_attr_handles) WITH ORDINALITY AS a(handle, ord) ON a.handle = f.handle
     WHERE ch.series_id = v_series_id
     AND (p_last_chunk_id IS NULL OR ch.id > p_last_chunk_id)
@@ -228,8 +248,8 @@ AS $$
   SELECT gd.*
   FROM get_data(
     ARRAY(
-      SELECT handle
-      FROM list_runs(
+      SELECT run_id 
+      FROM list_runs_internal(
         p_attribute_filters,
         p_tag_filter,
         p_min_started_at,
@@ -245,7 +265,10 @@ $$;
 
 \echo 'create function list_common_attributes'
 CREATE OR REPLACE FUNCTION list_common_attributes(
-  p_run_handles UUID[]
+  p_attribute_filters attribute_filter_typ[],
+  p_tag_filter tag_filter_typ,
+  p_min_started_at TIMESTAMPTZ,
+  p_max_started_at TIMESTAMPTZ
 ) RETURNS TABLE (
   handle UUID,
   name TEXT,
@@ -255,26 +278,37 @@ CREATE OR REPLACE FUNCTION list_common_attributes(
 LANGUAGE sql
 STABLE
 AS $$
+  WITH selected_runs AS (
+    SELECT run_id
+    FROM list_runs_internal(
+      p_attribute_filters, 
+      p_tag_filter, 
+      p_min_started_at,
+      p_max_started_at
+    )
+  ),
+  run_count AS (
+    SELECT COUNT(*) total
+    FROM selected_runs
+  )
   SELECT
     handle, name, data_type, description
   FROM field
   WHERE id IN (
     SELECT ra.field_id
     FROM run_attr ra
-    JOIN run r ON r.id = ra.run_id
-    WHERE r.handle = ANY(p_run_handles)
+    JOIN selected_runs sr ON sr.run_id = ra.run_id
     GROUP BY field_id
-    HAVING COUNT(*) = (
-      SELECT COUNT(*)
-      FROM run
-      WHERE handle = ANY(p_run_handles)
-    )
+    HAVING COUNT(*) = (SELECT total FROM run_count) 
   )
 $$;
 
 \echo 'create function list_common_series'
 CREATE OR REPLACE FUNCTION list_common_series(
-  p_run_handles UUID[]
+  p_attribute_filters attribute_filter_typ[],
+  p_tag_filter tag_filter_typ,
+  p_min_started_at TIMESTAMPTZ,
+  p_max_started_at TIMESTAMPTZ
 ) RETURNS TABLE (
   name TEXT,
   handle UUID,
@@ -283,11 +317,14 @@ CREATE OR REPLACE FUNCTION list_common_series(
 LANGUAGE sql
 STABLE
 AS $$
-  WITH 
-  selected_runs AS (
-    SELECT id AS run_id
-    FROM run
-    WHERE handle = ANY(p_run_handles)
+  WITH selected_runs AS (
+    SELECT run_id
+    FROM list_runs_internal(
+      p_attribute_filters, 
+      p_tag_filter, 
+      p_min_started_at,
+      p_max_started_at
+    )
   ),
   run_count AS (
     SELECT COUNT(*) total
@@ -296,9 +333,9 @@ AS $$
   complete_series AS (
     SELECT series_id
     FROM (
-      SELECT DISTINCT series_id, run_id
-      FROM chunk
-      WHERE run_id IN (SELECT run_id from selected_runs)
+      SELECT DISTINCT c.series_id, c.run_id
+      FROM chunk c
+      JOIN selected_runs sr ON sr.run_id = c.run_id
     ) 
     GROUP BY series_id
     HAVING COUNT(*) = (SELECT total FROM run_count) 

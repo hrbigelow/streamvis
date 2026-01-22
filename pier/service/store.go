@@ -232,19 +232,16 @@ func (st *Store) ListFields(
 
 func (st *Store) ListRuns(
 	ctx context.Context,
-	attributeFilters []*AttributeFilterValue,
-	tagFilter TagFilterValue,
-	minStartedAt *time.Time,
-	maxStartedAt *time.Time,
+	runFilter RunFilter,
 ) (<-chan *pb.RunId, <-chan error) {
 	sql := `SELECT * FROM list_runs($1, $2, $3, $4)`
 	convert := MakeToProtobufFunc[RunId, pb.RunId]()
 	return queryItemsConvert(
 		ctx, st.pool, sql, convert,
-		attributeFilters,
-		tagFilter,
-		minStartedAt,
-		maxStartedAt,
+		runFilter.AttributeFilters,
+		runFilter.TagFilter,
+		runFilter.MinStartedAt,
+		runFilter.MaxStartedAt,
 	)
 }
 
@@ -252,10 +249,7 @@ func (st *Store) QueryRunData(
 	ctx context.Context,
 	attrHandles []uuid.UUID,
 	coordHandles []uuid.UUID,
-	attributeFilters []*AttributeFilterValue,
-	tagFilter TagFilterValue,
-	minStartedAt *time.Time,
-	maxStartedAt *time.Time,
+	runFilter RunFilter,
 ) (<-chan *pb.ChunkData, <-chan error) {
 	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
 	convert := MakeToProtobufFunc[ChunkData, pb.ChunkData]()
@@ -263,27 +257,39 @@ func (st *Store) QueryRunData(
 		ctx, st.pool, sql, convert,
 		attrHandles,
 		coordHandles,
-		attributeFilters,
-		tagFilter,
-		minStartedAt,
-		maxStartedAt,
+		runFilter.AttributeFilters,
+		runFilter.TagFilter,
+		runFilter.MinStartedAt,
+		runFilter.MaxStartedAt,
 	)
 }
 
 func (st *Store) ListCommonAttributes(
 	ctx context.Context,
-	runHandles []uuid.UUID,
+	runFilter RunFilter,
 ) (<-chan *pb.Field, <-chan error) {
-	sql := `SELECT * from list_common_attributes($1)`
+	sql := `SELECT * from list_common_attributes($1, $2, $3, $4)`
 	convert := MakeToProtobufFunc[FieldTyp, pb.Field]()
-	return queryItemsConvert(ctx, st.pool, sql, convert, runHandles)
+	return queryItemsConvert(
+		ctx, st.pool, sql, convert,
+		runFilter.AttributeFilters,
+		runFilter.TagFilter,
+		runFilter.MinStartedAt,
+		runFilter.MaxStartedAt,
+	)
 }
 
 func (st *Store) ListCommonSeries(
 	ctx context.Context,
-	runHandles []uuid.UUID,
+	runFilter RunFilter,
 ) (<-chan *pb.Series, <-chan error) {
-	sql := `SELECT * from list_common_series($1)`
+	sql := `SELECT * from list_common_series($1, $2, $3, $4)`
 	convert := MakeToProtobufFunc[Series, pb.Series]()
-	return queryItemsConvert(ctx, st.pool, sql, convert, runHandles)
+	return queryItemsConvert(
+		ctx, st.pool, sql, convert,
+		runFilter.AttributeFilters,
+		runFilter.TagFilter,
+		runFilter.MinStartedAt,
+		runFilter.MaxStartedAt,
+	)
 }

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"time"
 
 	pb "pier/pb/streamvis/v1"
 
@@ -206,25 +205,11 @@ func (s *Service) ListRuns(
 	req *pb.ListRunsRequest,
 	stream *connect.ServerStream[pb.RunId],
 ) error {
-	var err error
-	attrFilters := make([]*AttributeFilterValue, len(req.AttributeFilters))
-	for i, filter := range req.GetAttributeFilters() {
-		attrFilters[i], err = NewAttributeFilterValue(filter)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "AttributeFilter invalid: %v", err)
-		}
+	runFilter, err := NewRunFilter(req.GetRunFilter())
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	tagFilter := NewTagFilterValue(req.GetTagFilter())
-	var minStartedAt, maxStartedAt *time.Time
-	if req.MinStartedAt != nil {
-		t := req.MinStartedAt.AsTime()
-		minStartedAt = &t
-	}
-	if req.MaxStartedAt != nil {
-		t := req.MaxStartedAt.AsTime()
-		maxStartedAt = &t
-	}
-	dataCh, errCh := s.store.ListRuns(ctx, attrFilters, tagFilter, minStartedAt, maxStartedAt)
+	dataCh, errCh := s.store.ListRuns(ctx, runFilter)
 	return streamRecords[pb.RunId](ctx, *stream, dataCh, errCh)
 }
 
@@ -241,26 +226,11 @@ func (s *Service) QueryRunData(
 	if err != nil {
 		return err
 	}
-	attrFilters := make([]*AttributeFilterValue, len(req.AttributeFilters))
-	for i, filter := range req.GetAttributeFilters() {
-		attrFilters[i], err = NewAttributeFilterValue(filter)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "AttributeFilter invalid: %v", err)
-		}
+	runFilter, err := NewRunFilter(req.GetRunFilter())
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	tagFilter := NewTagFilterValue(req.GetTagFilter())
-	var minStartedAt, maxStartedAt *time.Time
-	if req.MinStartedAt != nil {
-		t := req.MinStartedAt.AsTime()
-		minStartedAt = &t
-	}
-	if req.MaxStartedAt != nil {
-		t := req.MaxStartedAt.AsTime()
-		maxStartedAt = &t
-	}
-	dataCh, errCh := s.store.QueryRunData(
-		ctx, attrHandles, coordHandles, attrFilters, tagFilter, minStartedAt, maxStartedAt,
-	)
+	dataCh, errCh := s.store.QueryRunData(ctx, attrHandles, coordHandles, runFilter)
 	return streamRecords[pb.ChunkData](ctx, *stream, dataCh, errCh)
 }
 
@@ -269,11 +239,11 @@ func (s *Service) ListCommonAttributes(
 	req *pb.ListCommonAttributesRequest,
 	stream *connect.ServerStream[pb.Field],
 ) error {
-	runHandles, err := parseUUIDs(req.RunHandles, "RunHandle")
+	runFilter, err := NewRunFilter(req.GetRunFilter())
 	if err != nil {
-		return err
+		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	dataCh, errCh := s.store.ListCommonAttributes(ctx, runHandles)
+	dataCh, errCh := s.store.ListCommonAttributes(ctx, runFilter)
 	return streamRecords[pb.Field](ctx, *stream, dataCh, errCh)
 }
 
@@ -282,10 +252,10 @@ func (s *Service) ListCommonSeries(
 	req *pb.ListCommonSeriesRequest,
 	stream *connect.ServerStream[pb.Series],
 ) error {
-	runHandles, err := parseUUIDs(req.RunHandles, "RunHandle")
+	runFilter, err := NewRunFilter(req.GetRunFilter())
 	if err != nil {
-		return err
+		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	dataCh, errCh := s.store.ListCommonSeries(ctx, runHandles)
+	dataCh, errCh := s.store.ListCommonSeries(ctx, runFilter)
 	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
 }

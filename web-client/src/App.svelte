@@ -12,20 +12,46 @@
   let { streamvisUrl } = $props();
 
   let allFields = $state([]); 
-  let allSeries = $state([]);
-  let commonSeries = $state([]); 
+  let allSeries = $state({});
+  let commonSeries = $state({}); // handle -> pb.Series
   let commonAttributes = $state([]);
-  let tagsLogic = $state(''); // 
-  let tagsList = $state('');
-  let minStartedAt = $state('');
-  let maxStartedAt = $state('');
-  let attributeFilter = $state([]);
   let includedRuns = $state([]);
+  let chosenSeries = $state('');
+  let plotType = $state('');
+  let axisBindings = $state({
+    x: null,
+    y: null,
+    order: null,
+    color: null,
+    group: null,
+  });
+
+  let runFilter = $state({
+    attributeFilters: [],
+    tagFilter: {
+      tags: [],
+      matchAny: true
+    },
+    minStartedAt: undefined,
+    maxStartedAt: undefined 
+  });
+
+  let filterUI = $state({
+    attributeHandles: [null, null, null, null, null]
+  });
+
+  $effect(() => {
+    runFilter.attributeFilters = [];
+  });
+
+  const axisNames = new Map();
+  axisNames.set('x', 'X axis');
+  axisNames.set('y', 'Y axis');
+  axisNames.set('group', 'Group axis');
+  axisNames.set('color', 'Color axis');
+  axisNames.set('order', 'Order axis');
 
   let visibleFields = $state([]);
-  let xAxisField = $state('');
-  let yAxisField = $state('');
-  let orderField = $state('');
   let plotTitle = $state('');
   let xAxisLabel = $state('');
   let yAxisLabel = $state('');
@@ -59,20 +85,17 @@
   }
 
   async function fetchCommonSeries() {
-    const req = create(ListCommonSeriesRequestSchema, {
-      runHandles: includedRuns,
-    });
-    const series = [];
+    const req = create(ListCommonSeriesRequestSchema, { runFilter: runFilter });
+    const series = {};
     for await (const resp of client.listCommonSeries(req)) {
-      series.push(resp);
+      series[resp.handle] = resp;
     }
     commonSeries = series;
+    console.log(`fetchCommonSeries with {series.length}`);
   }
 
   async function fetchCommonAttributes() {
-    const req = create(ListCommonAttributesRequestSchema, {
-      runHandles: includedRuns,
-    });
+    const req = create(ListCommonAttributesRequestSchema, { runFilter: runFilter });
     const attrs = [];
     for await (const resp of client.listCommonAttributes(req)) {
       attrs.push(resp);
@@ -81,14 +104,7 @@
   }
 
   async function updateSelectedRuns() {
-    const req = create(ListRunsRequestSchema, {
-      attributeFilters: [],
-      tagFilter: {
-        hasAnyTag: []
-      },
-      minStartedAt: null,
-      maxStartedAt: null
-    });
+    const req = create(ListRunsRequestSchema, { runFilter: runFilter });
     const handles = [];
     for await (const resp of client.listRuns(req)) {
       handles.push(resp.handle);
@@ -109,16 +125,6 @@
       }
       await sleep(delay_ms);
     }
-  }
-
-  async function toggleGroup(field) {
-    const next = new Set(selectedGroups);
-    if (next.has(field)) {
-      next.delete(field);
-    } else {
-      next.add(field);
-    }
-    selectedGroups = next;
   }
 
   function computeLink() {
@@ -163,24 +169,30 @@
 
 <div class="filter-run-table">
   <div class="guide">Filter Run:</div>
-  <label class="guide" for="tags">Tags:
-    {#each ["has any", "has all"] as condition}
-      <label>
-        <input type="radio" name="tags" value={condition} bind:group={tagsLogic} />
-        {condition}
-      </label>
-    {/each}
-    <input id="tags-list" bind:value={tagsList} />
-  </label>
+  <label class="guide">Tag List (csv)</label>
+  <input on:change={(e) => {
+         runFilter.tagFilter.tags = e.target.value
+           .split(/,\s*/)
+           .filter(tag => tag.trim() !== '');
+         }} 
+  />
+  <label class="guide">Require All Tags</label>
+  <input type="checkbox"
+         checked={!runFilter.tagFilter.matchAny}
+         on:change={(e) => runFilter.tagFilter.matchAny = !e.target.checked}
+  />
+  <!--
   <label class="guide" for="started-at-after">Started At After:
-    <input id="started-at-after" type="range" bind:value={minStartedAt} />
+    <input id="started-at-after" type="range" bind:value={runFilter.minStartedAt} />
   </label>
   <label class="guide" for="started-at-before">Started At Before:
-    <input id="started-at-before" type="range" bind:value={maxStartedAt} />
+    <input id="started-at-before" type="range" bind:value={runFilter.maxStartedAt} />
   </label>
+  -->
   <label class="guide">Attribute Filters:</label>
-  {#each [0, 1, 2, 3, 4] as it}
-    <select bind:value={attributeFilter[it]}>
+  {#each [0, 1, 2, 3, 4] as i}
+    <select bind:value={filterUI.attributeHandles[i]}>
+      <option value={null}>(None)</option>
       {#each allFields as attr}
         <option value={attr.handle}>
         {attr.name}
@@ -193,11 +205,42 @@
 <div class="selected-runs-table">
   <div class="guide">Included Runs</div>
   <div>{includedRuns.length}</div>
-  <div class="guide">Series:</div>
-  {#each commonSeries as series}
-    <div>{series.name}</div>
-  {/each}
 </div>
+
+<div class="plot-configuration-table">
+  <label class="guide">Plot Type:</label>
+  <select bind:value={plotType}>
+    <option value="line">Line Plot</option>
+    <option value="scatter">Scatter Plot</option>
+  </select>
+
+  <label class="guide">Series:</label>
+  <select bind:value={chosenSeries}>
+    {#each commonSeries as series}
+      <option value={series.handle}>
+      {series.name}
+      </option>
+    {/each}
+  </select>
+
+  {#each axisNames as [key, val]} 
+    <label class="guide" for="axis-{key}">{val}</label>
+    <select id="axis-{key}" bind:value={axisBindings[key]}>
+      {#each commonAttributes as attr}
+        <option value={attr.handle}>
+        attr:{attr.name}
+        </option>
+      {/each}
+      {#each chosenSeries.fields as coord}
+        <option value={coord.handle}>
+        {coord.name}
+        </option>
+      {/each}
+    </select>
+  {/each}
+
+</div>
+
 
 
 <!--
@@ -359,10 +402,10 @@
     box-sizing: border-box;
   }
 
-  .top-table {
+  .plot-configuration-table {
     display: grid;
     grid-template-rows: repeat(7, 1fr);
-    grid-template-columns: auto minmax(30ch, auto) 1fr;
+    grid-template-columns: repeat(2, min-content); 
     width: fit-content;
     gap: 10px;
     box-sizing: border-box;

@@ -136,7 +136,7 @@ message ListSeriesRequest {}
 
 message ListFieldsRequest {}
 
-message ListRunsRequest {
+message RunFilter {
   repeated AttributeFilter attribute_filters = 1;
   TagFilter tag_filter = 2;
   google.protobuf.Timestamp min_started_at = 3;
@@ -194,28 +194,27 @@ message AttributeFilter {
 }
 
 message TagFilter {
-  oneof value {
-    StringList has_any_tag = 1;
-    StringList has_all_tags = 2;
-  }
+  repeated string tags = 1;
+  bool match_any = 2; // if true, a run with any tag in `tags` passes the filter 
+}
+
+message ListRunsRequest {
+  RunFilter run_filter = 1;
 }
 
 message QueryRunDataRequest {
   repeated string attr_handles = 1;
   repeated string coord_handles = 2;
   int64 last_chunk_id = 3;
-  repeated AttributeFilter attribute_filters = 4;
-  TagFilter tag_filter = 5;
-  google.protobuf.Timestamp min_started_at = 6;
-  google.protobuf.Timestamp max_started_at = 7;
+  RunFilter run_filter = 4;
 }
 
 message ListCommonAttributesRequest {
-  repeated string run_handles = 1;
+  RunFilter run_filter = 1;
 }
 
 message ListCommonSeriesRequest {
-  repeated string run_handles = 1;
+  RunFilter run_filter = 1;
 }
 
 

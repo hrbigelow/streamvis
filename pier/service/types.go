@@ -338,6 +338,36 @@ func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
 	return val
 }
 
+// TODO: update DB to mirror this struct
+type RunFilter struct {
+	AttributeFilters []*AttributeFilterValue
+	TagFilter        TagFilterValue
+	MinStartedAt     *time.Time
+	MaxStartedAt     *time.Time
+}
+
+func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
+	rf := RunFilter{}
+	rf.AttributeFilters = make([]*AttributeFilterValue, len(msg.AttributeFilters))
+	var err error
+	for i, filter := range msg.GetAttributeFilters() {
+		rf.AttributeFilters[i], err = NewAttributeFilterValue(filter)
+		if err != nil {
+			return RunFilter{}, err
+		}
+	}
+	rf.TagFilter = NewTagFilterValue(msg.GetTagFilter())
+	if msg.MinStartedAt != nil {
+		t := msg.MinStartedAt.AsTime()
+		rf.MinStartedAt = &t
+	}
+	if msg.MaxStartedAt != nil {
+		t := msg.MaxStartedAt.AsTime()
+		rf.MaxStartedAt = &t
+	}
+	return rf, nil
+}
+
 type ChunkData struct {
 	ChunkId int64          `db:"chunk_id"`
 	EncVals []*EncTypValue `db:"enc_val"`
