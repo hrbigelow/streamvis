@@ -259,3 +259,30 @@ func (s *Service) ListCommonSeries(
 	dataCh, errCh := s.store.ListCommonSeries(ctx, runFilter)
 	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
 }
+
+func (s *Service) ListStartedAt(
+	ctx context.Context,
+	req *pb.ListStartedAtRequest,
+	stream *connect.ServerStream[pb.RunStartTime],
+) error {
+	dataCh, errCh := s.store.ListStartedAt(ctx)
+	return streamRecords[pb.RunStartTime](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) ListTags(
+	ctx context.Context,
+	req *pb.ListTagsRequest,
+	stream *connect.ServerStream[pb.TagValue],
+) error {
+	dataCh, errCh := s.store.ListTags(ctx)
+	return streamRecords[pb.TagValue](ctx, *stream, dataCh, errCh)
+}
+
+func (s *Service) ListAttributeValues(
+	ctx context.Context,
+	req *pb.ListAttributeValuesRequest,
+	stream *connect.ServerStream[pb.AttributeValues],
+) error {
+	dataCh, errCh := s.store.ListAttributeValues(ctx)
+	return streamRecords[pb.AttributeValues](ctx, *stream, dataCh, errCh)
+}

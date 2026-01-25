@@ -11,6 +11,15 @@ DROP VIEW IF EXISTS field_vw;
 \echo 'drop series_vw'
 DROP VIEW IF EXISTS series_vw;
 
+\echo 'drop attribute_values_vw'
+DROP VIEW IF EXISTS attribute_values_vw;
+
+\echo 'drop started_at_vw'
+DROP VIEW IF EXISTS started_at_vw;
+
+\echo 'drop tag_vw'
+DROP VIEW IF EXISTS tag_vw;
+
 \echo 'drop run_vw'
 DROP VIEW IF EXISTS run_vw;
 

@@ -102,10 +102,10 @@ func (ev *EncTypValue) toProtobuf() pb.EncTyp {
 		msg.Spans = &pb.EncTyp_FloatSpans{FloatSpans: &pb.FloatValues{Values: fvals}}
 	}
 	if ev.BoolBcast != nil {
-		msg.Spans = &pb.EncTyp_BoolBcast{BoolBcast: &pb.BoolValues{Values: *ev.BoolBcast}}
+		msg.Spans = &pb.EncTyp_BoolBcast{BoolBcast: &pb.BoolArray{Values: *ev.BoolBcast}}
 	}
 	if ev.StringBcast != nil {
-		msg.Spans = &pb.EncTyp_StringBcast{StringBcast: &pb.BoolValues{Values: *ev.StringBcast}}
+		msg.Spans = &pb.EncTyp_StringBcast{StringBcast: &pb.BoolArray{Values: *ev.StringBcast}}
 	}
 	return msg
 }
@@ -153,7 +153,7 @@ func NewAttributeFilterValue(pb *pb.AttributeFilter) (*AttributeFilterValue, err
 	return v, nil
 }
 
-type FieldValueTyp struct {
+type FieldValue struct {
 	Handle    uuid.UUID `db:"field_handle"`
 	IntVal    *int32    `db:"int_val"`
 	FloatVal  *float32  `db:"float_val"`
@@ -161,7 +161,7 @@ type FieldValueTyp struct {
 	StringVal *string   `db:"string_val"`
 }
 
-func (fv FieldValueTyp) toProtobuf() (pb.FieldValue, error) {
+func (fv FieldValue) toProtobuf() (pb.FieldValue, error) {
 	msg := pb.FieldValue{
 		Handle: fv.Handle.String(),
 	}
@@ -198,12 +198,12 @@ func (fv FieldValueTyp) toProtobuf() (pb.FieldValue, error) {
 	return msg, nil
 }
 
-func NewFieldValueTyp(msg *pb.FieldValue) (FieldValueTyp, error) {
+func NewFieldValue(msg *pb.FieldValue) (FieldValue, error) {
 	handle, err := uuid.Parse(msg.GetHandle())
 	if err != nil {
-		return FieldValueTyp{}, err
+		return FieldValue{}, err
 	}
-	ret := FieldValueTyp{
+	ret := FieldValue{
 		Handle: handle,
 	}
 	switch v := msg.Value.(type) {
@@ -237,14 +237,14 @@ func dataTypeToProtobuf(data_type string) (pb.FieldDataType, error) {
 	}
 }
 
-type FieldTyp struct {
+type Field struct {
 	Handle      uuid.UUID `db:"handle"`
 	Name        string    `db:"name"`
 	DataType    string    `db:"data_type"`
 	Description string    `db:"description"`
 }
 
-func (ft FieldTyp) toProtobuf() (pb.Field, error) {
+func (ft Field) toProtobuf() (pb.Field, error) {
 	dataType, err := dataTypeToProtobuf(ft.DataType)
 	if err != nil {
 		return pb.Field{}, err
@@ -260,9 +260,9 @@ func (ft FieldTyp) toProtobuf() (pb.Field, error) {
 }
 
 type Series struct {
-	Name   string      `db:"name"`
-	Handle uuid.UUID   `db:"handle"`
-	Fields []*FieldTyp `db:"fields"`
+	Name   string    `db:"name"`
+	Handle uuid.UUID `db:"handle"`
+	Fields []*Field  `db:"fields"`
 }
 
 func (sr Series) toProtobuf() (pb.Series, error) {
@@ -282,10 +282,10 @@ func (sr Series) toProtobuf() (pb.Series, error) {
 }
 
 type Run struct {
-	Handle    uuid.UUID        `db:"handle"`
-	Tags      []string         `db:"tags"`
-	StartedAt time.Time        `db:"started_at"`
-	Attrs     []*FieldValueTyp `db:"attrs"`
+	Handle    uuid.UUID     `db:"handle"`
+	Tags      []string      `db:"tags"`
+	StartedAt time.Time     `db:"started_at"`
+	Attrs     []*FieldValue `db:"attrs"`
 }
 
 func (rr Run) toProtobuf() (pb.Run, error) {
@@ -307,7 +307,7 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 }
 
 type RunId struct {
-	Handle uuid.UUID `db:handle"`
+	Handle uuid.UUID `db:"handle"`
 }
 
 func (r RunId) toProtobuf() (pb.RunId, error) {
@@ -317,23 +317,37 @@ func (r RunId) toProtobuf() (pb.RunId, error) {
 	return msg, nil
 }
 
+type RunStartTime struct {
+	StartedAt time.Time `db:"started_at"`
+}
+
+func (rst RunStartTime) toProtobuf() (pb.RunStartTime, error) {
+	msg := pb.RunStartTime{
+		StartedAt: timestamppb.New(rst.StartedAt),
+	}
+	return msg, nil
+}
+
+type TagValue struct {
+	Tag string `db:"tag"`
+}
+
+func (tv TagValue) toProtobuf() (pb.TagValue, error) {
+	msg := pb.TagValue{
+		Tag: tv.Tag,
+	}
+	return msg, nil
+}
+
 type TagFilterValue struct {
-	HasAnyTag  *[]string `db:"has_any_tag"`
-	HasAllTags *[]string `db:"has_all_tags"`
+	Tags     []string `db:"tags"`
+	MatchAny bool     `db:"match_any"`
 }
 
 func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
-	var hasAny, hasAll *[]string
-	if msg.GetHasAnyTag() != nil {
-		hasAny = &msg.GetHasAnyTag().Vals
-	}
-	if msg.GetHasAllTags() != nil {
-		hasAll = &msg.GetHasAllTags().Vals
-	}
-
 	val := TagFilterValue{
-		HasAnyTag:  hasAny,
-		HasAllTags: hasAll,
+		Tags:     msg.Tags,
+		MatchAny: msg.MatchAny,
 	}
 	return val
 }
@@ -385,4 +399,36 @@ func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
 		EncVals: encVals,
 	}
 	return msg, nil
+}
+
+type AttributeValues struct {
+	Field   Field      `db:"field"`
+	Ints    *[]int32   `db:"ints"`
+	Floats  *[]float32 `db:"floats"`
+	Bools   *[]bool    `db:"bools"`
+	Strings *[]string  `db:"strings"`
+}
+
+func (av AttributeValues) toProtobuf() (pb.AttributeValues, error) {
+	field, err := av.Field.toProtobuf()
+	if err != nil {
+		return pb.AttributeValues{}, err
+	}
+	msg := pb.AttributeValues{
+		Field:  &field,
+		Values: &pb.AnyArray{},
+	}
+	if av.Ints != nil {
+		msg.Values.Value = &pb.AnyArray_Ints{Ints: &pb.IntArray{Values: *av.Ints}}
+	}
+	if av.Floats != nil {
+		msg.Values.Value = &pb.AnyArray_Floats{Floats: &pb.FloatArray{Values: *av.Floats}}
+	}
+	if av.Bools != nil {
+		msg.Values.Value = &pb.AnyArray_Bools{Bools: &pb.BoolArray{Values: *av.Bools}}
+	}
+	if av.Strings != nil {
+		msg.Values.Value = &pb.AnyArray_Strings{Strings: &pb.StringArray{Values: *av.Strings}}
+	}
+	return msg, err
 }

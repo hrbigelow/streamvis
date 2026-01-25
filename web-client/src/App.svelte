@@ -8,16 +8,21 @@
     ListCommonAttributesRequestSchema,
     ListCommonSeriesRequestSchema,
     ListRunsRequestSchema,
+    ListStartedAtRequestSchema,
+    ListTagsRequestSchema,
   } from './gen/streamvis/v1/data_pb.js';
   let { streamvisUrl } = $props();
 
   let allFields = $state([]); 
   let allSeries = $state({});
+  let allTags = $state([]);
+  let allStartTimes = $state([]);
+
   let commonSeries = $state({}); // handle -> pb.Series
   let commonAttributes = $state([]);
   let includedRuns = $state([]);
-  let chosenSeries = $state('');
-  let plotType = $state('');
+  let chosenSeriesHandle = $state(null);
+  let plotType = $state(null);
   let axisBindings = $state({
     x: null,
     y: null,
@@ -35,6 +40,8 @@
     minStartedAt: undefined,
     maxStartedAt: undefined 
   });
+  let minStartedAtIndex = $state(-1);
+  let maxStartedAtIndex = $state(0);
 
   let filterUI = $state({
     attributeHandles: [null, null, null, null, null]
@@ -66,6 +73,24 @@
   let client;
   let mounted = false;
 
+  async function fetchTags() {
+    const req = create(ListTagsRequestSchema, {});
+    const tags = [];
+    for await (const resp of client.listTags(req)) {
+      tags.push(resp.tag);
+    }
+    allTags = tags;
+  }
+
+  async function fetchStartTimes() {
+    const req = create(ListStartedAtSchema, {});
+    const startedAt = [];
+    for await (const resp of client.listStartedAt(req)) {
+      startedAt.push(resp.startedAt);
+    }
+    allStartTimes = startedAt;
+  }
+
   async function fetchFields() {
     const req = create(ListFieldsRequestSchema, {});
     const fields = [];
@@ -91,7 +116,7 @@
       series[resp.handle] = resp;
     }
     commonSeries = series;
-    console.log(`fetchCommonSeries with {series.length}`);
+    console.log(`fetchCommonSeries with ${Object.keys(series).length}`);
   }
 
   async function fetchCommonAttributes() {
@@ -170,25 +195,49 @@
 <div class="filter-run-table">
   <div class="guide">Filter Run:</div>
   <label class="guide">Tag List (csv)</label>
+  <div></div>
   <input on:change={(e) => {
          runFilter.tagFilter.tags = e.target.value
            .split(/,\s*/)
            .filter(tag => tag.trim() !== '');
          }} 
   />
+  <div></div>
+  <div></div>
   <label class="guide">Require All Tags</label>
   <input type="checkbox"
          checked={!runFilter.tagFilter.matchAny}
          on:change={(e) => runFilter.tagFilter.matchAny = !e.target.checked}
   />
-  <!--
-  <label class="guide" for="started-at-after">Started At After:
-    <input id="started-at-after" type="range" bind:value={runFilter.minStartedAt} />
+  <div></div>
+  <label class="guide" for="started-at-after">
+    Started At After:
   </label>
-  <label class="guide" for="started-at-before">Started At Before:
-    <input id="started-at-before" type="range" bind:value={runFilter.maxStartedAt} />
+  <input id="started-at-after" 
+         type="range" 
+               bind:value={minStartedAtIndex}
+         min="-1" 
+         max={includedRuns.length - 1}
+         step="1"/>
+  <div class="timestamp-display">
+    {minStartedAtIndex === -1 ? "No minimum" : 
+    new Date(allStartTimes[minStartedAtIndex]).toLocaleString()}
+  </div>
+
+  <label class="guide" for="started-at-before">
+    Started At Before:
   </label>
-  -->
+    <input id="started-at-before" 
+           type="range" 
+           bind:value={maxStartedAtIndex} 
+           min="0"
+           max={includedRuns.length} 
+           step="1"
+           />
+  <div class="timestamp-display">
+    {maxStartedAtIndex === includedRuns.length ? "No maximum" :
+    new Date(allStartTimes[maxStartedAtIndex]).toLocaleString()}
+  </div>
   <label class="guide">Attribute Filters:</label>
   {#each [0, 1, 2, 3, 4] as i}
     <select bind:value={filterUI.attributeHandles[i]}>
@@ -199,6 +248,8 @@
         </option>
       {/each}
     </select>
+    <div></div>
+    <div></div>
   {/each}
 </div>
 
@@ -215,15 +266,15 @@
   </select>
 
   <label class="guide">Series:</label>
-  <select bind:value={chosenSeries}>
-    {#each commonSeries as series}
+  <select bind:value={chosenSeriesHandle}>
+    {#each Object.values(commonSeries) as series}
       <option value={series.handle}>
       {series.name}
       </option>
     {/each}
   </select>
 
-  {#each axisNames as [key, val]} 
+  {#each axisNames.entries() as [key, val]} 
     <label class="guide" for="axis-{key}">{val}</label>
     <select id="axis-{key}" bind:value={axisBindings[key]}>
       {#each commonAttributes as attr}
@@ -231,11 +282,13 @@
         attr:{attr.name}
         </option>
       {/each}
-      {#each chosenSeries.fields as coord}
-        <option value={coord.handle}>
-        {coord.name}
-        </option>
-      {/each}
+      {#if chosenSeriesHandle && commonSeries[chosenSeriesHandle]}
+        {#each commonSeries[chosenSeriesHandle].fields as coord}
+          <option value={coord.handle}>
+          {coord.name}
+          </option>
+        {/each}
+      {/if}
     </select>
   {/each}
 
@@ -386,7 +439,7 @@
     display: grid;
     grid-template-rows: repeat(5, min-content);
     /* grid-template-columns: 25% 15% 15% 15% 15% 15%; */
-    grid-template-columns: repeat(1, min-content);
+    grid-template-columns: repeat(3, min-content);
     gap: 1ch 5ch;
     width 100vw;
     box-sizing: border-box;

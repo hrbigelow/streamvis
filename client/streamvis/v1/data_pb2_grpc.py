@@ -104,6 +104,21 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.Series.FromString,
                 _registered_method=True)
+        self.ListStartedAt = channel.unary_stream(
+                '/streamvis.v1.Service/ListStartedAt',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListStartedAtRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.RunStartTime.FromString,
+                _registered_method=True)
+        self.ListTags = channel.unary_stream(
+                '/streamvis.v1.Service/ListTags',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListTagsRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.TagValue.FromString,
+                _registered_method=True)
+        self.ListAttributeValues = channel.unary_stream(
+                '/streamvis.v1.Service/ListAttributeValues',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.ListAttributeValuesRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.AttributeValues.FromString,
+                _registered_method=True)
 
 
 class ServiceServicer(object):
@@ -188,8 +203,25 @@ class ServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ListCommonSeries(self, request, context):
-        """rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
-        """
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListStartedAt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListTags(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAttributeValues(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -266,6 +298,21 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.ListCommonSeries,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.Series.SerializeToString,
+            ),
+            'ListStartedAt': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListStartedAt,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListStartedAtRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.RunStartTime.SerializeToString,
+            ),
+            'ListTags': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListTags,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListTagsRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.TagValue.SerializeToString,
+            ),
+            'ListAttributeValues': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListAttributeValues,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListAttributeValuesRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.AttributeValues.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -646,6 +693,87 @@ class Service(object):
             '/streamvis.v1.Service/ListCommonSeries',
             streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.Series.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListStartedAt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListStartedAt',
+            streamvis_dot_v1_dot_data__pb2.ListStartedAtRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.RunStartTime.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListTags(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListTags',
+            streamvis_dot_v1_dot_data__pb2.ListTagsRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.TagValue.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAttributeValues(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/streamvis.v1.Service/ListAttributeValues',
+            streamvis_dot_v1_dot_data__pb2.ListAttributeValuesRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.AttributeValues.FromString,
             options,
             channel_credentials,
             insecure,

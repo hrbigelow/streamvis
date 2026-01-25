@@ -28,6 +28,49 @@ LEFT JOIN run_attr ra ON ra.run_id = r.id
 GROUP BY r.handle, r.tags, r.started_at
 ORDER BY r.started_at;
 
+\echo 'create tag_vw'
+CREATE VIEW tag_vw AS
+SELECT DISTINCT unnest(tags) tag
+FROM run;
+
+\echo 'create started_at_vw'
+CREATE OR REPLACE VIEW started_at_vw AS
+SELECT DISTINCT started_at
+FROM run
+ORDER BY started_at;
+
+
+\echo 'create attribute_values_vw'
+CREATE VIEW attribute_values_vw AS
+WITH src AS (
+  SELECT DISTINCT
+  field_id,
+  (attr_value).int_val i,
+  (attr_value).float_val f,
+  (attr_value).bool_val b,
+  (attr_value).string_val s
+  FROM run_attr
+),
+agg AS (
+  SELECT
+  field_id,
+  array_agg(i ORDER BY i) FILTER (WHERE i IS NOT NULL) ints,
+  array_agg(f ORDER BY f) FILTER (WHERE f IS NOT NULL) floats,
+  array_agg(b ORDER BY b) FILTER (WHERE b IS NOT NULL) bools,
+  array_agg(s ORDER BY s) FILTER (WHERE s IS NOT NULL) strings
+  FROM src 
+  GROUP BY field_id
+)
+SELECT
+ROW(f.handle, f.name, f.data_type, f.description)::field_typ field,
+a.ints,
+a.floats,
+a.bools,
+a.strings
+FROM agg a 
+JOIN field f ON f.id = a.field_id;
+
+
 
 \echo 'create filtered_by_attribute'
 CREATE OR REPLACE FUNCTION filtered_by_attribute(
@@ -84,16 +127,11 @@ IMMUTABLE
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  CASE 
-    WHEN p_tag_filter.has_any_tag IS NULL AND p_tag_filter.has_all_tags IS NOT NULL THEN
-      RETURN NOT p_run_tags <@ p_tag_filter.has_all_tags;
-    WHEN p_tag_filter.has_any_tag IS NULL AND p_tag_filter.has_all_tags IS NULL THEN
-      RETURN FALSE;
-    WHEN p_tag_filter.has_any_tag IS NOT NULL AND p_tag_filter.has_all_tags IS NULL THEN
-      RETURN p_run_tags && p_tag_filter.has_any_tag;
-    WHEN p_tag_filter.has_any_tag IS NOT NULL AND p_tag_filter.has_all_tags IS NOT NULL THEN
-      RAISE EXCEPTION 'Invalid p_tag_filter.  At most one of has_any_tag and has_all_tags can be non-null';
-  END CASE;
+  IF p_tag_filter.match_any THEN
+    RETURN p_run_tags && p_tag_filter.tags;
+  ELSE
+    RETURN p_run_tags @> p_tag_filter.tags;
+  END IF;
 END;
 $$;
 

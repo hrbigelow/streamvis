@@ -65,6 +65,13 @@ const (
 	// ServiceListCommonSeriesProcedure is the fully-qualified name of the Service's ListCommonSeries
 	// RPC.
 	ServiceListCommonSeriesProcedure = "/streamvis.v1.Service/ListCommonSeries"
+	// ServiceListStartedAtProcedure is the fully-qualified name of the Service's ListStartedAt RPC.
+	ServiceListStartedAtProcedure = "/streamvis.v1.Service/ListStartedAt"
+	// ServiceListTagsProcedure is the fully-qualified name of the Service's ListTags RPC.
+	ServiceListTagsProcedure = "/streamvis.v1.Service/ListTags"
+	// ServiceListAttributeValuesProcedure is the fully-qualified name of the Service's
+	// ListAttributeValues RPC.
+	ServiceListAttributeValuesProcedure = "/streamvis.v1.Service/ListAttributeValues"
 )
 
 // ServiceClient is a client for the streamvis.v1.Service service.
@@ -83,6 +90,9 @@ type ServiceClient interface {
 	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error)
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
+	ListStartedAt(context.Context, *v1.ListStartedAtRequest) (*connect.ServerStreamForClient[v1.RunStartTime], error)
+	ListTags(context.Context, *v1.ListTagsRequest) (*connect.ServerStreamForClient[v1.TagValue], error)
+	ListAttributeValues(context.Context, *v1.ListAttributeValuesRequest) (*connect.ServerStreamForClient[v1.AttributeValues], error)
 }
 
 // NewServiceClient constructs a client for the streamvis.v1.Service service. By default, it uses
@@ -180,6 +190,24 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("ListCommonSeries")),
 			connect.WithClientOptions(opts...),
 		),
+		listStartedAt: connect.NewClient[v1.ListStartedAtRequest, v1.RunStartTime](
+			httpClient,
+			baseURL+ServiceListStartedAtProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListStartedAt")),
+			connect.WithClientOptions(opts...),
+		),
+		listTags: connect.NewClient[v1.ListTagsRequest, v1.TagValue](
+			httpClient,
+			baseURL+ServiceListTagsProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListTags")),
+			connect.WithClientOptions(opts...),
+		),
+		listAttributeValues: connect.NewClient[v1.ListAttributeValuesRequest, v1.AttributeValues](
+			httpClient,
+			baseURL+ServiceListAttributeValuesProcedure,
+			connect.WithSchema(serviceMethods.ByName("ListAttributeValues")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -199,6 +227,9 @@ type serviceClient struct {
 	queryRunData         *connect.Client[v1.QueryRunDataRequest, v1.ChunkData]
 	listCommonAttributes *connect.Client[v1.ListCommonAttributesRequest, v1.Field]
 	listCommonSeries     *connect.Client[v1.ListCommonSeriesRequest, v1.Series]
+	listStartedAt        *connect.Client[v1.ListStartedAtRequest, v1.RunStartTime]
+	listTags             *connect.Client[v1.ListTagsRequest, v1.TagValue]
+	listAttributeValues  *connect.Client[v1.ListAttributeValuesRequest, v1.AttributeValues]
 }
 
 // CreateField calls streamvis.v1.Service.CreateField.
@@ -303,6 +334,21 @@ func (c *serviceClient) ListCommonSeries(ctx context.Context, req *v1.ListCommon
 	return c.listCommonSeries.CallServerStream(ctx, connect.NewRequest(req))
 }
 
+// ListStartedAt calls streamvis.v1.Service.ListStartedAt.
+func (c *serviceClient) ListStartedAt(ctx context.Context, req *v1.ListStartedAtRequest) (*connect.ServerStreamForClient[v1.RunStartTime], error) {
+	return c.listStartedAt.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListTags calls streamvis.v1.Service.ListTags.
+func (c *serviceClient) ListTags(ctx context.Context, req *v1.ListTagsRequest) (*connect.ServerStreamForClient[v1.TagValue], error) {
+	return c.listTags.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListAttributeValues calls streamvis.v1.Service.ListAttributeValues.
+func (c *serviceClient) ListAttributeValues(ctx context.Context, req *v1.ListAttributeValuesRequest) (*connect.ServerStreamForClient[v1.AttributeValues], error) {
+	return c.listAttributeValues.CallServerStream(ctx, connect.NewRequest(req))
+}
+
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
 	CreateField(context.Context, *v1.CreateFieldRequest) (*v1.CreateFieldResponse, error)
@@ -319,6 +365,9 @@ type ServiceHandler interface {
 	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error
 	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error
+	ListStartedAt(context.Context, *v1.ListStartedAtRequest, *connect.ServerStream[v1.RunStartTime]) error
+	ListTags(context.Context, *v1.ListTagsRequest, *connect.ServerStream[v1.TagValue]) error
+	ListAttributeValues(context.Context, *v1.ListAttributeValuesRequest, *connect.ServerStream[v1.AttributeValues]) error
 }
 
 // NewServiceHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -412,6 +461,24 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("ListCommonSeries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceListStartedAtHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListStartedAtProcedure,
+		svc.ListStartedAt,
+		connect.WithSchema(serviceMethods.ByName("ListStartedAt")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serviceListTagsHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListTagsProcedure,
+		svc.ListTags,
+		connect.WithSchema(serviceMethods.ByName("ListTags")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serviceListAttributeValuesHandler := connect.NewServerStreamHandlerSimple(
+		ServiceListAttributeValuesProcedure,
+		svc.ListAttributeValues,
+		connect.WithSchema(serviceMethods.ByName("ListAttributeValues")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/streamvis.v1.Service/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceCreateFieldProcedure:
@@ -442,6 +509,12 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceListCommonAttributesHandler.ServeHTTP(w, r)
 		case ServiceListCommonSeriesProcedure:
 			serviceListCommonSeriesHandler.ServeHTTP(w, r)
+		case ServiceListStartedAtProcedure:
+			serviceListStartedAtHandler.ServeHTTP(w, r)
+		case ServiceListTagsProcedure:
+			serviceListTagsHandler.ServeHTTP(w, r)
+		case ServiceListAttributeValuesProcedure:
+			serviceListAttributeValuesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -505,4 +578,16 @@ func (UnimplementedServiceHandler) ListCommonAttributes(context.Context, *v1.Lis
 
 func (UnimplementedServiceHandler) ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListCommonSeries is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListStartedAt(context.Context, *v1.ListStartedAtRequest, *connect.ServerStream[v1.RunStartTime]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListStartedAt is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListTags(context.Context, *v1.ListTagsRequest, *connect.ServerStream[v1.TagValue]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListTags is not implemented"))
+}
+
+func (UnimplementedServiceHandler) ListAttributeValues(context.Context, *v1.ListAttributeValuesRequest, *connect.ServerStream[v1.AttributeValues]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListAttributeValues is not implemented"))
 }

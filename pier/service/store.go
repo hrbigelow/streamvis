@@ -127,10 +127,10 @@ func (st *Store) SetRunAttributes(
 	attrs []*pb.FieldValue,
 ) error {
 	sql := `CALL set_run_attributes($1, $2)`
-	unwrapped := make([]FieldValueTyp, len(attrs))
+	unwrapped := make([]FieldValue, len(attrs))
 	var err error
 	for i, attr := range attrs {
-		unwrapped[i], err = NewFieldValueTyp(attr)
+		unwrapped[i], err = NewFieldValue(attr)
 		if err != nil {
 			return err
 		}
@@ -226,7 +226,7 @@ func (st *Store) ListFields(
 	ctx context.Context,
 ) (<-chan *pb.Field, <-chan error) {
 	sql := `SELECT * from field_vw`
-	convert := MakeToProtobufFunc[FieldTyp, pb.Field]()
+	convert := MakeToProtobufFunc[Field, pb.Field]()
 	return queryItemsConvert(ctx, st.pool, sql, convert)
 }
 
@@ -269,7 +269,7 @@ func (st *Store) ListCommonAttributes(
 	runFilter RunFilter,
 ) (<-chan *pb.Field, <-chan error) {
 	sql := `SELECT * from list_common_attributes($1, $2, $3, $4)`
-	convert := MakeToProtobufFunc[FieldTyp, pb.Field]()
+	convert := MakeToProtobufFunc[Field, pb.Field]()
 	return queryItemsConvert(
 		ctx, st.pool, sql, convert,
 		runFilter.AttributeFilters,
@@ -292,4 +292,28 @@ func (st *Store) ListCommonSeries(
 		runFilter.MinStartedAt,
 		runFilter.MaxStartedAt,
 	)
+}
+
+func (st *Store) ListStartedAt(
+	ctx context.Context,
+) (<-chan *pb.RunStartTime, <-chan error) {
+	sql := `SELECT * FROM started_at_vw`
+	convert := MakeToProtobufFunc[RunStartTime, pb.RunStartTime]()
+	return queryItemsConvert(ctx, st.pool, sql, convert)
+}
+
+func (st *Store) ListTags(
+	ctx context.Context,
+) (<-chan *pb.TagValue, <-chan error) {
+	sql := `SELECT * FROM tag_vw`
+	convert := MakeToProtobufFunc[TagValue, pb.TagValue]()
+	return queryItemsConvert(ctx, st.pool, sql, convert)
+}
+
+func (st *Store) ListAttributeValues(
+	ctx context.Context,
+) (<-chan *pb.AttributeValues, <-chan error) {
+	sql := `SELECT * FROM attribute_values_vw`
+	convert := MakeToProtobufFunc[AttributeValues, pb.AttributeValues]()
+	return queryItemsConvert(ctx, st.pool, sql, convert)
 }

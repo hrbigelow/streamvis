@@ -32,9 +32,13 @@ message EncTyp {
   oneof spans {
     IntValues int_spans = 4;
     FloatValues float_spans = 5;
-    BoolValues bool_bcast = 6;
-    BoolValues string_bcast = 7;
+    BoolArray bool_bcast = 6;
+    BoolArray string_bcast = 7;
   }
+}
+
+message IntArray {
+  repeated int32 values = 1;
 }
 
 message IntValues {
@@ -45,6 +49,10 @@ message OptionalInt {
   optional int32 value = 1;
 }
 
+message FloatArray {
+  repeated float values = 2;
+}
+
 message FloatValues {
   repeated OptionalFloat values = 1;
 }
@@ -53,9 +61,14 @@ message OptionalFloat {
   optional float value = 1;
 }
 
-message BoolValues {
+message BoolArray {
   repeated bool values = 1;
 }
+
+message StringArray {
+  repeated string values = 1;
+}
+
 
 message AppendToSeriesRequest {
   string series_handle = 1;
@@ -126,6 +139,23 @@ message Field {
   string description = 4;
 }
 
+message ListAttributeValuesRequest {}
+
+message AnyArray {
+  oneof value {
+    IntArray ints = 1;
+    FloatArray floats = 2;
+    StringArray strings = 3;
+    BoolArray bools = 4;
+  }
+}
+
+message AttributeValues {
+  Field field = 1;
+  AnyArray values = 2;
+}
+
+
 message Series {
   string handle = 1;
   string name = 2;
@@ -152,6 +182,18 @@ message Run {
 
 message RunId {
   string handle = 1;
+}
+
+message ListStartedAtRequest {}
+
+message RunStartTime {
+  google.protobuf.Timestamp started_at = 3;
+}
+
+message ListTagsRequest {}
+
+message TagValue {
+  string tag = 1;
 }
 
 message ChunkData {
@@ -233,5 +275,7 @@ service Service {
   rpc QueryRunData (QueryRunDataRequest) returns (stream ChunkData);
   rpc ListCommonAttributes (ListCommonAttributesRequest) returns (stream Field);
   rpc ListCommonSeries (ListCommonSeriesRequest) returns (stream Series);
-  // rpc ListFieldData (ListFieldDataRequest) returns (stream FieldDataResponse);
+  rpc ListStartedAt (ListStartedAtRequest) returns (stream RunStartTime);
+  rpc ListTags (ListTagsRequest) returns (stream TagValue);
+  rpc ListAttributeValues (ListAttributeValuesRequest) returns (stream AttributeValues);
 }

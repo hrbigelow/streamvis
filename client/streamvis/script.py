@@ -110,8 +110,11 @@ def list_runs():
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListRunsRequest(
-        attribute_filters=[],
-        tag_filter=pb.TagFilter(has_any_tag=pb.StringList()))
+        run_filter=pb.RunFilter(
+            attribute_filters=[],
+            tag_filter=pb.TagFilter(tags=[], match_any=True),
+        )
+    )
     for msg in stub.ListRuns(req):
         print(text_format.MessageToString(msg))
 
@@ -121,6 +124,14 @@ def list_fields():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListFieldsRequest()
     for msg in stub.ListFields(req):
+        print(text_format.MessageToString(msg))
+
+def list_attribute_values():
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.ListAttributeValuesRequest()
+    for msg in stub.ListAttributeValues(req):
         print(text_format.MessageToString(msg))
 
 def main():
@@ -135,6 +146,7 @@ def main():
              "list-series": list_series,
              "list-runs": list_runs,
              "list-fields": list_fields,
+             "list-attribute-values": list_attribute_values,
              # "web-serve": serve,
              "logging-demo": demo_sync_fn, 
              "logging-demo-async": demo_async_fn,

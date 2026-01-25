@@ -64,8 +64,8 @@ CREATE TYPE attribute_filter_typ AS (
 );
 
 CREATE TYPE tag_filter_typ AS (
-  has_any_tag TEXT[],
-  has_all_tags TEXT[]
+  tags TEXT[],
+  match_any BOOLEAN
 );
 
 
