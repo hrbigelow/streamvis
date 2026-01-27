@@ -23,6 +23,7 @@
     "@connectrpc/connect-web": "^2.1.1",
     "commander": "^14.0.2",
     "google-protobuf": "^4.0.0",
+    "range-slider-element": "^2.1.1",
     "three": "^0.180.0"
   }
 }

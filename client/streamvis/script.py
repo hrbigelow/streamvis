@@ -97,6 +97,7 @@ def delete_empty_series(series_name: str):
     req = pb.DeleteEmptySeriesRequest(series_name=series_name)
     _ = stub.DeleteEmptySeries(req)
 
+
 def list_series():
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
@@ -134,6 +135,23 @@ def list_attribute_values():
     for msg in stub.ListAttributeValues(req):
         print(text_format.MessageToString(msg))
 
+def list_run_starts():
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.ListStartedAtRequest()
+    for msg in stub.ListStartedAt(req):
+        print(text_format.MessageToString(msg))
+    
+def list_tags():
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.ListTagsRequest()
+    for msg in stub.ListTags(req):
+        print(text_format.MessageToString(msg))
+
+
 def main():
     init_grpc_uri()
 
@@ -147,6 +165,8 @@ def main():
              "list-runs": list_runs,
              "list-fields": list_fields,
              "list-attribute-values": list_attribute_values,
+             "list-run-starts": list_run_starts,
+             "list-tags": list_tags,
              # "web-serve": serve,
              "logging-demo": demo_sync_fn, 
              "logging-demo-async": demo_async_fn,

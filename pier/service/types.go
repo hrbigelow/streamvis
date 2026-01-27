@@ -122,13 +122,13 @@ type AttributeFilterValue struct {
 	StringVals     []string  `db:"string_vals"`
 }
 
-func NewAttributeFilterValue(pb *pb.AttributeFilter) (*AttributeFilterValue, error) {
+func NewAttributeFilterValue(pb *pb.AttributeFilter) (AttributeFilterValue, error) {
 	fieldHandle, err := uuid.Parse(pb.GetFieldHandle())
 	if err != nil {
-		return nil, err
+		return AttributeFilterValue{}, err
 	}
 
-	v := &AttributeFilterValue{
+	v := AttributeFilterValue{
 		FieldHandle:    fieldHandle,
 		IncludeMissing: pb.GetIncludeMissing(),
 	}
@@ -282,10 +282,11 @@ func (sr Series) toProtobuf() (pb.Series, error) {
 }
 
 type Run struct {
-	Handle    uuid.UUID     `db:"handle"`
-	Tags      []string      `db:"tags"`
-	StartedAt time.Time     `db:"started_at"`
-	Attrs     []*FieldValue `db:"attrs"`
+	Handle      uuid.UUID     `db:"handle"`
+	Tags        []string      `db:"tags"`
+	StartedAt   time.Time     `db:"started_at"`
+	Attrs       []*FieldValue `db:"attrs"`
+	SeriesNames []string      `db:"series_names"`
 }
 
 func (rr Run) toProtobuf() (pb.Run, error) {
@@ -301,6 +302,10 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 			return pb.Run{}, err
 		}
 		msg.Attrs[i] = &pbvalue
+	}
+	msg.SeriesNames = make([]string, len(rr.SeriesNames))
+	for i, series := range rr.SeriesNames {
+		msg.SeriesNames[i] = series
 	}
 
 	return msg, nil
@@ -345,8 +350,12 @@ type TagFilterValue struct {
 }
 
 func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
+	tags := make([]string, len(msg.Tags))
+	for i, tag := range msg.Tags {
+		tags[i] = tag
+	}
 	val := TagFilterValue{
-		Tags:     msg.Tags,
+		Tags:     tags,
 		MatchAny: msg.MatchAny,
 	}
 	return val
@@ -354,15 +363,18 @@ func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
 
 // TODO: update DB to mirror this struct
 type RunFilter struct {
-	AttributeFilters []*AttributeFilterValue
+	AttributeFilters []AttributeFilterValue
 	TagFilter        TagFilterValue
 	MinStartedAt     *time.Time
 	MaxStartedAt     *time.Time
 }
 
 func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
+	if msg == nil {
+		return RunFilter{}, fmt.Errorf("Received nil pb.RunFilter")
+	}
 	rf := RunFilter{}
-	rf.AttributeFilters = make([]*AttributeFilterValue, len(msg.AttributeFilters))
+	rf.AttributeFilters = make([]AttributeFilterValue, len(msg.AttributeFilters))
 	var err error
 	for i, filter := range msg.GetAttributeFilters() {
 		rf.AttributeFilters[i], err = NewAttributeFilterValue(filter)

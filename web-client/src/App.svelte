@@ -8,20 +8,21 @@
     ListCommonAttributesRequestSchema,
     ListCommonSeriesRequestSchema,
     ListRunsRequestSchema,
-    ListStartedAtRequestSchema,
-    ListTagsRequestSchema,
+    ListAttributeValuesRequestSchema,
   } from './gen/streamvis/v1/data_pb.js';
   let { streamvisUrl } = $props();
 
-  let allFields = $state([]); 
+  let allFields = $state({});
   let allSeries = $state({});
+  let allRuns = $state([]);
   let allTags = $state([]);
   let allStartTimes = $state([]);
+  let allAttributeValues = $state({});
 
   let commonSeries = $state({}); // handle -> pb.Series
   let commonAttributes = $state([]);
   let includedRuns = $state([]);
-  let chosenSeriesHandle = $state(null);
+  let selectedSeries = $state(null);
   let plotType = $state(null);
   let axisBindings = $state({
     x: null,
@@ -40,8 +41,8 @@
     minStartedAt: undefined,
     maxStartedAt: undefined 
   });
-  let minStartedAtIndex = $state(-1);
-  let maxStartedAtIndex = $state(0);
+  let minStartedAtIndex = $state(0);
+  let maxStartedAtIndex = $state(200);
 
   let filterUI = $state({
     attributeHandles: [null, null, null, null, null]
@@ -49,6 +50,18 @@
 
   $effect(() => {
     runFilter.attributeFilters = [];
+  });
+
+  $effect(() => {
+    if (minStartedAtIndex > maxStartedAtIndex) {
+      maxStartedAtIndex = minStartedAtIndex;
+    }
+  });
+
+  $effect(() => {
+    if (maxStartedAtIndex < minStartedAtIndex) {
+      minStartedAtIndex = maxStartedAtIndex;
+    }
   });
 
   const axisNames = new Map();
@@ -73,31 +86,33 @@
   let client;
   let mounted = false;
 
-  async function fetchTags() {
-    const req = create(ListTagsRequestSchema, {});
-    const tags = [];
-    for await (const resp of client.listTags(req)) {
-      tags.push(resp.tag);
-    }
-    allTags = tags;
+  function timestampToDate(timestamp) {
+    const milliseconds = BigInt(timestamp.seconds) * 1000n + BigInt(timestamp.nanos) / 1000000n;
+    return new Date(Number(milliseconds));
   }
 
-  async function fetchStartTimes() {
-    const req = create(ListStartedAtSchema, {});
-    const startedAt = [];
-    for await (const resp of client.listStartedAt(req)) {
-      startedAt.push(resp.startedAt);
+  async function fetchRuns() {
+    const emptyFilter = {
+      attributeFilters: [],
+      tagFilter: {
+        tags: [],
+        matchAny: true
+      },
+      minStartedAt: undefined,
+      maxStartedAt: undefined 
     }
-    allStartTimes = startedAt;
-  }
-
-  async function fetchFields() {
-    const req = create(ListFieldsRequestSchema, {});
-    const fields = [];
-    for await (const resp of client.listFields(req)) {
-      fields.push(resp);
+    const req = create(ListRunsRequestSchema, { runFilter: emptyFilter })
+    const runs = [];
+    const tags = new Set();
+    const startTimes = [];
+    for await (const run of client.listRuns(req)) {
+      runs.push(run);
+      tags.add(run.tags);
+      startTimes.push(timestampToDate(run.startedAt));
     }
-    allFields = fields;
+    allRuns = runs;
+    allTags = Array.from(tags);
+    allStartTimes = startTimes;
   }
 
   async function fetchSeries() {
@@ -107,6 +122,30 @@
       series.push(resp);
     }
     allSeries = series;
+  }
+
+  async function fetchFields() {
+    const req = create(ListFieldsRequestSchema, {});
+    const fields = {};
+    for await (const field of client.listFields(req)) {
+      fields[field.handle] = field;
+    }
+    allFields = fields;
+  }
+
+  async function fetchAll() {
+    await fetchRuns();
+    await fetchSeries();
+    await fetchFields();
+  }
+
+  async function fetchAttributeValues() {
+    const req = create(ListAttributeValuesRequestSchema, {});
+    const vals = {};
+    for await (const resp of client.listAttributeValues(req)) {
+      vals[resp.field.handle] = resp
+    }
+    allAttributeValues = vals;
   }
 
   async function fetchCommonSeries() {
@@ -177,9 +216,10 @@
 
   onMount(() => {
     client = getServiceClient('/');
-    refreshEvery(fetchFields, 10_000);
+    refreshEvery(fetchAll, 10_000);
   });
 
+  /*
   $effect(() => {
     updateSelectedRuns();
   });
@@ -189,10 +229,45 @@
     fetchCommonAttributes();
   });
 
+  */
 
 </script>
 
 <div class="filter-run-table">
+  <div class="guide">Series:</div>
+  <select bind:value={selectedSeries}>
+    <option value={null}>(none)</option>
+    {#each Object.entries(allSeries) as [handle, series]}
+      <option value={handle}>{series.name}</option>
+    {/each}
+  </select>
+  <div></div>
+  {#if selectedSeries !== null}
+    <div class="report">{allSeries[selectedSeries].name}</div>
+    <div></div>
+    <div></div>
+    {#each allSeries[selectedSeries].fields as field}
+      <div class="report">{field.name}</div>
+      <div class="report">{field.dataType}</div>
+      <div></div>
+    {/each}
+  {/if}
+
+  <div class="range-slider">
+    <input type="range" 
+           class="min-input" 
+           min="0" 
+           max="1000"
+           bind:value={minStartedAtIndex}
+           >
+    <input type="range" 
+           class="max-input" 
+           min="0" 
+           max="1000" 
+           bind:value={maxStartedAtIndex}>
+    <div class="slider-track"></div>
+  </div>
+
   <div class="guide">Filter Run:</div>
   <label class="guide">Tag List (csv)</label>
   <div></div>
@@ -213,6 +288,7 @@
   <label class="guide" for="started-at-after">
     Started At After:
   </label>
+  <!--
   <input id="started-at-after" 
          type="range" 
                bind:value={minStartedAtIndex}
@@ -238,13 +314,14 @@
     {maxStartedAtIndex === includedRuns.length ? "No maximum" :
     new Date(allStartTimes[maxStartedAtIndex]).toLocaleString()}
   </div>
+  -->
   <label class="guide">Attribute Filters:</label>
   {#each [0, 1, 2, 3, 4] as i}
     <select bind:value={filterUI.attributeHandles[i]}>
       <option value={null}>(None)</option>
-      {#each allFields as attr}
-        <option value={attr.handle}>
-        {attr.name}
+      {#each Object.entries(allAttributeValues) as [fieldHandle, attrValue]}
+        <option value={fieldHandle}>
+        {attrValue.field.name}
         </option>
       {/each}
     </select>
@@ -252,6 +329,7 @@
     <div></div>
   {/each}
 </div>
+
 
 <div class="selected-runs-table">
   <div class="guide">Included Runs</div>
@@ -265,15 +343,7 @@
     <option value="scatter">Scatter Plot</option>
   </select>
 
-  <label class="guide">Series:</label>
-  <select bind:value={chosenSeriesHandle}>
-    {#each Object.values(commonSeries) as series}
-      <option value={series.handle}>
-      {series.name}
-      </option>
-    {/each}
-  </select>
-
+  <!--
   {#each axisNames.entries() as [key, val]} 
     <label class="guide" for="axis-{key}">{val}</label>
     <select id="axis-{key}" bind:value={axisBindings[key]}>
@@ -291,8 +361,10 @@
       {/if}
     </select>
   {/each}
+  -->
 
 </div>
+
 
 
 
@@ -479,6 +551,14 @@
     text-align: left;
   }
 
+  .report {
+    font-size: 90%;
+    font-weight: bold;
+    white-space: nowrap;
+    text-align: left;
+    color: black;
+  }
+
   .field-row {
     display: flex;
     flex-direction: column;
@@ -488,6 +568,58 @@
     white-space: nowrap;
   }
 
+  .range-slider {
+    position: relative;
+    width: 300px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+  }
+
+  input[type="range"] {
+    position: absolute;
+    width: 100%;
+    appearance: none;
+    background: none;
+    /* 1. Tell the input to ignore clicks */
+    pointer-events: none; 
+    margin: 0;
+    z-index: 2;
+  }
+
+  /* 2. Tell the thumb to be clickable again */
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    cursor: pointer;
+    pointer-events: auto; /* Re-enable clicks just for the handle */
+  }
+
+  /* 3. Do the same for Firefox */
+  input[type="range"]::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    cursor: pointer;
+    pointer-events: auto;
+    border: none;
+  }
+
+  /* The Track background */
+  .slider-track {
+    position: absolute;
+    top: 20%;
+    transform: translateY(-50%);
+    width: 100%;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    z-index: 1;
+  }
 
 </style>
 

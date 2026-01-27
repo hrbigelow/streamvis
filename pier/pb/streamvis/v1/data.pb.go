@@ -1853,6 +1853,7 @@ type Run struct {
 	Tags          []string               `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	Attrs         []*FieldValue          `protobuf:"bytes,4,rep,name=attrs,proto3" json:"attrs,omitempty"`
+	SeriesNames   []string               `protobuf:"bytes,5,rep,name=series_names,json=seriesNames,proto3" json:"series_names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1911,6 +1912,13 @@ func (x *Run) GetStartedAt() *timestamppb.Timestamp {
 func (x *Run) GetAttrs() []*FieldValue {
 	if x != nil {
 		return x.Attrs
+	}
+	return nil
+}
+
+func (x *Run) GetSeriesNames() []string {
+	if x != nil {
+		return x.SeriesNames
 	}
 	return nil
 }
@@ -2914,13 +2922,14 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\n" +
 	"tag_filter\x18\x02 \x01(\v2\x17.streamvis.v1.TagFilterR\ttagFilter\x12@\n" +
 	"\x0emin_started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\fminStartedAt\x12@\n" +
-	"\x0emax_started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\fmaxStartedAt\"\x9c\x01\n" +
+	"\x0emax_started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\fmaxStartedAt\"\xbf\x01\n" +
 	"\x03Run\x12\x16\n" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x12\n" +
 	"\x04tags\x18\x02 \x03(\tR\x04tags\x129\n" +
 	"\n" +
 	"started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12.\n" +
-	"\x05attrs\x18\x04 \x03(\v2\x18.streamvis.v1.FieldValueR\x05attrs\"\x1f\n" +
+	"\x05attrs\x18\x04 \x03(\v2\x18.streamvis.v1.FieldValueR\x05attrs\x12!\n" +
+	"\fseries_names\x18\x05 \x03(\tR\vseriesNames\"\x1f\n" +
 	"\x05RunId\x12\x16\n" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\"\x16\n" +
 	"\x14ListStartedAtRequest\"I\n" +
@@ -2985,7 +2994,7 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x13FIELD_DATA_TYPE_INT\x10\x01\x12\x19\n" +
 	"\x15FIELD_DATA_TYPE_FLOAT\x10\x02\x12\x1a\n" +
 	"\x16FIELD_DATA_TYPE_STRING\x10\x03\x12\x18\n" +
-	"\x14FIELD_DATA_TYPE_BOOL\x10\x042\x8b\v\n" +
+	"\x14FIELD_DATA_TYPE_BOOL\x10\x042\x89\v\n" +
 	"\aService\x12R\n" +
 	"\vCreateField\x12 .streamvis.v1.CreateFieldRequest\x1a!.streamvis.v1.CreateFieldResponse\x12U\n" +
 	"\fCreateSeries\x12!.streamvis.v1.CreateSeriesRequest\x1a\".streamvis.v1.CreateSeriesResponse\x12[\n" +
@@ -2999,8 +3008,8 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\n" +
 	"ListSeries\x12\x1f.streamvis.v1.ListSeriesRequest\x1a\x14.streamvis.v1.Series0\x01\x12D\n" +
 	"\n" +
-	"ListFields\x12\x1f.streamvis.v1.ListFieldsRequest\x1a\x13.streamvis.v1.Field0\x01\x12@\n" +
-	"\bListRuns\x12\x1d.streamvis.v1.ListRunsRequest\x1a\x13.streamvis.v1.RunId0\x01\x12L\n" +
+	"ListFields\x12\x1f.streamvis.v1.ListFieldsRequest\x1a\x13.streamvis.v1.Field0\x01\x12>\n" +
+	"\bListRuns\x12\x1d.streamvis.v1.ListRunsRequest\x1a\x11.streamvis.v1.Run0\x01\x12L\n" +
 	"\fQueryRunData\x12!.streamvis.v1.QueryRunDataRequest\x1a\x17.streamvis.v1.ChunkData0\x01\x12X\n" +
 	"\x14ListCommonAttributes\x12).streamvis.v1.ListCommonAttributesRequest\x1a\x13.streamvis.v1.Field0\x01\x12Q\n" +
 	"\x10ListCommonSeries\x12%.streamvis.v1.ListCommonSeriesRequest\x1a\x14.streamvis.v1.Series0\x01\x12Q\n" +
@@ -3139,7 +3148,7 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	26, // 57: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
 	31, // 58: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
 	27, // 59: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
-	36, // 60: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.RunId
+	35, // 60: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
 	41, // 61: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.ChunkData
 	27, // 62: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
 	31, // 63: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series

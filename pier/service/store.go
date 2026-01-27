@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 )
 
 type Store struct {
@@ -27,6 +29,23 @@ func NewStore(ctx context.Context, dbUri string) (*Store, error) {
 	config.MaxConnLifetime = 1 * time.Hour
 
 	config.AfterConnect = registerCustomTypes
+
+	config.ConnConfig.Tracer = &tracelog.TraceLog{
+		Logger: tracelog.LoggerFunc(
+			func(
+				ctx context.Context,
+				level tracelog.LogLevel,
+				msg string,
+				data map[string]interface{},
+			) {
+				fmt.Printf("[%s] %s: %v\n", level, msg, data)
+			}),
+		LogLevel: tracelog.LogLevelDebug,
+	}
+	config.ConnConfig.OnNotice = func(pc *pgconn.PgConn, n *pgconn.Notice) {
+		fmt.Printf("NOTICE: %s\n", n.Message)
+	}
+
 	pool, err2 := pgxpool.NewWithConfig(ctx, config)
 	if err2 != nil {
 		return nil, err2
@@ -233,9 +252,9 @@ func (st *Store) ListFields(
 func (st *Store) ListRuns(
 	ctx context.Context,
 	runFilter RunFilter,
-) (<-chan *pb.RunId, <-chan error) {
+) (<-chan *pb.Run, <-chan error) {
 	sql := `SELECT * FROM list_runs($1, $2, $3, $4)`
-	convert := MakeToProtobufFunc[RunId, pb.RunId]()
+	convert := MakeToProtobufFunc[Run, pb.Run]()
 	return queryItemsConvert(
 		ctx, st.pool, sql, convert,
 		runFilter.AttributeFilters,

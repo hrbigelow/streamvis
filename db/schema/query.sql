@@ -72,8 +72,10 @@ JOIN field f ON f.id = a.field_id;
 
 
 
-\echo 'create filtered_by_attribute'
-CREATE OR REPLACE FUNCTION filtered_by_attribute(
+\echo 'create filter_by_attribute'
+/* Return TRUE if the value should be included 
+*/
+CREATE OR REPLACE FUNCTION filter_by_attribute(
   p_data_type field_data_typ,
   p_value field_value_typ,
   p_filter attribute_filter_typ
@@ -95,17 +97,17 @@ BEGIN
   CASE p_data_type
     WHEN 'int' THEN
       IF p_filter.int_vals IS NOT NULL THEN
-        RETURN v_int <> ALL(p_filter.int_vals);
+        RETURN p_value.int_val = ANY(p_filter.int_vals);
       ELSE
         RETURN (
-          (p_filter.int_min IS NOT NULL AND p_value.int_val < p_filter.int_min) OR
-          (p_filter.int_max IS NOT NULL AND p_value.int_val > p_filter.int_max)
+          (p_filter.int_min IS NULL OR p_value.int_val >= p_filter.int_min) AND
+          (p_filter.int_max IS NULL OR p_value.int_val <= p_filter.int_max)
         );
       END IF;
     WHEN 'float' THEN
       RETURN (
-        (p_filter.float_min IS NOT NULL AND p_value.float_val < p_filter.float_min) OR
-        (p_filter.float_max IS NOT NULL AND p_value.float_val > p_filter.float_max)
+        (p_filter.float_min IS NULL OR p_value.float_val >= p_filter.float_min) AND 
+        (p_filter.float_max IS NULL OR p_value.float_val <= p_filter.float_max)
       );
     WHEN 'bool' THEN
       RETURN p_value.bool_val = ANY(p_filter.bool_vals);
@@ -116,21 +118,23 @@ END;
 $$;
 
 
-\echo 'create filtered_by_tags'
-/* Returns true if the run having the set of run tags should be excluded.
+\echo 'create filter_by_tags'
+/* Returns true if the run having the set of run tags should be included 
 */
-CREATE OR REPLACE FUNCTION filtered_by_tags(
-  p_run_tags TEXT[],
-  p_tag_filter tag_filter_typ
+CREATE OR REPLACE FUNCTION filter_by_tags(
+  p_run_tags TEXT[], -- not NULL by constraint on the run table
+  p_filter tag_filter_typ
 ) RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF p_tag_filter.match_any THEN
-    RETURN p_run_tags && p_tag_filter.tags;
+  IF cardinality(p_filter.tags) = 0 THEN
+    RETURN TRUE; 
+  ELSIF p_filter.match_any THEN
+    RETURN (p_run_tags && p_filter.tags);
   ELSE
-    RETURN p_run_tags @> p_tag_filter.tags;
+    RETURN (p_run_tags @> p_filter.tags);
   END IF;
 END;
 $$;
@@ -156,14 +160,14 @@ AS $$
     JOIN field f ON f.handle = filter_obj.field_handle
     CROSS JOIN run r
     LEFT JOIN run_attr ra ON ra.field_id = f.id AND ra.run_id = r.id
-    WHERE filtered_by_attribute(f.data_type, ra.attr_value, filter_obj)
+    WHERE NOT filter_by_attribute(f.data_type, ra.attr_value, filter_obj)
     GROUP BY r.id
   )
     SELECT r.id
     FROM run r
     LEFT JOIN excluded_runs er ON er.run_id = r.id
     WHERE er.run_id IS NULL -- anti-join
-    AND NOT filtered_by_tags(r.tags, p_tag_filter)
+    AND filter_by_tags(r.tags, p_tag_filter)
     AND (p_min_started_at IS NULL OR p_min_started_at <= r.started_at)
     AND (p_max_started_at IS NULL OR r.started_at <= p_max_started_at);
 $$;
@@ -175,18 +179,48 @@ CREATE OR REPLACE FUNCTION list_runs(
   IN p_min_started_at TIMESTAMPTZ,
   IN p_max_started_at TIMESTAMPTZ
 ) RETURNS TABLE (
-  handle UUID
+  handle UUID,
+  tags TEXT[],
+  started_at TIMESTAMPTZ,
+  attrs field_value_typ[],
+  series_names TEXT[]
 ) 
 LANGUAGE sql
+-- LANGUAGE plpgsql
 AS $$
-  SELECT r.handle
-  FROM run r
-  JOIN list_runs_internal(
-    p_attribute_filters,
-    p_tag_filter,
-    p_min_started_at,
-    p_max_started_at
-  ) ri ON ri.run_id = r.id;
+  /*
+  RAISE NOTICE '%', format(
+    'in list_runs with p_attribute_filters=%L, ' ||
+    'p_tag_filter=(tags=%L, match_any=%L) ' ||
+    'p_min_started_at=%L  p_max_started_at=%L', 
+    p_attribute_filters, (p_tag_filter).tags, (p_tag_filter).match_any, 
+    p_min_started_at, p_max_started_at
+  );
+  */
+WITH run_series AS (
+  SELECT DISTINCT
+    run_id,
+    series_id
+  FROM chunk
+)
+SELECT 
+  r.handle,
+  r.tags,
+  r.started_at,
+  array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs,
+  array_agg(s.name) FILTER (WHERE s.name IS NOT NULL) series
+FROM run r
+JOIN list_runs_internal(
+  p_attribute_filters,
+  p_tag_filter,
+  p_min_started_at,
+  p_max_started_at
+) ri ON ri.run_id = r.id
+LEFT JOIN run_attr ra ON ra.run_id = r.id
+LEFT JOIN run_series rs ON rs.run_id = r.id
+LEFT JOIN series s ON s.id = rs.series_id 
+GROUP BY r.handle, r.tags, r.started_at
+ORDER BY r.started_at;
 $$;
 
 

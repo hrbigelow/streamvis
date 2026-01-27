@@ -87,7 +87,7 @@ class ServiceStub(object):
         self.ListRuns = channel.unary_stream(
                 '/streamvis.v1.Service/ListRuns',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.RunId.FromString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.Run.FromString,
                 _registered_method=True)
         self.QueryRunData = channel.unary_stream(
                 '/streamvis.v1.Service/QueryRunData',
@@ -282,7 +282,7 @@ def add_ServiceServicer_to_server(servicer, server):
             'ListRuns': grpc.unary_stream_rpc_method_handler(
                     servicer.ListRuns,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.RunId.SerializeToString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.Run.SerializeToString,
             ),
             'QueryRunData': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRunData,
@@ -611,7 +611,7 @@ class Service(object):
             target,
             '/streamvis.v1.Service/ListRuns',
             streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.RunId.FromString,
+            streamvis_dot_v1_dot_data__pb2.Run.FromString,
             options,
             channel_credentials,
             insecure,

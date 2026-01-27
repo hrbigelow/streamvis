@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -50,7 +52,13 @@ func main() {
 		Handler:   mux,
 		Protocols: p,
 	}
-	s.ListenAndServe()
+	if err := s.ListenAndServe(); err != nil {
+		if errors.Is(err, http.ErrServerClosed) {
+			log.Println("Server closed gracefully")
+		} else {
+			log.Fatalf("Server error: %v", err)
+		}
+	}
 
 	/*
 		var greeting string

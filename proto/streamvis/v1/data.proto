@@ -178,6 +178,7 @@ message Run {
   repeated string tags = 2;
   google.protobuf.Timestamp started_at = 3;
   repeated FieldValue attrs = 4;
+  repeated string series_names = 5;
 }
 
 message RunId {
@@ -271,7 +272,7 @@ service Service {
   rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
   rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
-  rpc ListRuns (ListRunsRequest) returns (stream RunId);
+  rpc ListRuns (ListRunsRequest) returns (stream Run);
   rpc QueryRunData (QueryRunDataRequest) returns (stream ChunkData);
   rpc ListCommonAttributes (ListCommonAttributesRequest) returns (stream Field);
   rpc ListCommonSeries (ListCommonSeriesRequest) returns (stream Series);

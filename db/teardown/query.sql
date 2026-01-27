@@ -23,11 +23,11 @@ DROP VIEW IF EXISTS tag_vw;
 \echo 'drop run_vw'
 DROP VIEW IF EXISTS run_vw;
 
-\echo 'drop filtered_by_attribute'
-DROP FUNCTION IF EXISTS filtered_by_attribute;
+\echo 'drop filter_by_attribute'
+DROP FUNCTION IF EXISTS filter_by_attribute;
 
-\echo 'drop filtered_by_tags'
-DROP FUNCTION IF EXISTS filtered_by_tags;
+\echo 'drop filter_by_tags'
+DROP FUNCTION IF EXISTS filter_by_tags;
 
 \echo 'drop list_runs'
 DROP FUNCTION IF EXISTS list_runs;

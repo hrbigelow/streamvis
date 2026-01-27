@@ -71,6 +71,8 @@ CREATE TABLE chunk (
   num_points INT NOT NULL
 );
 
+CREATE INDEX idx_chunk_series_run ON chunk(series_id, run_id);
+
 /* Holds one chunk of data for a given coordinate
  */
 \echo 'create table coord_data'

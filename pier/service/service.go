@@ -203,14 +203,14 @@ func (s *Service) ListFields(
 func (s *Service) ListRuns(
 	ctx context.Context,
 	req *pb.ListRunsRequest,
-	stream *connect.ServerStream[pb.RunId],
+	stream *connect.ServerStream[pb.Run],
 ) error {
 	runFilter, err := NewRunFilter(req.GetRunFilter())
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
 	dataCh, errCh := s.store.ListRuns(ctx, runFilter)
-	return streamRecords[pb.RunId](ctx, *stream, dataCh, errCh)
+	return streamRecords[pb.Run](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) QueryRunData(
