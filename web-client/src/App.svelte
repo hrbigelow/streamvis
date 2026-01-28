@@ -22,17 +22,21 @@
   let matchAnyTag = $state(true);
 
   let seriesStartTimes = $derived.by(() => {
-    return stateManager.seriesStartTimes(selectedSeries);
+    const times = stateManager.seriesStartTimes(selectedSeries);
+    times.push(new Date());
+    return times;
   });
 
-  let runFilter = $derived({
-    attributeFilters: [],
-    tagFilter: {
-      tags: selectedTagsArray,
-      matchAny: matchAnyTag 
-    },
-    minStartedAt: seriesStartTimes[minStartedAtIndex],
-    maxStartedAt: seriesStartTimes[maxStartedAtIndex]
+  let runFilter = $derived.by(() => {
+    return {
+      attributeFilters: [],
+      tagFilter: {
+        tags: selectedTagsArray,
+        matchAny: matchAnyTag 
+      },
+      minStartedAt: seriesStartTimes[minStartedAtIndex],
+      maxStartedAt: seriesStartTimes[maxStartedAtIndex] 
+    }
   });
   let minStartedAtIndex = $state(0);
   let maxStartedAtIndex = $state(200);
@@ -44,8 +48,8 @@
 
   let filteredTags = $derived.by(() => {
     return stateManager.filteredTags(
-      runFilter.minStartedAt, 
-      runFilter.maxStartedAt, 
+      seriesStartTimes[minStartedAtIndex],
+      seriesStartTimes[maxStartedAtIndex],
       selectedSeries, 
       selectedTags
     )
@@ -186,14 +190,14 @@
     <input type="range" 
            class="min-input" 
            min="0" 
-           max="{seriesStartTimes.length + 1}"
+           max="{seriesStartTimes.length - 1}"
            bind:value={minStartedAtIndex}
            oninput={handleMinInput}
            >
     <input type="range" 
            class="max-input" 
            min="0" 
-           max="{seriesStartTimes.length + 1}" 
+           max="{seriesStartTimes.length - 1}" 
            bind:value={maxStartedAtIndex}
            oninput={handleMaxInput}
            >
@@ -224,27 +228,6 @@
 
   <div></div>
   <!--
-  <input id="started-at-after" 
-         type="range" 
-               bind:value={minStartedAtIndex}
-         min="-1" 
-         max={includedRuns.length - 1}
-         step="1"/>
-  <div class="timestamp-display">
-    {minStartedAtIndex === -1 ? "No minimum" : 
-    new Date(allStartTimes[minStartedAtIndex]).toLocaleString()}
-  </div>
-
-  <label class="guide" for="started-at-before">
-    Started At Before:
-  </label>
-    <input id="started-at-before" 
-           type="range" 
-           bind:value={maxStartedAtIndex} 
-           min="0"
-           max={includedRuns.length} 
-           step="1"
-           />
   <div class="timestamp-display">
     {maxStartedAtIndex === includedRuns.length ? "No maximum" :
     new Date(allStartTimes[maxStartedAtIndex]).toLocaleString()}

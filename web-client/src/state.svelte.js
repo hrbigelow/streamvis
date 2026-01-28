@@ -19,7 +19,6 @@ class StateManager {
   allSeries = $state({});
   allRuns = $state([]);
   allTags = $state([]);
-  allStartTimes = $state([]);
 
   constructor(client) {
     this.client = client;
@@ -48,15 +47,13 @@ class StateManager {
     const req = create(ListRunsRequestSchema, { runFilter: emptyFilter })
     const runs = [];
     const tags = new Set();
-    const startTimes = [];
     for await (const run of this.client.listRuns(req)) {
+      run.startedAt = timestampToDate(run.startedAt);
       runs.push(run);
       tags.add(run.tags);
-      startTimes.push(timestampToDate(run.startedAt));
     }
     this.allRuns = runs;
     this.allTags = Array.from(tags);
-    this.allStartTimes = startTimes;
   }
 
   async fetchSeries() {
@@ -93,23 +90,24 @@ class StateManager {
   /* Return a map of tag => numRuns.
   */
   filteredTags(minStartedAt, maxStartedAt, selectedSeries, selectedTags) {
-    // $inspect(maxStartedAt, selectedSeries, selectedTags);
     const visibleTags = {} // tag => numRuns
     if (selectedSeries === null) {
       return visibleTags;
     }
     for (const run of this.allRuns) {
-      for (const tag of run.tags) {
-        if (selectedTags.has(tag)) {
-          visibleTags[tag] = (visibleTags[tag] || 0);
+      if (run.startedAt >= minStartedAt 
+        && run.startedAt <= maxStartedAt
+        && run.seriesHandles.includes(selectedSeries)
+      ) {
+        for (const tag of run.tags) {
+          visibleTags[tag] = (visibleTags[tag] || 0) + 1;
         }
-        if (run.startedAt < minStartedAt || run.startedAt > maxStartedAt) {
-          continue;
+      } else {
+        for (const tag of run.tags) {
+          if (selectedTags.has(tag)) {
+            visibleTags[tag] = (visibleTags[tag] || 0);
+          }
         }
-        if (!run.seriesHandles.includes(selectedSeries)) {
-          continue;
-        }
-        visibleTags[tag] = (visibleTags[tag] || 0) + 1;
       }
     }
     return visibleTags;
