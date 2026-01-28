@@ -27,6 +27,12 @@ DROP PROCEDURE IF EXISTS set_run_attributes;
 \echo 'drop array_product'
 DROP FUNCTION IF EXISTS array_product;
 
+\echo 'drop add_run_tag'
+DROP PROCEDURE IF EXISTS add_run_tag;
+
+\echo 'drop delete_run_tag'
+DROP PROCEDURE IF EXISTS delete_run_tag;
+
 \set QUIET 0
 
 

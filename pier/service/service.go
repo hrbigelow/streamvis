@@ -191,6 +191,30 @@ func (s *Service) DeleteEmptySeries(
 	return &pb.DeleteEmptySeriesResponse{}, err
 }
 
+func (s *Service) AddRunTag(
+	ctx context.Context,
+	req *pb.AddRunTagRequest,
+) (*pb.AddRunTagResponse, error) {
+	runHandle, err := uuid.Parse(req.GetRunHandle())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "runHandle invalid UUID: %v", err)
+	}
+	err = s.store.AddRunTag(ctx, runHandle, req.Tag)
+	return &pb.AddRunTagResponse{}, err
+}
+
+func (s *Service) DeleteRunTag(
+	ctx context.Context,
+	req *pb.DeleteRunTagRequest,
+) (*pb.DeleteRunTagResponse, error) {
+	runHandle, err := uuid.Parse(req.GetRunHandle())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "runHandle invalid UUID: %v", err)
+	}
+	err = s.store.DeleteRunTag(ctx, runHandle, req.Tag)
+	return &pb.DeleteRunTagResponse{}, err
+}
+
 func (s *Service) ListFields(
 	ctx context.Context,
 	req *pb.ListFieldsRequest,

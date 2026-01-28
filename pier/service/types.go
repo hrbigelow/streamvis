@@ -282,11 +282,11 @@ func (sr Series) toProtobuf() (pb.Series, error) {
 }
 
 type Run struct {
-	Handle      uuid.UUID     `db:"handle"`
-	Tags        []string      `db:"tags"`
-	StartedAt   time.Time     `db:"started_at"`
-	Attrs       []*FieldValue `db:"attrs"`
-	SeriesNames []string      `db:"series_names"`
+	Handle        uuid.UUID     `db:"handle"`
+	Tags          []string      `db:"tags"`
+	StartedAt     time.Time     `db:"started_at"`
+	Attrs         []*FieldValue `db:"attrs"`
+	SeriesHandles []uuid.UUID   `db:"series_handles"`
 }
 
 func (rr Run) toProtobuf() (pb.Run, error) {
@@ -303,9 +303,9 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 		}
 		msg.Attrs[i] = &pbvalue
 	}
-	msg.SeriesNames = make([]string, len(rr.SeriesNames))
-	for i, series := range rr.SeriesNames {
-		msg.SeriesNames[i] = series
+	msg.SeriesHandles = make([]string, len(rr.SeriesHandles))
+	for i, handle := range rr.SeriesHandles {
+		msg.SeriesHandles[i] = handle.String()
 	}
 
 	return msg, nil

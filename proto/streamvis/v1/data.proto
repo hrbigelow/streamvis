@@ -132,6 +132,20 @@ message DeleteEmptySeriesRequest {
 message DeleteEmptySeriesResponse {
 }
 
+message AddRunTagRequest {
+  string run_handle = 1;
+  string tag = 2;
+}
+
+message AddRunTagResponse {}
+
+message DeleteRunTagRequest {
+  string run_handle = 1;
+  string tag = 2;
+}
+
+message DeleteRunTagResponse {}
+
 message Field {
   string handle = 1;
   string name = 2;
@@ -178,7 +192,7 @@ message Run {
   repeated string tags = 2;
   google.protobuf.Timestamp started_at = 3;
   repeated FieldValue attrs = 4;
-  repeated string series_names = 5;
+  repeated string series_handles = 5;
 }
 
 message RunId {
@@ -270,6 +284,8 @@ service Service {
   rpc DeleteRun (DeleteRunRequest) returns (DeleteRunResponse);
   rpc SetRunAttributes (SetRunAttributesRequest) returns (SetRunAttributesResponse);
   rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
+  rpc AddRunTag (AddRunTagRequest) returns (AddRunTagResponse);
+  rpc DeleteRunTag (DeleteRunTagRequest) returns (DeleteRunTagResponse);
   rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
   rpc ListRuns (ListRunsRequest) returns (stream Run);

@@ -74,6 +74,16 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.FromString,
                 _registered_method=True)
+        self.AddRunTag = channel.unary_unary(
+                '/streamvis.v1.Service/AddRunTag',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.AddRunTagRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.AddRunTagResponse.FromString,
+                _registered_method=True)
+        self.DeleteRunTag = channel.unary_unary(
+                '/streamvis.v1.Service/DeleteRunTag',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagResponse.FromString,
+                _registered_method=True)
         self.ListSeries = channel.unary_stream(
                 '/streamvis.v1.Service/ListSeries',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
@@ -167,6 +177,18 @@ class ServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def DeleteEmptySeries(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def AddRunTag(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteRunTag(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -268,6 +290,16 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.DeleteEmptySeries,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.SerializeToString,
+            ),
+            'AddRunTag': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddRunTag,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.AddRunTagRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.AddRunTagResponse.SerializeToString,
+            ),
+            'DeleteRunTag': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteRunTag,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagResponse.SerializeToString,
             ),
             'ListSeries': grpc.unary_stream_rpc_method_handler(
                     servicer.ListSeries,
@@ -531,6 +563,60 @@ class Service(object):
             '/streamvis.v1.Service/DeleteEmptySeries',
             streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AddRunTag(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/streamvis.v1.Service/AddRunTag',
+            streamvis_dot_v1_dot_data__pb2.AddRunTagRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.AddRunTagResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteRunTag(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/streamvis.v1.Service/DeleteRunTag',
+            streamvis_dot_v1_dot_data__pb2.DeleteRunTagRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.DeleteRunTagResponse.FromString,
             options,
             channel_credentials,
             insecure,

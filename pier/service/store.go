@@ -241,6 +241,26 @@ func (st *Store) DeleteEmptySeries(
 	return err
 }
 
+func (st *Store) AddRunTag(
+	ctx context.Context,
+	runHandle uuid.UUID,
+	tag string,
+) error {
+	sql := `CALL add_run_tag($1, $2)`
+	_, err := st.pool.Exec(ctx, sql, runHandle, tag)
+	return err
+}
+
+func (st *Store) DeleteRunTag(
+	ctx context.Context,
+	runHandle uuid.UUID,
+	tag string,
+) error {
+	sql := `CALL delete_run_tag($1, $2)`
+	_, err := st.pool.Exec(ctx, sql, runHandle, tag)
+	return err
+}
+
 func (st *Store) ListFields(
 	ctx context.Context,
 ) (<-chan *pb.Field, <-chan error) {

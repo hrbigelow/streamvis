@@ -97,6 +97,19 @@ def delete_empty_series(series_name: str):
     req = pb.DeleteEmptySeriesRequest(series_name=series_name)
     _ = stub.DeleteEmptySeries(req)
 
+def add_run_tag(run_handle: str, tag: str):
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.AddRunTagRequest(run_handle=run_handle, tag=tag)
+    _ = stub.AddRunTag(req)
+
+def delete_run_tag(run_handle: str, tag: str):
+    global GRPC_URI
+    chan = grpc.insecure_channel(GRPC_URI)
+    stub = pb_grpc.ServiceStub(chan)
+    req = pb.DeleteRunTagRequest(run_handle=run_handle, tag=tag)
+    _ = stub.DeleteRunTag(req)
 
 def list_series():
     global GRPC_URI
@@ -161,6 +174,8 @@ def main():
              "create-run": create_run,
              "set-run-attributes": set_run_attributes,
              "delete-empty-series": delete_empty_series,
+             "add-run-tag": add_run_tag,
+             "delete-run-tag": delete_run_tag,
              "list-series": list_series,
              "list-runs": list_runs,
              "list-fields": list_fields,

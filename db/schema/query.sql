@@ -169,7 +169,8 @@ AS $$
     WHERE er.run_id IS NULL -- anti-join
     AND filter_by_tags(r.tags, p_tag_filter)
     AND (p_min_started_at IS NULL OR p_min_started_at <= r.started_at)
-    AND (p_max_started_at IS NULL OR r.started_at <= p_max_started_at);
+    AND (p_max_started_at IS NULL OR r.started_at <= p_max_started_at)
+    AND EXISTS (SELECT 1 FROM chunk c WHERE c.run_id = r.id);
 $$;
 
 \echo 'create list_runs'
@@ -183,7 +184,7 @@ CREATE OR REPLACE FUNCTION list_runs(
   tags TEXT[],
   started_at TIMESTAMPTZ,
   attrs field_value_typ[],
-  series_names TEXT[]
+  series_handles UUID[]
 ) 
 LANGUAGE sql
 -- LANGUAGE plpgsql
@@ -208,7 +209,7 @@ SELECT
   r.tags,
   r.started_at,
   array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs,
-  array_agg(s.name) FILTER (WHERE s.name IS NOT NULL) series
+  array_agg(s.handle) FILTER (WHERE s.handle IS NOT NULL) series
 FROM run r
 JOIN list_runs_internal(
   p_attribute_filters,

@@ -3,26 +3,72 @@
   import { getServiceClient } from './clientUtil.js';
   import { create } from '@bufbuild/protobuf';
   import {
-    ListFieldsRequestSchema,
-    ListSeriesRequestSchema,
     ListCommonAttributesRequestSchema,
     ListCommonSeriesRequestSchema,
-    ListRunsRequestSchema,
-    ListAttributeValuesRequestSchema,
   } from './gen/streamvis/v1/data_pb.js';
-  let { streamvisUrl } = $props();
 
-  let allFields = $state({});
-  let allSeries = $state({});
-  let allRuns = $state([]);
-  let allTags = $state([]);
-  let allStartTimes = $state([]);
-  let allAttributeValues = $state({});
+  import { StateManager } from './state.svelte.js'; 
+  let client = getServiceClient('/');
+  let stateManager = new StateManager(client);
+
+  let { streamvisUrl } = $props();
 
   let commonSeries = $state({}); // handle -> pb.Series
   let commonAttributes = $state([]);
   let includedRuns = $state([]);
   let selectedSeries = $state(null);
+  let selectedTagsArray = $state([]);
+  let selectedTags = $derived(new Set(selectedTagsArray));
+  let matchAnyTag = $state(true);
+
+  let seriesStartTimes = $derived.by(() => {
+    return stateManager.seriesStartTimes(selectedSeries);
+  });
+
+  let runFilter = $derived({
+    attributeFilters: [],
+    tagFilter: {
+      tags: selectedTagsArray,
+      matchAny: matchAnyTag 
+    },
+    minStartedAt: seriesStartTimes[minStartedAtIndex],
+    maxStartedAt: seriesStartTimes[maxStartedAtIndex]
+  });
+  let minStartedAtIndex = $state(0);
+  let maxStartedAtIndex = $state(200);
+
+
+  let filterUI = $state({
+    attributeHandles: [null, null, null, null, null]
+  });
+
+  let filteredTags = $derived.by(() => {
+    return stateManager.filteredTags(
+      runFilter.minStartedAt, 
+      runFilter.maxStartedAt, 
+      selectedSeries, 
+      selectedTags
+    )
+  });
+
+  function handleMinInput(e) {
+    const val = Number(e.currentTarget.value);
+    if (val > maxStartedAtIndex) {
+      minStartedAtIndex = maxStartedAtIndex;
+    } else {
+      minStartedAtIndex = val;
+    }
+  }
+
+  function handleMaxInput(e) {
+    const val = Number(e.currentTarget.value);
+    if (val < minStartedAtIndex) {
+      maxStartedAtIndex = minStartedAtIndex;
+    } else {
+      maxStartedAtIndex = val;
+    }
+  }
+
   let plotType = $state(null);
   let axisBindings = $state({
     x: null,
@@ -30,38 +76,6 @@
     order: null,
     color: null,
     group: null,
-  });
-
-  let runFilter = $state({
-    attributeFilters: [],
-    tagFilter: {
-      tags: [],
-      matchAny: true
-    },
-    minStartedAt: undefined,
-    maxStartedAt: undefined 
-  });
-  let minStartedAtIndex = $state(0);
-  let maxStartedAtIndex = $state(200);
-
-  let filterUI = $state({
-    attributeHandles: [null, null, null, null, null]
-  });
-
-  $effect(() => {
-    runFilter.attributeFilters = [];
-  });
-
-  $effect(() => {
-    if (minStartedAtIndex > maxStartedAtIndex) {
-      maxStartedAtIndex = minStartedAtIndex;
-    }
-  });
-
-  $effect(() => {
-    if (maxStartedAtIndex < minStartedAtIndex) {
-      minStartedAtIndex = maxStartedAtIndex;
-    }
   });
 
   const axisNames = new Map();
@@ -83,70 +97,7 @@
   let stride = $state(null);
   let link = $derived.by(computeLink);
 
-  let client;
   let mounted = false;
-
-  function timestampToDate(timestamp) {
-    const milliseconds = BigInt(timestamp.seconds) * 1000n + BigInt(timestamp.nanos) / 1000000n;
-    return new Date(Number(milliseconds));
-  }
-
-  async function fetchRuns() {
-    const emptyFilter = {
-      attributeFilters: [],
-      tagFilter: {
-        tags: [],
-        matchAny: true
-      },
-      minStartedAt: undefined,
-      maxStartedAt: undefined 
-    }
-    const req = create(ListRunsRequestSchema, { runFilter: emptyFilter })
-    const runs = [];
-    const tags = new Set();
-    const startTimes = [];
-    for await (const run of client.listRuns(req)) {
-      runs.push(run);
-      tags.add(run.tags);
-      startTimes.push(timestampToDate(run.startedAt));
-    }
-    allRuns = runs;
-    allTags = Array.from(tags);
-    allStartTimes = startTimes;
-  }
-
-  async function fetchSeries() {
-    const req = create(ListSeriesRequestSchema, {});
-    const series = [];
-    for await (const resp of client.listSeries(req)) {
-      series.push(resp);
-    }
-    allSeries = series;
-  }
-
-  async function fetchFields() {
-    const req = create(ListFieldsRequestSchema, {});
-    const fields = {};
-    for await (const field of client.listFields(req)) {
-      fields[field.handle] = field;
-    }
-    allFields = fields;
-  }
-
-  async function fetchAll() {
-    await fetchRuns();
-    await fetchSeries();
-    await fetchFields();
-  }
-
-  async function fetchAttributeValues() {
-    const req = create(ListAttributeValuesRequestSchema, {});
-    const vals = {};
-    for await (const resp of client.listAttributeValues(req)) {
-      vals[resp.field.handle] = resp
-    }
-    allAttributeValues = vals;
-  }
 
   async function fetchCommonSeries() {
     const req = create(ListCommonSeriesRequestSchema, { runFilter: runFilter });
@@ -165,15 +116,6 @@
       attrs.push(resp);
     }
     commonAttributes = attrs;
-  }
-
-  async function updateSelectedRuns() {
-    const req = create(ListRunsRequestSchema, { runFilter: runFilter });
-    const handles = [];
-    for await (const resp of client.listRuns(req)) {
-      handles.push(resp.handle);
-    }
-    includedRuns = handles;
   }
 
   function sleep(ms) {
@@ -213,23 +155,9 @@
     return `${streamvisUrl}/?query=${payload}`;
   }
 
-
   onMount(() => {
-    client = getServiceClient('/');
-    refreshEvery(fetchAll, 10_000);
+    refreshEvery(() => stateManager.fetchAll(), 10_000);
   });
-
-  /*
-  $effect(() => {
-    updateSelectedRuns();
-  });
-
-  $effect(() => {
-    fetchCommonSeries();
-    fetchCommonAttributes();
-  });
-
-  */
 
 </script>
 
@@ -237,57 +165,64 @@
   <div class="guide">Series:</div>
   <select bind:value={selectedSeries}>
     <option value={null}>(none)</option>
-    {#each Object.entries(allSeries) as [handle, series]}
+    {#each Object.entries(stateManager.allSeries) as [handle, series]}
       <option value={handle}>{series.name}</option>
     {/each}
   </select>
-  <div></div>
+  <!--
   {#if selectedSeries !== null}
-    <div class="report">{allSeries[selectedSeries].name}</div>
+    <div class="report">{stateManager.allSeries[selectedSeries].name}</div>
     <div></div>
-    <div></div>
-    {#each allSeries[selectedSeries].fields as field}
+    {#each stateManager.allSeries[selectedSeries].fields as field}
       <div class="report">{field.name}</div>
       <div class="report">{field.dataType}</div>
-      <div></div>
     {/each}
   {/if}
+  -->
+
+  <div class="guide">Started at:</div>
 
   <div class="range-slider">
     <input type="range" 
            class="min-input" 
            min="0" 
-           max="1000"
+           max="{seriesStartTimes.length + 1}"
            bind:value={minStartedAtIndex}
+           oninput={handleMinInput}
            >
     <input type="range" 
            class="max-input" 
            min="0" 
-           max="1000" 
-           bind:value={maxStartedAtIndex}>
-    <div class="slider-track"></div>
+           max="{seriesStartTimes.length + 1}" 
+           bind:value={maxStartedAtIndex}
+           oninput={handleMaxInput}
+           >
+     <div class="slider-track"></div>
   </div>
 
-  <div class="guide">Filter Run:</div>
-  <label class="guide">Tag List (csv)</label>
+  <div class="guide">Tag Matching</div>
+  <div>
+    <label>
+      <input type="radio" bind:group={matchAnyTag} value={true} />
+      match any
+    </label>
+    <label>
+      <input type="radio" bind:group={matchAnyTag} value={false} />
+      match all
+    </label>
+  </div>
+
+  <div class="guide">Tags</div>
+
+  {#each Object.entries(filteredTags) as [tag, numRuns]}
+    <label>
+      <input type="checkbox" bind:group={selectedTagsArray} value={tag}/>
+      {tag} ({numRuns})
+    </label>
+    <div></div>
+  {/each}
+
   <div></div>
-  <input on:change={(e) => {
-         runFilter.tagFilter.tags = e.target.value
-           .split(/,\s*/)
-           .filter(tag => tag.trim() !== '');
-         }} 
-  />
-  <div></div>
-  <div></div>
-  <label class="guide">Require All Tags</label>
-  <input type="checkbox"
-         checked={!runFilter.tagFilter.matchAny}
-         on:change={(e) => runFilter.tagFilter.matchAny = !e.target.checked}
-  />
-  <div></div>
-  <label class="guide" for="started-at-after">
-    Started At After:
-  </label>
   <!--
   <input id="started-at-after" 
          type="range" 
@@ -314,7 +249,6 @@
     {maxStartedAtIndex === includedRuns.length ? "No maximum" :
     new Date(allStartTimes[maxStartedAtIndex]).toLocaleString()}
   </div>
-  -->
   <label class="guide">Attribute Filters:</label>
   {#each [0, 1, 2, 3, 4] as i}
     <select bind:value={filterUI.attributeHandles[i]}>
@@ -328,6 +262,7 @@
     <div></div>
     <div></div>
   {/each}
+  -->
 </div>
 
 
@@ -336,6 +271,7 @@
   <div>{includedRuns.length}</div>
 </div>
 
+<!--
 <div class="plot-configuration-table">
   <label class="guide">Plot Type:</label>
   <select bind:value={plotType}>
@@ -343,7 +279,6 @@
     <option value="scatter">Scatter Plot</option>
   </select>
 
-  <!--
   {#each axisNames.entries() as [key, val]} 
     <label class="guide" for="axis-{key}">{val}</label>
     <select id="axis-{key}" bind:value={axisBindings[key]}>
@@ -361,10 +296,10 @@
       {/if}
     </select>
   {/each}
-  -->
 
 </div>
 
+-->
 
 
 
@@ -511,7 +446,7 @@
     display: grid;
     grid-template-rows: repeat(5, min-content);
     /* grid-template-columns: 25% 15% 15% 15% 15% 15%; */
-    grid-template-columns: repeat(3, min-content);
+    grid-template-columns: repeat(2, min-content);
     gap: 1ch 5ch;
     width 100vw;
     box-sizing: border-box;
@@ -611,8 +546,9 @@
 
   /* The Track background */
   .slider-track {
+    border-color: red;
     position: absolute;
-    top: 20%;
+    top: 50%;
     transform: translateY(-50%);
     width: 100%;
     height: 6px;

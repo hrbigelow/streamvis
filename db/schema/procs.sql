@@ -296,4 +296,34 @@ BEGIN
 END;
 $$;
 
+\echo 'add_run_tag'
+CREATE OR REPLACE PROCEDURE add_run_tag(
+  IN p_run_handle UUID,
+  IN p_tag TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE run
+  SET tags = array_append(tags, p_tag)
+  WHERE handle = p_run_handle
+  AND NOT p_tag = ANY(tags);
+END;
+$$;
+
+\echo 'delete_run_tag'
+CREATE OR REPLACE PROCEDURE delete_run_tag(
+  IN p_run_handle UUID,
+  IN p_tag TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE run
+  SET tags = array_remove(tags, p_tag)
+  WHERE handle = p_run_handle;
+END;
+$$;
+
+
 \set QUIET 0
