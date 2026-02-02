@@ -65,7 +65,7 @@ CREATE TYPE attribute_filter_typ AS (
 
 CREATE TYPE tag_filter_typ AS (
   tags TEXT[],
-  match_any BOOLEAN
+  match_all BOOLEAN -- if true, a run must have all tags to pass filter
 );
 
 

@@ -126,7 +126,7 @@ def list_runs():
     req = pb.ListRunsRequest(
         run_filter=pb.RunFilter(
             attribute_filters=[],
-            tag_filter=pb.TagFilter(tags=[], match_any=True),
+            tag_filter=pb.TagFilter(tags=[], match_all=False),
         )
     )
     for msg in stub.ListRuns(req):

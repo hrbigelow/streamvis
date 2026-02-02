@@ -4,55 +4,58 @@
   import { create } from '@bufbuild/protobuf';
   import {
     ListCommonAttributesRequestSchema,
-    ListCommonSeriesRequestSchema,
   } from './gen/streamvis/v1/data_pb.js';
 
-  import { StateManager } from './state.svelte.js'; 
+  import { StateManager, RunFilter } from './state.svelte.js'; 
   let client = getServiceClient('/');
-  let stateManager = new StateManager(client);
+  let uiState = $state({});
+  let stateManager = new StateManager(client, uiState);
+  stateManager.connect();
 
-  let { streamvisUrl } = $props();
-
-  let commonSeries = $state({}); // handle -> pb.Series
-  let commonAttributes = $state([]);
-  let includedRuns = $state([]);
   let selectedSeries = $state(null);
   let selectedTagsArray = $state([]);
   let selectedTags = $derived(new Set(selectedTagsArray));
-  let matchAnyTag = $state(true);
 
-  let seriesStartTimes = $derived.by(() => {
-    const times = stateManager.seriesStartTimes(selectedSeries);
+  let startTimes = $derived.by(() => {
+    const times = stateManager.startTimes;
     times.push(new Date());
     return times;
   });
 
-  let runFilter = $derived.by(() => {
-    return {
-      attributeFilters: [],
-      tagFilter: {
-        tags: selectedTagsArray,
-        matchAny: matchAnyTag 
-      },
-      minStartedAt: seriesStartTimes[minStartedAtIndex],
-      maxStartedAt: seriesStartTimes[maxStartedAtIndex] 
-    }
-  });
   let minStartedAtIndex = $state(0);
-  let maxStartedAtIndex = $state(200);
-
-
-  let filterUI = $state({
-    attributeHandles: [null, null, null, null, null]
-  });
+  let maxStartedAtIndex = $state(0);
 
   let filteredTags = $derived.by(() => {
     return stateManager.filteredTags(
-      seriesStartTimes[minStartedAtIndex],
-      seriesStartTimes[maxStartedAtIndex],
+      startTimes[minStartedAtIndex],
+      startTimes[maxStartedAtIndex],
       selectedSeries, 
       selectedTags
     )
+  });
+
+
+  let commonAttributes = $state([]);
+  let filteredRuns = $state([]);
+  let matchAllTags = $state(true);
+
+  // main output object
+  let runFilter = $derived.by(() => {
+    return new RunFilter(
+      selectedTags, 
+      matchAllTags, 
+      startTimes[minStartedAtIndex],
+      startTimes[maxStartedAtIndex],
+      []
+    );
+  });
+
+  let numFilteredRuns = $derived.by(() => {
+    return stateManager.countFilteredRuns(runFilter, selectedSeries);
+  });
+
+  let filterUI = $state({
+    attributeHandles: [null, null, null, null, null]
   });
 
   function handleMinInput(e) {
@@ -72,6 +75,8 @@
       maxStartedAtIndex = val;
     }
   }
+
+  let { streamvisUrl } = $props();
 
   let plotType = $state(null);
   let axisBindings = $state({
@@ -102,25 +107,6 @@
   let link = $derived.by(computeLink);
 
   let mounted = false;
-
-  async function fetchCommonSeries() {
-    const req = create(ListCommonSeriesRequestSchema, { runFilter: runFilter });
-    const series = {};
-    for await (const resp of client.listCommonSeries(req)) {
-      series[resp.handle] = resp;
-    }
-    commonSeries = series;
-    console.log(`fetchCommonSeries with ${Object.keys(series).length}`);
-  }
-
-  async function fetchCommonAttributes() {
-    const req = create(ListCommonAttributesRequestSchema, { runFilter: runFilter });
-    const attrs = [];
-    for await (const resp of client.listCommonAttributes(req)) {
-      attrs.push(resp);
-    }
-    commonAttributes = attrs;
-  }
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -169,15 +155,15 @@
   <div class="guide">Series:</div>
   <select bind:value={selectedSeries}>
     <option value={null}>(none)</option>
-    {#each Object.entries(stateManager.allSeries) as [handle, series]}
+    {#each Object.entries(stateManager.series) as [handle, series]}
       <option value={handle}>{series.name}</option>
     {/each}
   </select>
   <!--
   {#if selectedSeries !== null}
-    <div class="report">{stateManager.allSeries[selectedSeries].name}</div>
+    <div class="report">{stateManager.series[selectedSeries].name}</div>
     <div></div>
-    {#each stateManager.allSeries[selectedSeries].fields as field}
+    {#each stateManager.series[selectedSeries].fields as field}
       <div class="report">{field.name}</div>
       <div class="report">{field.dataType}</div>
     {/each}
@@ -190,28 +176,33 @@
     <input type="range" 
            class="min-input" 
            min="0" 
-           max="{seriesStartTimes.length - 1}"
+           max="{startTimes.length - 1}"
            bind:value={minStartedAtIndex}
            oninput={handleMinInput}
-           >
+           />
     <input type="range" 
            class="max-input" 
            min="0" 
-           max="{seriesStartTimes.length - 1}" 
+           max="{startTimes.length - 1}" 
            bind:value={maxStartedAtIndex}
            oninput={handleMaxInput}
-           >
+           />
      <div class="slider-track"></div>
   </div>
+
+  <div class="guide">Date From:</div>
+  <div>{runFilter.minStartedAt.toLocaleString()}</div>
+  <div class="guide">Date To:</div>
+  <div>{runFilter.maxStartedAt.toLocaleString()}</div>
 
   <div class="guide">Tag Matching</div>
   <div>
     <label>
-      <input type="radio" bind:group={matchAnyTag} value={true} />
+      <input type="radio" bind:group={matchAllTags} value={false} />
       match any
     </label>
     <label>
-      <input type="radio" bind:group={matchAnyTag} value={false} />
+      <input type="radio" bind:group={matchAllTags} value={true} />
       match all
     </label>
   </div>
@@ -220,38 +211,34 @@
 
   {#each Object.entries(filteredTags) as [tag, numRuns]}
     <label>
-      <input type="checkbox" bind:group={selectedTagsArray} value={tag}/>
+      <input type="checkbox"
+             bind:group={selectedTagsArray} 
+             value={tag}
+             />
       {tag} ({numRuns})
     </label>
     <div></div>
   {/each}
-
   <div></div>
-  <!--
-  <div class="timestamp-display">
-    {maxStartedAtIndex === includedRuns.length ? "No maximum" :
-    new Date(allStartTimes[maxStartedAtIndex]).toLocaleString()}
-  </div>
-  <label class="guide">Attribute Filters:</label>
-  {#each [0, 1, 2, 3, 4] as i}
-    <select bind:value={filterUI.attributeHandles[i]}>
-      <option value={null}>(None)</option>
-      {#each Object.entries(allAttributeValues) as [fieldHandle, attrValue]}
-        <option value={fieldHandle}>
-        {attrValue.field.name}
-        </option>
-      {/each}
-    </select>
-    <div></div>
-    <div></div>
+  <div class="guide">Filtered Runs</div>
+  <div>{numFilteredRuns}</div>
+  <div class="guide">Attributes</div>
+  <div></div>
+  {#each Object.entries(allFields) as [handle, field]}
+    <details>
+      <summary>
+        <input id="{handle}" 
+               type="checkbox" 
+               checked={uiState[handle].active} 
+               onchange={(e) => stateManager.updateAttrMatch()}
+               />
+        <label for="{handle}">{field.name}</label>
+      </summary>
+      <div>Values...</div>
+    </details>
   {/each}
-  -->
-</div>
+  <div></div>
 
-
-<div class="selected-runs-table">
-  <div class="guide">Included Runs</div>
-  <div>{includedRuns.length}</div>
 </div>
 
 <!--
@@ -321,106 +308,6 @@
   <button type="button" onclick={() => clearSelections()}>Clear Selections</button>
   <div></div>
 </div>
-
-
-<div class="table">
-  <div class="header">Scopes</div>
-  <div class="header">Names</div>
-  <div class="header">X-axis</div>
-  <div class="header">Y-axis</div>
-  <div class="header">Order By</div>
-  <div class="header">Filters</div>
-  <div class="header">Group By</div>
-
-  <div class="cell">
-    {#each allScopes as scope}
-      <div class="field-row">
-        <label class="item">
-          <input
-              type="checkbox"
-              checked={selectedScopes.has(scope)}
-              onchange={() => toggleScope(scope)}
-              />
-          <span>{scope}</span>
-        </label>
-      </div>
-    {/each}
-  </div>
-
-  <div class="cell">
-    {#each visibleNames as name}
-      <div class="field-row">
-        <label class="item">
-          <input
-              type="checkbox"
-              checked={selectedNames.has(name)}
-              onchange={() => toggleName(name)}
-              />
-          <span>{name}</span>
-        </label>
-      </div>
-    {/each}
-  </div>
-
-  <div class="cell">
-    <select bind:value={xAxisField}>
-      <option value="">Select X-Axis field</option>
-    {#each visibleFields as field}
-      <option value={field}>{field}</option>
-    {/each}
-    </select>
-  </div>
-
-  <div class="cell">
-    <select bind:value={yAxisField}>
-      <option value="">Select Y-Axis field</option>
-    {#each visibleFields as field}
-      <option value={field}>{field}</option>
-    {/each}
-    </select>
-  </div>
-
-  <div class="cell">
-    <select bind:value={orderField}>
-      <option value="">Select order field</option>
-      {#each visibleFields as field}
-      <option value={field}>{field}</option>
-    {/each}
-    </select>
-  </div>
-
-  <div class="cell">
-    {#each visibleFields as field}
-      <div class="field-row">
-        <label class="item">
-          <input
-              type="checkbox"
-              checked={selectedFilters.has(field)}
-              onchange={() => toggleFilter(field)}
-              />
-          <span>{field}</span>
-        </label>
-      </div>
-    {/each}
-  </div>
-
-  <div class="cell">
-    {#each visibleFields as field}
-      <div class="field-row">
-        <label class="item">
-          <input
-              type="checkbox"
-              checked={selectedGroups.has(field)}
-              onchange={() => toggleGroup(field)}
-              />
-          <span>{field}</span>
-        </label>
-      </div>
-    {/each}
-  </div>
-
-</div>
-
 -->
 
 <style>

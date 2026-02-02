@@ -2740,7 +2740,7 @@ func (*AttributeFilter_StringList) isAttributeFilter_Value() {}
 type TagFilter struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Tags          []string               `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
-	MatchAny      bool                   `protobuf:"varint,2,opt,name=match_any,json=matchAny,proto3" json:"match_any,omitempty"` // if true, a run with any tag in `tags` passes the filter
+	MatchAll      bool                   `protobuf:"varint,2,opt,name=match_all,json=matchAll,proto3" json:"match_all,omitempty"` // if true, a run with any tag in `tags` passes the filter
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2782,9 +2782,9 @@ func (x *TagFilter) GetTags() []string {
 	return nil
 }
 
-func (x *TagFilter) GetMatchAny() bool {
+func (x *TagFilter) GetMatchAll() bool {
 	if x != nil {
-		return x.MatchAny
+		return x.MatchAll
 	}
 	return false
 }
@@ -3159,7 +3159,7 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x05value\"<\n" +
 	"\tTagFilter\x12\x12\n" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x12\x1b\n" +
-	"\tmatch_any\x18\x02 \x01(\bR\bmatchAny\"I\n" +
+	"\tmatch_all\x18\x02 \x01(\bR\bmatchAll\"I\n" +
 	"\x0fListRunsRequest\x126\n" +
 	"\n" +
 	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"\xb9\x01\n" +

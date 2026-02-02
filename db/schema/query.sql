@@ -131,10 +131,10 @@ AS $$
 BEGIN
   IF cardinality(p_filter.tags) = 0 THEN
     RETURN TRUE; 
-  ELSIF p_filter.match_any THEN
-    RETURN (p_run_tags && p_filter.tags);
-  ELSE
+  ELSIF p_filter.match_all THEN
     RETURN (p_run_tags @> p_filter.tags);
+  ELSE
+    RETURN (p_run_tags && p_filter.tags);
   END IF;
 END;
 $$;
@@ -192,9 +192,9 @@ AS $$
   /*
   RAISE NOTICE '%', format(
     'in list_runs with p_attribute_filters=%L, ' ||
-    'p_tag_filter=(tags=%L, match_any=%L) ' ||
+    'p_tag_filter=(tags=%L, match_all=%L) ' ||
     'p_min_started_at=%L  p_max_started_at=%L', 
-    p_attribute_filters, (p_tag_filter).tags, (p_tag_filter).match_any, 
+    p_attribute_filters, (p_tag_filter).tags, (p_tag_filter).match_all,
     p_min_started_at, p_max_started_at
   );
   */

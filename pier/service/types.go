@@ -346,7 +346,7 @@ func (tv TagValue) toProtobuf() (pb.TagValue, error) {
 
 type TagFilterValue struct {
 	Tags     []string `db:"tags"`
-	MatchAny bool     `db:"match_any"`
+	MatchAll bool     `db:"match_all"`
 }
 
 func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
@@ -356,7 +356,7 @@ func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
 	}
 	val := TagFilterValue{
 		Tags:     tags,
-		MatchAny: msg.MatchAny,
+		MatchAll: msg.MatchAll,
 	}
 	return val
 }

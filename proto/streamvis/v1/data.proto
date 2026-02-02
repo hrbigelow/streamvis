@@ -252,7 +252,7 @@ message AttributeFilter {
 
 message TagFilter {
   repeated string tags = 1;
-  bool match_any = 2; // if true, a run with any tag in `tags` passes the filter 
+  bool match_all = 2; // if true, a run with any tag in `tags` passes the filter 
 }
 
 message ListRunsRequest {
