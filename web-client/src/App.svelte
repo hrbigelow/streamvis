@@ -1,80 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import { getServiceClient } from './clientUtil.js';
+  import { refreshEvery } from './tools.js';
   import { create } from '@bufbuild/protobuf';
-  import {
-    ListCommonAttributesRequestSchema,
-  } from './gen/streamvis/v1/data_pb.js';
+  import { StateManager } from './state.svelte.js'; 
 
-  import { StateManager, RunFilter } from './state.svelte.js'; 
   let client = getServiceClient('/');
   let uiState = $state({});
   let stateManager = new StateManager(client, uiState);
-  stateManager.connect();
-
-  let selectedSeries = $state(null);
-  let selectedTagsArray = $state([]);
-  let selectedTags = $derived(new Set(selectedTagsArray));
-
-  let startTimes = $derived.by(() => {
-    const times = stateManager.startTimes;
-    times.push(new Date());
-    return times;
-  });
-
-  let minStartedAtIndex = $state(0);
-  let maxStartedAtIndex = $state(0);
-
-  let filteredTags = $derived.by(() => {
-    return stateManager.filteredTags(
-      startTimes[minStartedAtIndex],
-      startTimes[maxStartedAtIndex],
-      selectedSeries, 
-      selectedTags
-    )
-  });
-
-
-  let commonAttributes = $state([]);
-  let filteredRuns = $state([]);
-  let matchAllTags = $state(true);
-
-  // main output object
-  let runFilter = $derived.by(() => {
-    return new RunFilter(
-      selectedTags, 
-      matchAllTags, 
-      startTimes[minStartedAtIndex],
-      startTimes[maxStartedAtIndex],
-      []
-    );
-  });
-
-  let numFilteredRuns = $derived.by(() => {
-    return stateManager.countFilteredRuns(runFilter, selectedSeries);
-  });
-
-  let filterUI = $state({
-    attributeHandles: [null, null, null, null, null]
-  });
-
-  function handleMinInput(e) {
-    const val = Number(e.currentTarget.value);
-    if (val > maxStartedAtIndex) {
-      minStartedAtIndex = maxStartedAtIndex;
-    } else {
-      minStartedAtIndex = val;
-    }
-  }
-
-  function handleMaxInput(e) {
-    const val = Number(e.currentTarget.value);
-    if (val < minStartedAtIndex) {
-      maxStartedAtIndex = minStartedAtIndex;
-    } else {
-      maxStartedAtIndex = val;
-    }
-  }
 
   let { streamvisUrl } = $props();
 
@@ -108,21 +41,6 @@
 
   let mounted = false;
 
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  async function refreshEvery(task, delay_ms) {
-    while (true) {
-      try {
-        await task();
-      } catch(err) {
-        console.error(`refresh: task error: ${err}`);
-      }
-      await sleep(delay_ms);
-    }
-  }
-
   function computeLink() {
     const obj = {
       scopes: [...selectedScopes].filter(el => allScopes.includes(el)),
@@ -146,14 +64,14 @@
   }
 
   onMount(() => {
-    refreshEvery(() => stateManager.fetchAll(), 10_000);
+    refreshEvery(() => stateManager.refresh(), 10_000);
   });
 
 </script>
 
 <div class="filter-run-table">
   <div class="guide">Series:</div>
-  <select bind:value={selectedSeries}>
+  <select bind:value={stateManager.selectedSeries}>
     <option value={null}>(none)</option>
     {#each Object.entries(stateManager.series) as [handle, series]}
       <option value={handle}>{series.name}</option>
@@ -176,43 +94,41 @@
     <input type="range" 
            class="min-input" 
            min="0" 
-           max="{startTimes.length - 1}"
-           bind:value={minStartedAtIndex}
-           oninput={handleMinInput}
+           max="{stateManager.startTimes.length - 1}"
+           bind:value={uiState.dates.min}
            />
     <input type="range" 
            class="max-input" 
            min="0" 
-           max="{startTimes.length - 1}" 
-           bind:value={maxStartedAtIndex}
-           oninput={handleMaxInput}
+           max="{stateManager.startTimes.length - 1}" 
+           bind:value={uiState.dates.max}
            />
      <div class="slider-track"></div>
   </div>
 
   <div class="guide">Date From:</div>
-  <div>{runFilter.minStartedAt.toLocaleString()}</div>
+  <div>{stateManager.startTimes[uiState.dates.min].toLocaleString()}</div>
   <div class="guide">Date To:</div>
-  <div>{runFilter.maxStartedAt.toLocaleString()}</div>
+  <div>{stateManager.startTimes[uiState.dates.max].toLocaleString()}</div>
 
   <div class="guide">Tag Matching</div>
   <div>
     <label>
-      <input type="radio" bind:group={matchAllTags} value={false} />
+      <input type="radio" bind:group={uiState.tags.matchAll} value={false} />
       match any
     </label>
     <label>
-      <input type="radio" bind:group={matchAllTags} value={true} />
+      <input type="radio" bind:group={uiState.tags.matchAll} value={true} />
       match all
     </label>
   </div>
 
   <div class="guide">Tags</div>
 
-  {#each Object.entries(filteredTags) as [tag, numRuns]}
+  {#each Object.entries(stateManager.filteredTags) as [tag, numRuns]}
     <label>
       <input type="checkbox"
-             bind:group={selectedTagsArray} 
+             bind:checked={uiState.tags.tagMap[tag]} 
              value={tag}
              />
       {tag} ({numRuns})
@@ -221,20 +137,26 @@
   {/each}
   <div></div>
   <div class="guide">Filtered Runs</div>
-  <div>{numFilteredRuns}</div>
+  <div>{stateManager.numFilteredRuns}</div>
   <div class="guide">Attributes</div>
   <div></div>
-  {#each Object.entries(allFields) as [handle, field]}
+  {#each Object.keys(uiState.attrs) as handle}
     <details>
       <summary>
         <input id="{handle}" 
                type="checkbox" 
-               checked={uiState[handle].active} 
-               onchange={(e) => stateManager.updateAttrMatch()}
+               bind:checked={uiState.attrs[handle].active} 
                />
-        <label for="{handle}">{field.name}</label>
+        <label for="{handle}">{stateManager.fields[handle].name}</label>
       </summary>
-      <div>Values...</div>
+      {#each uiState.attrs[handle].values as val}
+        <label>
+          <input type="checkbox"
+                 bind:checked={uiState.attrs[handle].values[val]}
+                 />
+          {val}
+        </label>
+      {/each}
     </details>
   {/each}
   <div></div>
