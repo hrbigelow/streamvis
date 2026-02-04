@@ -1,4 +1,8 @@
 import { create } from '@bufbuild/protobuf';
+import { UIAttrState } from './attr.svelte.js';
+import { MatchState } from './match.svelte.js';
+import { UIDateState } from './date.svelte.js';
+import { UITagState } from './tag.svelte.js';
 
 import {
   ListFieldsRequestSchema,
@@ -36,282 +40,6 @@ class Field {
 }
 
 
-class MatchState {
-  #version;
-
-  constructor() {
-    this.#version = $state(0);
-    this.nRuns = 0;
-    this.nFilters = 0;
-    this.dateIndex = 0;
-    this.tagIndex = 1;
-
-    /* a Int8Array representing a [run, filter] matrix.  
-     * 0 = no match (run is excluded)
-     * 1 = match (run is included) */
-    this.matrix = new Int8Array(0);
-      
-    // filterCount[filterIdx] = number of runs included by this filter
-    this.filterCount = [];
-
-    // runCount[runIdx] = count of number of filters excluded it (0 means included)
-    this.runCount = [];
-  }
-
-  get(run, filter) {
-    return this.matrix[run * this.nFilters + filter];
-  }
-
-  set(run, filter, value) {
-    console.log(`MatchState::set(${run}, ${filter}, ${value})`);
-    this.matrix[run * this.nFilters + filter] = value;
-    switch (value) {
-      case 1:
-        this.filterCount[filter] += 1;
-        break;
-      case 0:
-        this.runCount[run] += 1;
-        break;
-      case -1:
-        break;
-    }
-  }
-
-  add(run, filter, value) {
-    console.log(`MatchState::add(${run}, ${filter}, ${value})`);
-    this.matrix[run * this.nFilters + filter] += value;
-  }
-
-  resize(nRuns, nFilters) {
-    this.nRuns = nRuns;
-    this.nFilters = nFilters;
-    this.matrix = new Int8Array(nRuns * nFilters);
-    this.filterCount = new Array(nFilters);
-    this.runCount = new Array(nRuns);
-  }
-
-  clear() {
-    this.matrix.fill(0);
-    this.filterCount.fill(0);
-    this.runCount.fill(0);
-  }
-
-  signalUpdated() {
-    this.#version = (this.#version + 1) % 100000;
-  }
-
-  get version() {
-    return this.#version;
-  }
-
-}
-
-
-// defines getter and setter for 
-class UIDateState {
-  #minRunIndex; // minimum run index included by this filter
-  #maxRunIndex; // maximum run index included by this filter
-  #filterIndex;
-
-  constructor(matchState) {
-    this.matchState = matchState;
-    this.#filterIndex = matchState.dateIndex;
-    this.#minRunIndex = $state(0);
-    this.#maxRunIndex = $state(0);
-  }
-
-  get min() {
-    return this.#minRunIndex;
-  }
-
-  set min(newMin) {
-    const prev = this.#minRunIndex;
-    this.#minRunIndex = newMin;
-    this.#update(prev, newMin, true);
-  }
-
-  get max() {
-    return this.#maxRunIndex;
-  }
-
-  set max(newMax) {
-    const prev = this.#maxRunIndex;
-    this.#maxRunIndex = newMax;
-    this.#update(prev, newMax, false);
-  }
-
-  #update(prev, curr, isLeft) {
-    if (prev === curr) { return; }
-
-    let beg, end, delta;
-    if (prev < curr) {
-      beg = prev;
-      end = curr;
-      delta = isLeft ? -1 : 1;
-    } else {
-      beg = curr;
-      end = prev;
-      delta = isLeft ? 1 : -1;
-    }
-    for (let r = beg; r != end; r++) {
-      this.matchState.add(r, this.#filterIndex, delta);
-      this.matchState.runCount[r] += delta;
-    }
-    this.matchState.signalUpdated();
-  }
-
-  match(run) {
-    return +(
-      run.index >= this.minRunIndex
-      && run.index > this.maxRunIndex
-    );
-  }
-
-}
-
-/* Represents the global state of the UI representing tag filtering */
-class UITagState {
-  #runs;
-  #filterIndex;
-  #matchAll;
-  #tagMap;
-  #tagMapProxy;
-
-  constructor(runs, matchState) {
-    this.#runs = runs;
-    this.matchState = matchState;
-    this.#filterIndex = matchState.tagIndex;
-    this.#matchAll = $state(false);
-    this.#tagMap = $state({});
-    this.#tagMapProxy = new Proxy(this.#tagMap, {
-      set: (target, prop, value) => {
-        target[prop] = value;
-        this.#update();
-        return true;
-      },
-      get: (target, prop) => {
-        return target[prop];
-      },
-      deleteProperty: (target, prop) => {
-        console.log(`In deleteProperty: ${target} ${prop}`);
-        let ret = false;
-        if (prop in target) {
-          ret = true;
-          delete target[prop];
-        }
-        this.#update();
-        return ret;
-      }
-    });
-  }
-
-  get matchAll() {
-    return this.#matchAll;
-  }
-
-  set matchAll(val) {
-    this.#matchAll = val;
-    this.#update();
-  }
-
-  get tagMap() {
-    return this.#tagMapProxy;
-  }
-
-  get activetags() {
-    return Object.entries(this.#tagMap).filter(([tag, active]) => active).keys().toArray();
-  }
-
-  #update() {
-    for (let r = 0; r < this.#runs.length; r++) {
-      const match = this.match(this.#runs[r]);
-      this.matchState.set(r, this.#filterIndex, match);
-    }
-    this.matchState.signalUpdated();
-  }
-
-  match(run) {
-    // see query.sql filter_by_tags
-    const tagSet = new Set(this.activeTags);
-    if (tagSet.size == 0) {
-      return 1;
-    } else if (this.#matchAll) {
-      return +run.tags.isSupersetOf(tagSet);
-    } else {
-      return +(run.tags.intersection(tagSet).size > 0);
-    }
-  }
-}
-
-
-class UIAttrState {
-  #runs;   // the full catalog of runs under this filter's control
-  #handle; // the field handle of the attribute this filter represents
-  #index;  // the index into the matchState.matrix representing this filter's match state 
-  #active; // whether this overall filter is active
-  #values; // value => bool
-  #valuesProxy; 
-  
-  constructor(runs, matchState, handle, index) {
-    this.#runs = runs;
-    this.matchState = matchState;
-    this.#handle = handle;
-    this.#index = index;
-    this.#active = $state(false);
-    this.#values = $state({});
-
-    this.#valuesProxy = new Proxy(this.#values, {
-      set: (target, prop, value) => {
-        target[prop] = value;
-        this.#update();
-        return true;
-      },
-      get: (target, prop) => {
-        return target[prop];
-      },
-      deleteProperty: (target, prop) => {
-        let ret = false;
-        if (prop in target) {
-          ret = true;
-          delete target[prop];
-        }
-        this.#update();
-        return ret;
-      }
-    });
-  }
-
-  get active() {
-    return this.#active;
-  }
-
-  set active(isActive) {
-    this.#active = isActive;
-    this.#update();
-  }
-
-  get values() {
-    return this.#valuesProxy;
-  }
-
-  #update() {
-    for (let r = 0; r < this.#runs.length; r++) {
-      const match = this.match(this.#runs[r]);
-      this.matchState.set(r, this.#index, match);
-    }
-    this.matchState.signalUpdated();
-  }
-
-  match(run) {
-    if (!(this.#handle in run.attrs)) { return -1; }
-    if (! this.#active) { return 1; }
-    const val = run.attrs[this.handle];
-    return +this.values[val];
-  }
-
-}
-
-
 class StateManager {
   runs = $state([]);
   fields = $state({}); // handle -> field (proto message) 
@@ -333,6 +61,8 @@ class StateManager {
   });
 
   numFilteredRuns = $derived.by(() => {
+    this.matchState.version;
+    // console.log(`numFilteredRuns.derived: ${this.matchState.runCount}`);
     return this.matchState.runCount.filter(ct => ct === 0).length;
   });
 
@@ -385,7 +115,10 @@ class StateManager {
       runs.push(run);
       runIndex++;
     }
-    this.runs = runs;
+    this.runs.length = 0;
+    this.runs.push(...runs);
+    console.log(`fetchRuns: received runs: ${this.runs.length}`);
+    // this.runs = runs;
   }
 
   async fetchFields() {
@@ -396,13 +129,7 @@ class StateManager {
       newFields[field.handle] = new Field(field, fieldIndex);
       fieldIndex++;
     }
-
-    for (const key in this.fields) {
-      if (!(key in newFields)) {
-        delete this.fields[key];
-      }
-    }
-    Object.assign(this.fields, newFields);
+    this.fields = newFields;
   }
 
   /* synchronize uiState after fields and runs are refreshed */
@@ -481,17 +208,19 @@ class StateManager {
       this.matchState.resize(nRuns, nFilters);
     }
     this.matchState.clear();
+    
+    // date range
+    for (let r = 0; r < this.runs.length; r++) {
+      const match = this.uiState.dates.match(this.runs[r]);
+      // console.log(`matchState.set(${r}, ${this.matchState.dateIndex}, ${match})`);
+      // console.log(`uiState.dates: ${this.uiState.dates.min}, ${this.uiState.dates.max}`);
+      this.matchState.set(r, this.matchState.dateIndex, match);
+    }
 
     // tags
     for (let r = 0; r < this.runs.length; r++) {
       const match = this.uiState.tags.match(this.runs[r]);
       this.matchState.set(r, this.matchState.tagIndex, match);
-    }
-    
-    // date range
-    for (let r = 0; r < this.runs.length; r++) {
-      const match = this.uiState.dates.match(this.runs[r]);
-      this.matchState.set(r, this.matchState.dateIndex, match);
     }
 
     // attribute-based filters 
@@ -499,9 +228,10 @@ class StateManager {
       const uiAttr = this.uiState.attrs[handle];
       for (let r = 0; r < this.runs.length; r++) {
         const match = uiAttr.match(this.runs[r]);
-        this.matchState.set(r, uiAttr.index + 2, match);
+        this.matchState.set(r, uiAttr.filterIndex, match);
       }
     }
+    this.matchState.tally();
     this.matchState.signalUpdated();
   }
 

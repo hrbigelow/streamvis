@@ -64,7 +64,7 @@
   }
 
   onMount(() => {
-    refreshEvery(() => stateManager.refresh(), 10_000);
+    refreshEvery(() => stateManager.refresh(), 500_000);
   });
 
 </script>
@@ -106,9 +106,9 @@
      <div class="slider-track"></div>
   </div>
 
-  <div class="guide">Date From:</div>
+  <div class="guide">From:</div>
   <div>{stateManager.startTimes[uiState.dates.min].toLocaleString()}</div>
-  <div class="guide">Date To:</div>
+  <div class="guide">To:</div>
   <div>{stateManager.startTimes[uiState.dates.max].toLocaleString()}</div>
 
   <div class="guide">Tag Matching</div>
@@ -138,16 +138,19 @@
   <div></div>
   <div class="guide">Filtered Runs</div>
   <div>{stateManager.numFilteredRuns}</div>
+
   <div class="guide">Attributes</div>
   <div></div>
   {#each Object.keys(uiState.attrs) as handle}
     <details>
       <summary>
+        <span>
         <input id="{handle}" 
                type="checkbox" 
                bind:checked={uiState.attrs[handle].active} 
                />
         <label for="{handle}">{stateManager.fields[handle].name}</label>
+        </span>
       </summary>
       {#each uiState.attrs[handle].values as val}
         <label>
@@ -158,8 +161,10 @@
         </label>
       {/each}
     </details>
+    <div></div>
   {/each}
   <div></div>
+
 
 </div>
 
@@ -347,6 +352,16 @@
     background: #e5e7eb;
     border-radius: 3px;
     z-index: 1;
+  }
+
+  summary {
+    display: list-item;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .checkbox-group {
+    white-space: nowrap;
   }
 
 </style>

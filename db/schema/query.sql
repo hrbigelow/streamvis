@@ -25,6 +25,7 @@ SELECT
   array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs
 FROM run r
 LEFT JOIN run_attr ra ON ra.run_id = r.id
+WHERE EXISTS (SELECT 1 FROM chunk c WHERE c.run_id = r.id)
 GROUP BY r.handle, r.tags, r.started_at
 ORDER BY r.started_at;
 
