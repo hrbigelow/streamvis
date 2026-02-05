@@ -52,8 +52,8 @@ Due to the constraints of `logger.write`, data logged to a given `Series` across
 Runs is guaranteed to be rectangular.  But to ensure this, once a `Series` is
 created, the collection of `Fields` in it cannot be changed.  This presents a
 difficulty if, after logging data for several runs, the user wants to update their
-workflow to include another field.  The only way to do this is to create a new Series
-with the same set of Fields, and the extra one.
+workflow to include another field.  The only way to do this is to create a new `Series`
+with the same set of `Field`s, and the extra one.
 
 ## Filtering Data
 
@@ -61,19 +61,19 @@ As mentioned above, each Run may have a set of tags attached to it, as well as a
 of Attribute values.  It also has a 'started_at' timestamp useful for searching.  The
 web search interface allows an interactive search across runs based on all of this
 information.  Such a search defines a subset of Runs.  From there, a choice of a
-Series and subset of Fields within the Series, together with a choice of Attribute
-values define a rectangular dataset of Fields collectively from both the Series and
+`Series` and subset of `Field`s within the `Series`, together with a choice of Attribute
+values define a rectangular dataset of `Field`s collectively from both the `Series` and
 Attribute values.
 
-Having defined this, it only remains to bind each selected Field (whether Series
-Field or Attribute Value) to a given conceptual plot axis.  Plot axes include x-axis,
+Having defined this, it only remains to bind each selected `Field` (whether `Series`
+`Field` or Attribute Value) to a given conceptual plot axis.  Plot axes include x-axis,
 y-axis, z-axis, color, line-grouping, line-point-order (for line plots), point-size.
 Some restrictions apply however.  For spatial axes line-point-order and point-size,
 only the float and int types are supported.  For color and line-grouping, int,
 string, and bool types are supported.
 
 This is where the flexibility of the approach shines.  One can log in general many
-different Fields in the form of a rich Series plus Attributes, and much later choose
+different `Field`s in the form of a rich `Series` plus Attributes, and much later choose
 how to plot it.  Also, one need not choose ahead of time which Runs need to be
 plotted together with each other.
 
@@ -154,8 +154,8 @@ function in a separate thread, while the `AsyncDataLogger` uses a coroutine.
 
 ## Metadata setup
 
-Before any data can be logged, two kinds of metadata must be defined:  Fields and
-Series.  Fields are individual named (and typed) fields:
+Before any data can be logged, two kinds of metadata must be defined:  `Field`s and
+`Series`.  `Field`s are individual named (and typed) fields:
 
 ```bash
 # streamvis create-field <field-name> <field-type> <field-desc>
@@ -207,7 +207,7 @@ field_values = { 'experiment-name': 'process', 'sgd-step': 10 }
 write('all', **field_values)
 ```
 
-A Series is a named collection of these Fields.  The order of Fields doesn't
+A `Series` is a named collection of these `Field`s.  The order of `Field`s doesn't
 matter.
 
 ```bash
