@@ -159,37 +159,52 @@ Series.  Fields are individual named (and typed) fields:
 
 ```bash
 # streamvis create-field <field-name> <field-type> <field-desc>
-streamvis create-field sgd-step int "The SGD gradient step of training"
-streamvis create-field noisy-channel-epsilon float "Probability of mutating an emitted symbol"
-streamvis create-field with-BOS-token bool "Whether BOS token was used in generation"
-streamvis create-field experiment-name string "Name of the overall experiment"
+streamvis create-field sgd_step int "The SGD gradient step of training"
+streamvis create-field noisy_channel_epsilon float "Probability of mutating an emitted symbol"
+streamvis create-field with_BOS_token bool "Whether BOS token was used in generation"
+streamvis create-field experiment_name string "Name of the overall experiment"
 
 grpcurl --plaintext localhost:8001 streamvis.v1.Service/ListFields
 {
   "fieldHandle": "3d0422df-e059-472d-a996-0c423ec5fc59",
-  "fieldName": "sgd-step",
+  "fieldName": "sgd_step",
   "fieldType": "int",
   "fieldDesc": "The SGD gradient step of training"
 }
 {
   "fieldHandle": "eaec4fe0-9876-4116-a9ab-883792649a60",
-  "fieldName": "noisy-channel-epsilon",
+  "fieldName": "noisy_channel_epsilon",
   "fieldType": "float",
   "fieldDesc": "Probability of mutating an emitted symbol"
 }
 {
   "fieldHandle": "32eb2ef8-a64e-4a4c-906f-f7a6dc8736d7",
-  "fieldName": "with-BOS-token",
+  "fieldName": "with_BOS_token",
   "fieldType": "bool",
   "fieldDesc": "Whether BOS token was used in generation"
 }
 {
   "fieldHandle": "0fa61144-2a6b-4fbd-8910-7ffc107c4b0e",
-  "fieldName": "experiment-name",
+  "fieldName": "experiment_name",
   "fieldType": "text",
   "fieldDesc": "Name of the overall experiment"
 }
 
+```
+
+Note that the `fieldName` strings are used directly in `logger.write`:
+
+```python
+def write(self, series_name: str, /, **field_values):
+   ...
+```
+
+so, it is more convenient to use strings that are legal Python argument identifiers.
+But you can define a dictionary with arbitrary string keys and use unpacking as in: 
+
+```python
+field_values = { 'experiment-name': 'process', 'sgd-step': 10 }
+write('all', **field_values)
 ```
 
 A Series is a named collection of these Fields.  The order of Fields doesn't
@@ -201,6 +216,22 @@ streamvis create-series training-analysis sgd-step
 ```
 
 
+## Broadcasting during `write`, and late materialization on CPU
+
+The values of the `field_values` dictionary can be any shapes and types (Python
+scalars or lists, numpy, jax, or pytorch tensors) as long as the data type is
+consistent with the declared data type of the corresponding `Field` named in the
+`field_values` dictionary.  They also must be broadcastable together.  The shapes you
+choose are merely for your own convenience in logging the data.  Logically, because
+the values are broadcastable, they simply define a set of rectangular data
+(one-to-one correspondence between values for each field).
+
+Secondly, no data is actually written at the moment `logger.write` is called.
+Instead, it is enqueued, and will be written at the next `flush` (at a user-specified
+time interval).  Importantly, any tensor values which reside on GPU are not moved to
+CPU until the `flush` call.  Values from multiple write calls for a given flush
+interval are first concatenated on GPU and then transferred to CPU as a single
+tensor.
 
 
 ## Attribute FAQ
