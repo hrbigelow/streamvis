@@ -65,17 +65,32 @@ information.  Such a search defines a subset of Runs.  From there, a choice of a
 values define a rectangular dataset of `Field`s collectively from both the `Series` and
 Attribute values.
 
+## Configuring a Plot
+
 Having defined this, it only remains to bind each selected `Field` (whether `Series`
 `Field` or Attribute Value) to a given conceptual plot axis.  Plot axes include x-axis,
-y-axis, z-axis, color, line-grouping, line-point-order (for line plots), point-size.
-Some restrictions apply however.  For spatial axes line-point-order and point-size,
-only the float and int types are supported.  For color and line-grouping, int,
-string, and bool types are supported.
+y-axis, z-axis, color, line-grouping, line-point-order (for line plots), and point-size.
+`Field`s of float and int type may be used for spatial, color and point-size axes.
+`Field`s of int, string and bool type may be used for color and line-grouping axes.
 
 This is where the flexibility of the approach shines.  One can log in general many
 different `Field`s in the form of a rich `Series` plus Attributes, and much later choose
 how to plot it.  Also, one need not choose ahead of time which Runs need to be
 plotted together with each other.
+
+## Hybrid Plot
+
+this process of selecting a dataset and fields within it, and then mapping plot axes
+to fields can be repeated, so that two different sets of data can be visualized
+together on the same plot.  For spatial axes, one may want to map either the same
+axis to two different `Field`s from respective datasets, or have a plot with two
+separate x-axes (say one on the bottom and one on the top).  This would enable
+separate zooming or panning for each axis.  Another common pattern would be a shared
+x-axis (bound to two separate `Field`s one from each dataset), but two separate
+y-axes, so that one can use a common pan + zoom on the x-axis, but independent pan +
+zoom for each y-axis.  Finally, for non-spatial axes such as color or line-grouping,
+since there is no UI control element, there is no notion of sharing an axis binding.
+
 
 ## Deleting or overwriting a Run
 
@@ -120,28 +135,37 @@ export STREAMVIS_DB_URI=postgresql://streamvis:streamvis@localhost/streamvis
 
 3. Check gRPC endpoints
 ```bash
-$ grpcurl --plaintext localhost:8001 list streamvis.v1.Service
+henry@g16:streamvis$ grpcurl -plaintext localhost:8001 list streamvis.v1.Service
+streamvis.v1.Service.AddRunTag
 streamvis.v1.Service.AppendToSeries
-streamvis.v1.Service.CreateAttribute
+streamvis.v1.Service.CreateField
 streamvis.v1.Service.CreateRun
 streamvis.v1.Service.CreateSeries
 streamvis.v1.Service.DeleteEmptySeries
 streamvis.v1.Service.DeleteRun
-streamvis.v1.Service.ListAttributes
+streamvis.v1.Service.DeleteRunTag
+streamvis.v1.Service.ListAttributeValues
+streamvis.v1.Service.ListCommonAttributes
+streamvis.v1.Service.ListCommonSeries
+streamvis.v1.Service.ListFields
 streamvis.v1.Service.ListRuns
 streamvis.v1.Service.ListSeries
+streamvis.v1.Service.ListStartedAt
+streamvis.v1.Service.ListTags
+streamvis.v1.Service.QueryRunData
 streamvis.v1.Service.ReplaceRun
 streamvis.v1.Service.SetRunAttributes
 
-$ grpcurl --plaintext localhost:8001 describe streamvis.v1.Service.CreateAttribute
-streamvis.v1.Service.CreateAttribute is a method:
-rpc CreateAttribute ( .streamvis.v1.CreateAttributeRequest ) returns ( .streamvis.v1.CreateAttributeResponse );
-$ grpcurl --plaintext localhost:8001 describe streamvis.v1.CreateAttributeRequest
-streamvis.v1.CreateAttributeRequest is a message:
-message CreateAttributeRequest {
-  string attr_name = 1;
-  string attr_type = 2;
-  string attr_desc = 3;
+$ grpcurl --plaintext localhost:8001 describe streamvis.v1.Service.CreateField
+streamvis.v1.Service.CreateField is a method:
+rpc CreateField ( .streamvis.v1.CreateFieldRequest ) returns ( .streamvis.v1.CreateFieldResponse );
+
+$ grpcurl --plaintext localhost:8001 describe streamvis.v1.CreateFieldRequest
+streamvis.v1.CreateFieldRequest is a message:
+message CreateFieldRequest {
+  string name = 1;
+  string data_type = 2;
+  string description = 3;
 }
 ```
 
@@ -232,7 +256,6 @@ time interval).  Importantly, any tensor values which reside on GPU are not move
 CPU until the `flush` call.  Values from multiple write calls for a given flush
 interval are first concatenated on GPU and then transferred to CPU as a single
 tensor.
-
 
 ## Attribute FAQ
 
