@@ -64,7 +64,7 @@
   }
 
   onMount(() => {
-    refreshEvery(() => stateManager.refresh(), 500_000);
+    refreshEvery(() => stateManager.refresh(), 5_000);
   });
 
 </script>
@@ -138,27 +138,33 @@
   <div></div>
   <div class="guide">Filtered Runs</div>
   <div>{stateManager.numFilteredRuns}</div>
+</div>
 
+<div class="filter-run-table">
   <div class="guide">Attributes</div>
   <div></div>
-  {#each Object.keys(uiState.attrs) as handle}
+  {#each Object.entries(stateManager.filteredAttributes) as [attrHandle, valCounts]}
     <details>
       <summary>
         <span>
-        <input id="{handle}" 
+        <input id="{attrHandle}" 
                type="checkbox" 
-               bind:checked={uiState.attrs[handle].active} 
+               bind:checked={uiState.attrs[attrHandle].active} 
                />
-        <label for="{handle}">{stateManager.fields[handle].name}</label>
+        <label for="{attrHandle}">{stateManager.fields[attrHandle].name} ({
+         Object.values(valCounts).reduce((s, v) => s + v[1], 0)
+         })
+        </label>
         </span>
       </summary>
-      {#each uiState.attrs[handle].values as val}
-        <label>
-          <input type="checkbox"
-                 bind:checked={uiState.attrs[handle].values[val]}
+      {#each Object.entries(valCounts) as [valHandle, [val, count]]}
+        <span>
+          <input id="val-{attrHandle}-{valHandle}" 
+                 type="checkbox"
+                 bind:checked={uiState.attrs[attrHandle].values[valHandle]}
                  />
-          {val}
-        </label>
+          <label for="val-{attrHandle}-{valHandle}">{val} ({count})</label>
+        </span>
       {/each}
     </details>
     <div></div>

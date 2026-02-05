@@ -2,10 +2,102 @@
 
 # Introduction
 
-Streamvis is both a data logger, and a web application supporting interactive
-visualizations of the logged data.  Both communicate through a postgres-backed gRPC
-service.  The web app periodically polls the gRPC service for new data, updating the
-plots automatically.
+Streamvis consists of a python data logger, a web search interface for searching the
+database, and a web application supporting interactive visualizations of the logged
+data.  The interactive visualizations also auto-refresh as new data is logged.
+
+# Motivation
+
+There is a basic tension between a data logging and a data visualization application.
+Any single visualization requires the dataset to be of a consistent shape, but this
+shape may not be known when data is logged.  The design choices Streamvis makes are
+trying to thread this needle, allowing for the lowest possible barrier for logging
+while enforcing a minimal constraint to make downstream visualizations possible.
+
+The two top-level constraints Streamvis logging enforces are:
+
+1) all data is semantically well typed, using user-defined types
+2) all logged data is rectangular, with no missing values
+
+The first constraint is maintained by defining the notion of a `Field`, which
+consists of a name, data type (one of int, float, string, or bool) and text description.
+`Field`s are first-class objects in the database.  Every scalar value of data logged
+must be of a particular `Field`.
+
+The second requirement is that, when data are logged, there is always a one-to-one
+correspondence between each individual value logged to each `Field`.  For example, if
+you are logging stock data to `trade-closing-time` and `sale-price` fields (you can
+imagine the proper data types and descriptions that could go with these), the logger
+enforces a one-to-one correspondence in values logged.
+
+The second requirement is enforced as follows.  First, another object called a
+`Series` must be created.  A `Series` is also a first-class object, and it is a named
+collection of `Field`s, which must be pre-existing.  All calls to the `logger.write`
+function log data to an existing `Series`, and the function enforces there are no
+missing values, and that the same number of values are logged to each `Field` in the
+`Series`.
+
+The total set of data logged to one or more `Series` during the lifetime of a logging
+script belong to a `Run`, which is automatically created when the logger first calls
+`write`.  A `Run` can't be given a name, however, one can attach zero or more
+string-valued `tags` to it, as well as define `Attribute` values.  Each `Attribute`
+is actually a single global `Field` value associated with the `Run`.  Importantly,
+because it is a single value, it logically can be used together with any `Field` in
+any `Series` and broadcasted across the data in the run, ensuring the rectangularity
+of the collection of data.
+
+## Restrictions
+
+Due to the constraints of `logger.write`, data logged to a given `Series` across all
+Runs is guaranteed to be rectangular.  But to ensure this, once a `Series` is
+created, the collection of `Fields` in it cannot be changed.  This presents a
+difficulty if, after logging data for several runs, the user wants to update their
+workflow to include another field.  The only way to do this is to create a new Series
+with the same set of Fields, and the extra one.
+
+## Filtering Data
+
+As mentioned above, each Run may have a set of tags attached to it, as well as a set
+of Attribute values.  It also has a 'started_at' timestamp useful for searching.  The
+web search interface allows an interactive search across runs based on all of this
+information.  Such a search defines a subset of Runs.  From there, a choice of a
+Series and subset of Fields within the Series, together with a choice of Attribute
+values define a rectangular dataset of Fields collectively from both the Series and
+Attribute values.
+
+Having defined this, it only remains to bind each selected Field (whether Series
+Field or Attribute Value) to a given conceptual plot axis.  Plot axes include x-axis,
+y-axis, z-axis, color, line-grouping, line-point-order (for line plots), point-size.
+Some restrictions apply however.  For spatial axes line-point-order and point-size,
+only the float and int types are supported.  For color and line-grouping, int,
+string, and bool types are supported.
+
+This is where the flexibility of the approach shines.  One can log in general many
+different Fields in the form of a rich Series plus Attributes, and much later choose
+how to plot it.  Also, one need not choose ahead of time which Runs need to be
+plotted together with each other.
+
+## Deleting or overwriting a Run
+
+As mentioned above, all data logged during the lifetime of the logger is logged to a
+single `Run`.  All Run objects receive a permanent UUID handle.  To this end, the
+Streamvis logger provides a `set_run_handle` API function to optionally specify the
+UUID to be assigned.  If not set, the system automatically generates a new UUID.
+
+If `set_run_handle` is called, and a Run already exists with that handle, it is
+deleted before the logging starts.  This pattern is useful during development to
+avoid accumulating data that's just the result of a buggy script.
+
+Notably, the streaming visualization also respects deletion of data, so you can just
+leave the window open, and plots will disappear and reappear with your newly logged
+data.
+
+So, during the development cycle, the recommended pattern then is to call
+`set_run_handle` with the same UUID for each launch of your script.  Any existing run
+will be deleted and you can avoid accumulating junk.
+
+Then, when you are ready to deploy additional runs, don't call the API function, and
+the system will autogenerate a new UUID.
 
 # Quickstart
 
@@ -134,10 +226,4 @@ plot axis by a given attribute (although see the concept of multi-dataset plots)
 
 ```python
 from streamvis import DataLogger
-
-
-
-
-
-
 

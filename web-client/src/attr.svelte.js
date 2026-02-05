@@ -1,9 +1,18 @@
+function toHex(str) {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(str);
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 class UIAttrState {
   #runs;   // the full catalog of runs under this filter's control
   #handle; // the field handle of the attribute this filter represents
   #active; // whether this overall filter is active
   #values; // value => bool
   #valuesProxy; 
+  #valuesActive;
   
   constructor(runs, matchState, handle, fieldIndex) {
     this.#runs = runs;
@@ -11,10 +20,11 @@ class UIAttrState {
     this.#handle = handle;
     this.filterIndex = fieldIndex + 2; // after date and tag filters
     this.#active = $state(false);
-    this.#values = $state({});
+    this.#valuesActive = $state({}); // attrValueHandle => active
 
-    this.#valuesProxy = new Proxy(this.#values, {
+    this.#valuesProxy = new Proxy(this.#valuesActive, {
       set: (target, prop, value) => {
+        // console.log(`attr.values.set: ${target}, ${prop}, ${value}`);
         target[prop] = value;
         this.#update();
         return true;
@@ -23,6 +33,7 @@ class UIAttrState {
         return target[prop];
       },
       deleteProperty: (target, prop) => {
+        // console.log(`attr.values.delete: ${target}, ${prop}`);
         let ret = false;
         if (prop in target) {
           ret = true;
@@ -56,10 +67,10 @@ class UIAttrState {
   }
 
   match(run) {
-    if (!(this.#handle in run.attrs)) { return -1; }
+    if (!(this.#handle in run.attrVals)) { return -1; }
     if (! this.#active) { return 1; }
-    const val = run.attrs[this.handle];
-    return +this.values[val];
+    const val = run.attrVals[this.#handle];
+    return +this.values[val.handle];
   }
 
 }

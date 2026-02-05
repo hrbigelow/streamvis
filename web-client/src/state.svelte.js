@@ -18,13 +18,33 @@ function timestampToDate(timestamp) {
   return new Date(Number(milliseconds));
 }
 
+// from https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+function fnvHash(msg) {
+  const FNV_OFFSET_BASIS = 14695981039346656037n;
+  const FNV_PRIME = 1099511628211n;
+
+  let hash = FNV_OFFSET_BASIS;
+  for (let i = 0; i != msg.length; i++) {
+    hash ^= BigInt(msg.charCodeAt(i));
+    hash = BigInt.asUintN(64, hash * FNV_PRIME);
+  }
+  return hash.toString(16).padStart(16, '0');
+}
+
+class AttrValue {
+  constructor(val) {
+    this.handle = fnvHash(`${typeof val}:${val}`);
+    this.value = val;
+  }
+}
+
 class Run {
   constructor(msg, index) {
     this.index = index; 
     this.handle = msg.handle;
     this.tags = new Set(msg.tags);
     this.startedAt = timestampToDate(msg.startedAt);
-    this.attrs = Object.fromEntries(msg.attrs.map(m => [m.handle, m]));
+    this.attrVals = Object.fromEntries(msg.attrs.map(m => [m.handle, new AttrValue(m.value.value)])); // handle 
     this.seriesHandles = msg.seriesHandles;
   }
 }
@@ -88,6 +108,31 @@ class StateManager {
     return tagCounts;
   });
 
+  filteredAttributes = $derived.by(() => {
+    this.matchState.version;
+    const attrCounts = {} // attrHandle => (attrValue => numRuns)
+    if (this.selectedSeries === null) { return attrCounts; }
+    for (let r = 0; r != this.runs.length; r++) {
+      if (this.matchState.get(r, this.matchState.dateIndex) === 1
+        && this.matchState.get(r, this.matchState.tagIndex) === 1) {
+        const run = this.runs[r];
+        for (const attrHandle in run.attrVals) {
+          if (!(attrHandle in attrCounts)) {
+            attrCounts[attrHandle] = [];
+          }
+          const valMap = attrCounts[attrHandle];
+          const attrVal = run.attrVals[attrHandle];
+          if (!(attrVal.handle in valMap)) {
+            valMap[attrVal.handle] = [attrVal.value, 0];
+          }
+          valMap[attrVal.handle][1] += 1;
+        }
+      }
+    }
+    return attrCounts;
+  });
+
+
   constructor(client, uiState) {
     this.client = client;
     this.uiState = uiState;
@@ -117,7 +162,7 @@ class StateManager {
     }
     this.runs.length = 0;
     this.runs.push(...runs);
-    console.log(`fetchRuns: received runs: ${this.runs.length}`);
+    // console.log(`fetchRuns: received runs: ${this.runs.length}`);
     // this.runs = runs;
   }
 
@@ -154,22 +199,20 @@ class StateManager {
     }
     // get distinct values for each attribute
     for (const key in this.uiState.attrs) {
-      const newVals = new Set();
+      const newValHandles = new Set();
       for (const run of this.runs) {
-        if (key in run.attrs) {
-          newVals.add(run.attrs[key]);
+        for (const attrHandle in run.attrVals) {
+          newValHandles.add(run.attrVals[attrHandle].handle);
         }
       }
       const attrState = this.uiState.attrs[key];
-      for (const val in attrState.values) {
-        if (! newVals.has(val)) {
-          delete attrState.values[val]; // this will be rare
+      for (const valHandle in attrState.values) {
+        if (! newValHandles.has(valHandle)) {
+          delete attrState[valHandle];
         }
       }
-      for (const val of newVals) {
-        if (!(val in attrState.values)) {
-          attrState.values[val] = false;
-        }
+      for (const valHandle of newValHandles) {
+        attrState[valHandle] = false;
       }
     }
   }
@@ -259,17 +302,6 @@ class StateManager {
     this.syncMatchState();
   }
 
-
-  filteredAttributes(minStartedAt, maxStartedAt, selectedSeries, selectedTags, matchAllTags) {
-    runFilter = new RunFilter(selectedTags, matchAllTags, minStartedAt, maxStartedAt, []);
-    const commonAttributes = {}; // fieldHandle => Set(fieldValue, ...)
-    for (const run of this.runs) {
-      if (! runFilter.filter(run) || !run.seriesHandles.includes(selectedSeries)) {
-        continue;
-      }
-
-    }
-  }
 }
 
 export { StateManager }
