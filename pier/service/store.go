@@ -9,9 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/tracelog"
 )
 
 type Store struct {
@@ -30,21 +28,23 @@ func NewStore(ctx context.Context, dbUri string) (*Store, error) {
 
 	config.AfterConnect = registerCustomTypes
 
-	config.ConnConfig.Tracer = &tracelog.TraceLog{
-		Logger: tracelog.LoggerFunc(
-			func(
-				ctx context.Context,
-				level tracelog.LogLevel,
-				msg string,
-				data map[string]interface{},
-			) {
-				fmt.Printf("[%s] %s: %v\n", level, msg, data)
-			}),
-		LogLevel: tracelog.LogLevelDebug,
-	}
-	config.ConnConfig.OnNotice = func(pc *pgconn.PgConn, n *pgconn.Notice) {
-		fmt.Printf("NOTICE: %s\n", n.Message)
-	}
+	/*
+		config.ConnConfig.Tracer = &tracelog.TraceLog{
+			Logger: tracelog.LoggerFunc(
+				func(
+					ctx context.Context,
+					level tracelog.LogLevel,
+					msg string,
+					data map[string]interface{},
+				) {
+					fmt.Printf("[%s] %s: %v\n", level, msg, data)
+				}),
+			LogLevel: tracelog.LogLevelDebug,
+		}
+		config.ConnConfig.OnNotice = func(pc *pgconn.PgConn, n *pgconn.Notice) {
+			fmt.Printf("NOTICE: %s\n", n.Message)
+		}
+	*/
 
 	pool, err2 := pgxpool.NewWithConfig(ctx, config)
 	if err2 != nil {
@@ -284,18 +284,34 @@ func (st *Store) ListRuns(
 	)
 }
 
+func (st *Store) GetMaxChunkId(
+	ctx context.Context,
+) (int64, error) {
+	sql := `SELECT * FROM get_max_chunk_id()`
+	var maxId int64
+	err := st.pool.QueryRow(ctx, sql).Scan(&maxId)
+	if err != nil {
+		return 0, err
+	}
+	return maxId, nil
+}
+
 func (st *Store) QueryRunData(
 	ctx context.Context,
 	attrHandles []uuid.UUID,
 	coordHandles []uuid.UUID,
+	minChunkId *int64,
+	maxChunkId *int64,
 	runFilter RunFilter,
 ) (<-chan *pb.ChunkData, <-chan error) {
-	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
+	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7, $8)`
 	convert := MakeToProtobufFunc[ChunkData, pb.ChunkData]()
 	return queryItemsConvert(
 		ctx, st.pool, sql, convert,
 		attrHandles,
 		coordHandles,
+		minChunkId,
+		maxChunkId,
 		runFilter.AttributeFilters,
 		runFilter.TagFilter,
 		runFilter.MinStartedAt,

@@ -395,8 +395,8 @@ func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
 }
 
 type ChunkData struct {
-	ChunkId int64          `db:"chunk_id"`
-	EncVals []*EncTypValue `db:"enc_val"`
+	RunHandle uuid.UUID      `db:"run_handle"`
+	EncVals   []*EncTypValue `db:"enc_val"`
 }
 
 func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
@@ -407,8 +407,8 @@ func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
 	}
 
 	msg := pb.ChunkData{
-		ChunkId: cd.ChunkId,
-		EncVals: encVals,
+		RunHandle: cd.RunHandle.String(),
+		EncVals:   encVals,
 	}
 	return msg, nil
 }

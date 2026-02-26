@@ -61,6 +61,8 @@ const (
 	ServiceListFieldsProcedure = "/streamvis.v1.Service/ListFields"
 	// ServiceListRunsProcedure is the fully-qualified name of the Service's ListRuns RPC.
 	ServiceListRunsProcedure = "/streamvis.v1.Service/ListRuns"
+	// ServiceGetMaxChunkIdProcedure is the fully-qualified name of the Service's GetMaxChunkId RPC.
+	ServiceGetMaxChunkIdProcedure = "/streamvis.v1.Service/GetMaxChunkId"
 	// ServiceQueryRunDataProcedure is the fully-qualified name of the Service's QueryRunData RPC.
 	ServiceQueryRunDataProcedure = "/streamvis.v1.Service/QueryRunData"
 	// ServiceListCommonAttributesProcedure is the fully-qualified name of the Service's
@@ -93,6 +95,7 @@ type ServiceClient interface {
 	ListSeries(context.Context, *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListFields(context.Context, *v1.ListFieldsRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListRuns(context.Context, *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.Run], error)
+	GetMaxChunkId(context.Context, *v1.GetMaxChunkIdRequest) (*v1.GetMaxChunkIdResponse, error)
 	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error)
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
@@ -190,6 +193,12 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("ListRuns")),
 			connect.WithClientOptions(opts...),
 		),
+		getMaxChunkId: connect.NewClient[v1.GetMaxChunkIdRequest, v1.GetMaxChunkIdResponse](
+			httpClient,
+			baseURL+ServiceGetMaxChunkIdProcedure,
+			connect.WithSchema(serviceMethods.ByName("GetMaxChunkId")),
+			connect.WithClientOptions(opts...),
+		),
 		queryRunData: connect.NewClient[v1.QueryRunDataRequest, v1.ChunkData](
 			httpClient,
 			baseURL+ServiceQueryRunDataProcedure,
@@ -244,6 +253,7 @@ type serviceClient struct {
 	listSeries           *connect.Client[v1.ListSeriesRequest, v1.Series]
 	listFields           *connect.Client[v1.ListFieldsRequest, v1.Field]
 	listRuns             *connect.Client[v1.ListRunsRequest, v1.Run]
+	getMaxChunkId        *connect.Client[v1.GetMaxChunkIdRequest, v1.GetMaxChunkIdResponse]
 	queryRunData         *connect.Client[v1.QueryRunDataRequest, v1.ChunkData]
 	listCommonAttributes *connect.Client[v1.ListCommonAttributesRequest, v1.Field]
 	listCommonSeries     *connect.Client[v1.ListCommonSeriesRequest, v1.Series]
@@ -357,6 +367,15 @@ func (c *serviceClient) ListRuns(ctx context.Context, req *v1.ListRunsRequest) (
 	return c.listRuns.CallServerStream(ctx, connect.NewRequest(req))
 }
 
+// GetMaxChunkId calls streamvis.v1.Service.GetMaxChunkId.
+func (c *serviceClient) GetMaxChunkId(ctx context.Context, req *v1.GetMaxChunkIdRequest) (*v1.GetMaxChunkIdResponse, error) {
+	response, err := c.getMaxChunkId.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // QueryRunData calls streamvis.v1.Service.QueryRunData.
 func (c *serviceClient) QueryRunData(ctx context.Context, req *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error) {
 	return c.queryRunData.CallServerStream(ctx, connect.NewRequest(req))
@@ -402,6 +421,7 @@ type ServiceHandler interface {
 	ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error
 	ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error
+	GetMaxChunkId(context.Context, *v1.GetMaxChunkIdRequest) (*v1.GetMaxChunkIdResponse, error)
 	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error
 	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error
@@ -495,6 +515,12 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("ListRuns")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceGetMaxChunkIdHandler := connect.NewUnaryHandlerSimple(
+		ServiceGetMaxChunkIdProcedure,
+		svc.GetMaxChunkId,
+		connect.WithSchema(serviceMethods.ByName("GetMaxChunkId")),
+		connect.WithHandlerOptions(opts...),
+	)
 	serviceQueryRunDataHandler := connect.NewServerStreamHandlerSimple(
 		ServiceQueryRunDataProcedure,
 		svc.QueryRunData,
@@ -559,6 +585,8 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceListFieldsHandler.ServeHTTP(w, r)
 		case ServiceListRunsProcedure:
 			serviceListRunsHandler.ServeHTTP(w, r)
+		case ServiceGetMaxChunkIdProcedure:
+			serviceGetMaxChunkIdHandler.ServeHTTP(w, r)
 		case ServiceQueryRunDataProcedure:
 			serviceQueryRunDataHandler.ServeHTTP(w, r)
 		case ServiceListCommonAttributesProcedure:
@@ -630,6 +658,10 @@ func (UnimplementedServiceHandler) ListFields(context.Context, *v1.ListFieldsReq
 
 func (UnimplementedServiceHandler) ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListRuns is not implemented"))
+}
+
+func (UnimplementedServiceHandler) GetMaxChunkId(context.Context, *v1.GetMaxChunkIdRequest) (*v1.GetMaxChunkIdResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.GetMaxChunkId is not implemented"))
 }
 
 func (UnimplementedServiceHandler) QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error {

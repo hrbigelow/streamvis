@@ -227,7 +227,7 @@ $$;
 
 
 
-/* Get all data from runs identified by p_run_handles with chunk_id > p_last_chunk_id
+/* Get all data from runs identified by p_run_handles with chunk_id > p_min_chunk_id
 Gets just the coordinates from p_coord_handles, and projects the attribute values in
 p_attr_handles into enc_typ.  The returned table packs the enc_vals into the order
 [...p_attr_handles, ...p_coord_handles]
@@ -237,9 +237,10 @@ CREATE FUNCTION get_data(
   p_run_ids INT[],
   p_attr_handles UUID[],   -- field handles of attributes to return
   p_coord_handles UUID[],
-  p_last_chunk_id BIGINT 
+  p_min_chunk_id BIGINT,
+  p_max_chunk_id BIGINT
 ) RETURNS TABLE (
-  chunk_id BIGINT,
+  run_handle UUID,
   enc_vals enc_typ[]
 ) 
 LANGUAGE plpgsql 
@@ -278,7 +279,7 @@ BEGIN
     JOIN chunk ch ON ch.run_id = r.id
     JOIN unnest(p_attr_handles) WITH ORDINALITY AS a(handle, ord) ON a.handle = f.handle
     WHERE ch.series_id = v_series_id
-    AND (p_last_chunk_id IS NULL OR ch.id > p_last_chunk_id)
+    AND (p_min_chunk_id IS NULL OR ch.id > p_min_chunk_id)
   ),
   coords AS (
     SELECT 
@@ -290,16 +291,18 @@ BEGIN
     JOIN coord co ON co.id = cd.coord_id
     JOIN chunk c ON c.id = cd.chunk_id
     JOIN unnest(p_coord_handles) WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
-    WHERE (p_last_chunk_id IS NULL OR ch.id > p_last_chunk_id)
+    WHERE (p_min_chunk_id IS NULL OR ch.id >= p_min_chunk_id)
+    AND (p_max_chunk_id IS NULL OR ch.id <= p_max_chunk_id)
   ),
   combined AS (
     SELECT * FROM attrs
     UNION ALL
     SELECT * FROM coords
   )
-  SELECT chunk_id, array_agg(val ORDER BY field_order)
-  FROM combined
-  GROUP BY run_id;
+  SELECT r.handle, array_agg(val ORDER BY field_order)
+  FROM combined c
+  JOIN run r ON (r.id = c.run_id)
+  GROUP BY c.run_id;
 END;
 $$;
 
@@ -307,13 +310,14 @@ $$;
 CREATE OR REPLACE FUNCTION query_run_data(
   IN p_attr_handles UUID[], -- field handles of attributes to be returned
   IN p_coord_handles UUID[], 
-  IN p_last_chunk_id BIGINT,
+  IN p_min_chunk_id BIGINT,
+  IN p_max_chunk_id BIGINT,
   IN p_attribute_filters attribute_filter_typ[],
   IN p_tag_filter tag_filter_typ,
   IN p_min_started_at TIMESTAMPTZ,
   IN p_max_started_at TIMESTAMPTZ
 ) RETURNS TABLE (
-  chunk_id BIGINT,
+  run_handle UUID,
   enc_vals enc_typ[]
 ) 
 LANGUAGE sql
@@ -332,7 +336,8 @@ AS $$
     ),
     p_attr_handles,
     p_coord_handles,
-    p_last_chunk_id
+    p_min_chunk_id,
+    p_max_chunk_id
   ) AS gd;
 $$;
 
@@ -425,8 +430,15 @@ AS $$
     GROUP BY s.name, s.handle
 $$;
 
+\echo 'create function get_max_chunk_id'
+CREATE OR REPLACE FUNCTION get_max_chunk_id()
+RETURNS BIGINT
+LANGUAGE sql
+AS $$
+  SELECT last_value 
+  FROM pg_sequences
+  WHERE sequencename = 'chunk_id_seq';
+$$;
 
 \set QUIET 0
-
-
 

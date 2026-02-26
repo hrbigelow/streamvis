@@ -212,7 +212,7 @@ message TagValue {
 }
 
 message ChunkData {
-  int64 chunk_id = 1;
+  string run_handle = 1;
   repeated EncTyp enc_vals = 2;
 }
 
@@ -259,11 +259,18 @@ message ListRunsRequest {
   RunFilter run_filter = 1;
 }
 
+message GetMaxChunkIdRequest {}
+
+message GetMaxChunkIdResponse {
+  int64 id = 1;
+}
+
 message QueryRunDataRequest {
   repeated string attr_handles = 1;
   repeated string coord_handles = 2;
-  int64 last_chunk_id = 3;
-  RunFilter run_filter = 4;
+  optional int64 min_chunk_id = 3;
+  optional int64 max_chunk_id = 4;
+  RunFilter run_filter = 5;
 }
 
 message ListCommonAttributesRequest {
@@ -289,6 +296,7 @@ service Service {
   rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
   rpc ListRuns (ListRunsRequest) returns (stream Run);
+  rpc GetMaxChunkId (GetMaxChunkIdRequest) returns (GetMaxChunkIdResponse);
   rpc QueryRunData (QueryRunDataRequest) returns (stream ChunkData);
   rpc ListCommonAttributes (ListCommonAttributesRequest) returns (stream Field);
   rpc ListCommonSeries (ListCommonSeriesRequest) returns (stream Series);

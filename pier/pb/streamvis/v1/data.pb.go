@@ -2305,7 +2305,7 @@ func (x *TagValue) GetTag() string {
 
 type ChunkData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChunkId       int64                  `protobuf:"varint,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	RunHandle     string                 `protobuf:"bytes,1,opt,name=run_handle,json=runHandle,proto3" json:"run_handle,omitempty"`
 	EncVals       []*EncTyp              `protobuf:"bytes,2,rep,name=enc_vals,json=encVals,proto3" json:"enc_vals,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2341,11 +2341,11 @@ func (*ChunkData) Descriptor() ([]byte, []int) {
 	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{44}
 }
 
-func (x *ChunkData) GetChunkId() int64 {
+func (x *ChunkData) GetRunHandle() string {
 	if x != nil {
-		return x.ChunkId
+		return x.RunHandle
 	}
-	return 0
+	return ""
 }
 
 func (x *ChunkData) GetEncVals() []*EncTyp {
@@ -2833,19 +2833,100 @@ func (x *ListRunsRequest) GetRunFilter() *RunFilter {
 	return nil
 }
 
+type GetMaxChunkIdRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMaxChunkIdRequest) Reset() {
+	*x = GetMaxChunkIdRequest{}
+	mi := &file_streamvis_v1_data_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMaxChunkIdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMaxChunkIdRequest) ProtoMessage() {}
+
+func (x *GetMaxChunkIdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_streamvis_v1_data_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMaxChunkIdRequest.ProtoReflect.Descriptor instead.
+func (*GetMaxChunkIdRequest) Descriptor() ([]byte, []int) {
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{53}
+}
+
+type GetMaxChunkIdResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMaxChunkIdResponse) Reset() {
+	*x = GetMaxChunkIdResponse{}
+	mi := &file_streamvis_v1_data_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMaxChunkIdResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMaxChunkIdResponse) ProtoMessage() {}
+
+func (x *GetMaxChunkIdResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_streamvis_v1_data_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMaxChunkIdResponse.ProtoReflect.Descriptor instead.
+func (*GetMaxChunkIdResponse) Descriptor() ([]byte, []int) {
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *GetMaxChunkIdResponse) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
 type QueryRunDataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AttrHandles   []string               `protobuf:"bytes,1,rep,name=attr_handles,json=attrHandles,proto3" json:"attr_handles,omitempty"`
 	CoordHandles  []string               `protobuf:"bytes,2,rep,name=coord_handles,json=coordHandles,proto3" json:"coord_handles,omitempty"`
-	LastChunkId   int64                  `protobuf:"varint,3,opt,name=last_chunk_id,json=lastChunkId,proto3" json:"last_chunk_id,omitempty"`
-	RunFilter     *RunFilter             `protobuf:"bytes,4,opt,name=run_filter,json=runFilter,proto3" json:"run_filter,omitempty"`
+	MinChunkId    *int64                 `protobuf:"varint,3,opt,name=min_chunk_id,json=minChunkId,proto3,oneof" json:"min_chunk_id,omitempty"`
+	MaxChunkId    *int64                 `protobuf:"varint,4,opt,name=max_chunk_id,json=maxChunkId,proto3,oneof" json:"max_chunk_id,omitempty"`
+	RunFilter     *RunFilter             `protobuf:"bytes,5,opt,name=run_filter,json=runFilter,proto3" json:"run_filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *QueryRunDataRequest) Reset() {
 	*x = QueryRunDataRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[53]
+	mi := &file_streamvis_v1_data_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2857,7 +2938,7 @@ func (x *QueryRunDataRequest) String() string {
 func (*QueryRunDataRequest) ProtoMessage() {}
 
 func (x *QueryRunDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[53]
+	mi := &file_streamvis_v1_data_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2870,7 +2951,7 @@ func (x *QueryRunDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRunDataRequest.ProtoReflect.Descriptor instead.
 func (*QueryRunDataRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{53}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *QueryRunDataRequest) GetAttrHandles() []string {
@@ -2887,9 +2968,16 @@ func (x *QueryRunDataRequest) GetCoordHandles() []string {
 	return nil
 }
 
-func (x *QueryRunDataRequest) GetLastChunkId() int64 {
-	if x != nil {
-		return x.LastChunkId
+func (x *QueryRunDataRequest) GetMinChunkId() int64 {
+	if x != nil && x.MinChunkId != nil {
+		return *x.MinChunkId
+	}
+	return 0
+}
+
+func (x *QueryRunDataRequest) GetMaxChunkId() int64 {
+	if x != nil && x.MaxChunkId != nil {
+		return *x.MaxChunkId
 	}
 	return 0
 }
@@ -2910,7 +2998,7 @@ type ListCommonAttributesRequest struct {
 
 func (x *ListCommonAttributesRequest) Reset() {
 	*x = ListCommonAttributesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[54]
+	mi := &file_streamvis_v1_data_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2922,7 +3010,7 @@ func (x *ListCommonAttributesRequest) String() string {
 func (*ListCommonAttributesRequest) ProtoMessage() {}
 
 func (x *ListCommonAttributesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[54]
+	mi := &file_streamvis_v1_data_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2935,7 +3023,7 @@ func (x *ListCommonAttributesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommonAttributesRequest.ProtoReflect.Descriptor instead.
 func (*ListCommonAttributesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{54}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ListCommonAttributesRequest) GetRunFilter() *RunFilter {
@@ -2954,7 +3042,7 @@ type ListCommonSeriesRequest struct {
 
 func (x *ListCommonSeriesRequest) Reset() {
 	*x = ListCommonSeriesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[55]
+	mi := &file_streamvis_v1_data_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2966,7 +3054,7 @@ func (x *ListCommonSeriesRequest) String() string {
 func (*ListCommonSeriesRequest) ProtoMessage() {}
 
 func (x *ListCommonSeriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[55]
+	mi := &file_streamvis_v1_data_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2979,7 +3067,7 @@ func (x *ListCommonSeriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommonSeriesRequest.ProtoReflect.Descriptor instead.
 func (*ListCommonSeriesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{55}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ListCommonSeriesRequest) GetRunFilter() *RunFilter {
@@ -3124,9 +3212,10 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\x11\n" +
 	"\x0fListTagsRequest\"\x1c\n" +
 	"\bTagValue\x12\x10\n" +
-	"\x03tag\x18\x01 \x01(\tR\x03tag\"W\n" +
-	"\tChunkData\x12\x19\n" +
-	"\bchunk_id\x18\x01 \x01(\x03R\achunkId\x12/\n" +
+	"\x03tag\x18\x01 \x01(\tR\x03tag\"[\n" +
+	"\tChunkData\x12\x1d\n" +
+	"\n" +
+	"run_handle\x18\x01 \x01(\tR\trunHandle\x12/\n" +
 	"\benc_vals\x18\x02 \x03(\v2\x14.streamvis.v1.EncTypR\aencVals\"\x1d\n" +
 	"\aIntList\x12\x12\n" +
 	"\x04vals\x18\x01 \x03(\x05R\x04vals\"N\n" +
@@ -3162,13 +3251,21 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\tmatch_all\x18\x02 \x01(\bR\bmatchAll\"I\n" +
 	"\x0fListRunsRequest\x126\n" +
 	"\n" +
-	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"\xb9\x01\n" +
+	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"\x16\n" +
+	"\x14GetMaxChunkIdRequest\"'\n" +
+	"\x15GetMaxChunkIdResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x85\x02\n" +
 	"\x13QueryRunDataRequest\x12!\n" +
 	"\fattr_handles\x18\x01 \x03(\tR\vattrHandles\x12#\n" +
-	"\rcoord_handles\x18\x02 \x03(\tR\fcoordHandles\x12\"\n" +
-	"\rlast_chunk_id\x18\x03 \x01(\x03R\vlastChunkId\x126\n" +
+	"\rcoord_handles\x18\x02 \x03(\tR\fcoordHandles\x12%\n" +
+	"\fmin_chunk_id\x18\x03 \x01(\x03H\x00R\n" +
+	"minChunkId\x88\x01\x01\x12%\n" +
+	"\fmax_chunk_id\x18\x04 \x01(\x03H\x01R\n" +
+	"maxChunkId\x88\x01\x01\x126\n" +
 	"\n" +
-	"run_filter\x18\x04 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"U\n" +
+	"run_filter\x18\x05 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilterB\x0f\n" +
+	"\r_min_chunk_idB\x0f\n" +
+	"\r_max_chunk_id\"U\n" +
 	"\x1bListCommonAttributesRequest\x126\n" +
 	"\n" +
 	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"Q\n" +
@@ -3180,7 +3277,7 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x13FIELD_DATA_TYPE_INT\x10\x01\x12\x19\n" +
 	"\x15FIELD_DATA_TYPE_FLOAT\x10\x02\x12\x1a\n" +
 	"\x16FIELD_DATA_TYPE_STRING\x10\x03\x12\x18\n" +
-	"\x14FIELD_DATA_TYPE_BOOL\x10\x042\xae\f\n" +
+	"\x14FIELD_DATA_TYPE_BOOL\x10\x042\x88\r\n" +
 	"\aService\x12R\n" +
 	"\vCreateField\x12 .streamvis.v1.CreateFieldRequest\x1a!.streamvis.v1.CreateFieldResponse\x12U\n" +
 	"\fCreateSeries\x12!.streamvis.v1.CreateSeriesRequest\x1a\".streamvis.v1.CreateSeriesResponse\x12[\n" +
@@ -3197,7 +3294,8 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"ListSeries\x12\x1f.streamvis.v1.ListSeriesRequest\x1a\x14.streamvis.v1.Series0\x01\x12D\n" +
 	"\n" +
 	"ListFields\x12\x1f.streamvis.v1.ListFieldsRequest\x1a\x13.streamvis.v1.Field0\x01\x12>\n" +
-	"\bListRuns\x12\x1d.streamvis.v1.ListRunsRequest\x1a\x11.streamvis.v1.Run0\x01\x12L\n" +
+	"\bListRuns\x12\x1d.streamvis.v1.ListRunsRequest\x1a\x11.streamvis.v1.Run0\x01\x12X\n" +
+	"\rGetMaxChunkId\x12\".streamvis.v1.GetMaxChunkIdRequest\x1a#.streamvis.v1.GetMaxChunkIdResponse\x12L\n" +
 	"\fQueryRunData\x12!.streamvis.v1.QueryRunDataRequest\x1a\x17.streamvis.v1.ChunkData0\x01\x12X\n" +
 	"\x14ListCommonAttributes\x12).streamvis.v1.ListCommonAttributesRequest\x1a\x13.streamvis.v1.Field0\x01\x12Q\n" +
 	"\x10ListCommonSeries\x12%.streamvis.v1.ListCommonSeriesRequest\x1a\x14.streamvis.v1.Series0\x01\x12Q\n" +
@@ -3218,7 +3316,7 @@ func file_streamvis_v1_data_proto_rawDescGZIP() []byte {
 }
 
 var file_streamvis_v1_data_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_streamvis_v1_data_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
+var file_streamvis_v1_data_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_streamvis_v1_data_proto_goTypes = []any{
 	(FieldDataType)(0),                  // 0: streamvis.v1.FieldDataType
 	(*CreateFieldRequest)(nil),          // 1: streamvis.v1.CreateFieldRequest
@@ -3274,10 +3372,12 @@ var file_streamvis_v1_data_proto_goTypes = []any{
 	(*AttributeFilter)(nil),             // 51: streamvis.v1.AttributeFilter
 	(*TagFilter)(nil),                   // 52: streamvis.v1.TagFilter
 	(*ListRunsRequest)(nil),             // 53: streamvis.v1.ListRunsRequest
-	(*QueryRunDataRequest)(nil),         // 54: streamvis.v1.QueryRunDataRequest
-	(*ListCommonAttributesRequest)(nil), // 55: streamvis.v1.ListCommonAttributesRequest
-	(*ListCommonSeriesRequest)(nil),     // 56: streamvis.v1.ListCommonSeriesRequest
-	(*timestamppb.Timestamp)(nil),       // 57: google.protobuf.Timestamp
+	(*GetMaxChunkIdRequest)(nil),        // 54: streamvis.v1.GetMaxChunkIdRequest
+	(*GetMaxChunkIdResponse)(nil),       // 55: streamvis.v1.GetMaxChunkIdResponse
+	(*QueryRunDataRequest)(nil),         // 56: streamvis.v1.QueryRunDataRequest
+	(*ListCommonAttributesRequest)(nil), // 57: streamvis.v1.ListCommonAttributesRequest
+	(*ListCommonSeriesRequest)(nil),     // 58: streamvis.v1.ListCommonSeriesRequest
+	(*timestamppb.Timestamp)(nil),       // 59: google.protobuf.Timestamp
 }
 var file_streamvis_v1_data_proto_depIdxs = []int32{
 	7,  // 0: streamvis.v1.EncTyp.int_spans:type_name -> streamvis.v1.IntValues
@@ -3298,11 +3398,11 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	31, // 15: streamvis.v1.Series.fields:type_name -> streamvis.v1.Field
 	51, // 16: streamvis.v1.RunFilter.attribute_filters:type_name -> streamvis.v1.AttributeFilter
 	52, // 17: streamvis.v1.RunFilter.tag_filter:type_name -> streamvis.v1.TagFilter
-	57, // 18: streamvis.v1.RunFilter.min_started_at:type_name -> google.protobuf.Timestamp
-	57, // 19: streamvis.v1.RunFilter.max_started_at:type_name -> google.protobuf.Timestamp
-	57, // 20: streamvis.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	59, // 18: streamvis.v1.RunFilter.min_started_at:type_name -> google.protobuf.Timestamp
+	59, // 19: streamvis.v1.RunFilter.max_started_at:type_name -> google.protobuf.Timestamp
+	59, // 20: streamvis.v1.Run.started_at:type_name -> google.protobuf.Timestamp
 	22, // 21: streamvis.v1.Run.attrs:type_name -> streamvis.v1.FieldValue
-	57, // 22: streamvis.v1.RunStartTime.started_at:type_name -> google.protobuf.Timestamp
+	59, // 22: streamvis.v1.RunStartTime.started_at:type_name -> google.protobuf.Timestamp
 	5,  // 23: streamvis.v1.ChunkData.enc_vals:type_name -> streamvis.v1.EncTyp
 	47, // 24: streamvis.v1.AttributeFilter.int_range:type_name -> streamvis.v1.IntRange
 	46, // 25: streamvis.v1.AttributeFilter.int_list:type_name -> streamvis.v1.IntList
@@ -3326,33 +3426,35 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	36, // 43: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
 	37, // 44: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
 	53, // 45: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
-	54, // 46: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
-	55, // 47: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
-	56, // 48: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
-	41, // 49: streamvis.v1.Service.ListStartedAt:input_type -> streamvis.v1.ListStartedAtRequest
-	43, // 50: streamvis.v1.Service.ListTags:input_type -> streamvis.v1.ListTagsRequest
-	32, // 51: streamvis.v1.Service.ListAttributeValues:input_type -> streamvis.v1.ListAttributeValuesRequest
-	2,  // 52: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
-	4,  // 53: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
-	15, // 54: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
-	17, // 55: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
-	19, // 56: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
-	21, // 57: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
-	24, // 58: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
-	26, // 59: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
-	28, // 60: streamvis.v1.Service.AddRunTag:output_type -> streamvis.v1.AddRunTagResponse
-	30, // 61: streamvis.v1.Service.DeleteRunTag:output_type -> streamvis.v1.DeleteRunTagResponse
-	35, // 62: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
-	31, // 63: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
-	39, // 64: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
-	45, // 65: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.ChunkData
-	31, // 66: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
-	35, // 67: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series
-	42, // 68: streamvis.v1.Service.ListStartedAt:output_type -> streamvis.v1.RunStartTime
-	44, // 69: streamvis.v1.Service.ListTags:output_type -> streamvis.v1.TagValue
-	34, // 70: streamvis.v1.Service.ListAttributeValues:output_type -> streamvis.v1.AttributeValues
-	52, // [52:71] is the sub-list for method output_type
-	33, // [33:52] is the sub-list for method input_type
+	54, // 46: streamvis.v1.Service.GetMaxChunkId:input_type -> streamvis.v1.GetMaxChunkIdRequest
+	56, // 47: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
+	57, // 48: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
+	58, // 49: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
+	41, // 50: streamvis.v1.Service.ListStartedAt:input_type -> streamvis.v1.ListStartedAtRequest
+	43, // 51: streamvis.v1.Service.ListTags:input_type -> streamvis.v1.ListTagsRequest
+	32, // 52: streamvis.v1.Service.ListAttributeValues:input_type -> streamvis.v1.ListAttributeValuesRequest
+	2,  // 53: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
+	4,  // 54: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
+	15, // 55: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
+	17, // 56: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
+	19, // 57: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
+	21, // 58: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
+	24, // 59: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
+	26, // 60: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
+	28, // 61: streamvis.v1.Service.AddRunTag:output_type -> streamvis.v1.AddRunTagResponse
+	30, // 62: streamvis.v1.Service.DeleteRunTag:output_type -> streamvis.v1.DeleteRunTagResponse
+	35, // 63: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
+	31, // 64: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
+	39, // 65: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
+	55, // 66: streamvis.v1.Service.GetMaxChunkId:output_type -> streamvis.v1.GetMaxChunkIdResponse
+	45, // 67: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.ChunkData
+	31, // 68: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
+	35, // 69: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series
+	42, // 70: streamvis.v1.Service.ListStartedAt:output_type -> streamvis.v1.RunStartTime
+	44, // 71: streamvis.v1.Service.ListTags:output_type -> streamvis.v1.TagValue
+	34, // 72: streamvis.v1.Service.ListAttributeValues:output_type -> streamvis.v1.AttributeValues
+	53, // [53:73] is the sub-list for method output_type
+	33, // [33:53] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name
 	33, // [33:33] is the sub-list for extension extendee
 	0,  // [0:33] is the sub-list for field type_name
@@ -3392,13 +3494,14 @@ func file_streamvis_v1_data_proto_init() {
 		(*AttributeFilter_BoolList)(nil),
 		(*AttributeFilter_StringList)(nil),
 	}
+	file_streamvis_v1_data_proto_msgTypes[55].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_streamvis_v1_data_proto_rawDesc), len(file_streamvis_v1_data_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   56,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
