@@ -1,0 +1,21 @@
+[Unit]
+Description=Streamvis Go RPC Server
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=streamvis-rpc
+DynamicUser=yes
+
+Environment="STREAMVIS_DB_URI=postgresql://streamvis:streamvis@localhost/streamvis"
+
+ExecStart=/usr/local/bin/pier --port 8001
+SyslogIdentifier=streamvis-rpc
+
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+
