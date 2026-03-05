@@ -1,0 +1,16 @@
+_target_: streamvis.plot.PlotOpts
+
+ty: scatter
+series: null
+x: null
+y: null
+c: null
+g: null
+
+tags: []
+match_all: false
+
+min_started_at: null
+max_started_at: null
+
+

@@ -62,7 +62,7 @@ class BaseLogger:
         for the program.  Can only be called once for the life of the logger.
         """
         if self.run_handle is None:
-            raise RuntimeError(f"Cannot call set_run_attrs until run started")
+            raise RuntimeError(f"Cannot call set_run_attributes until run started")
 
         req = pb.SetRunAttributesRequest(run_handle=self.run_handle)
 
