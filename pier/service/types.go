@@ -98,6 +98,9 @@ func (ev *EncTypValue) toProtobuf() pb.EncTyp {
 			if f4.Valid {
 				fvals[i] = &pb.OptionalFloat{Value: &f4.Float32}
 			}
+			// else {
+			// 	fvals[i] = &pb.OptionalFloat{Value: nil}
+			// }
 		}
 		msg.Spans = &pb.EncTyp_FloatSpans{FloatSpans: &pb.FloatValues{Values: fvals}}
 	}

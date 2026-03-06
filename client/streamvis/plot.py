@@ -9,6 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from .v1 import data_pb2 as pb
 from .v1.data_pb2_grpc import ServiceStub
 from . import rpc_client
+from . import dbutil
 
 
 
@@ -74,7 +75,9 @@ def main(cfg: DictConfig):
     stub = rpc_client.get_service_stub()
     req = opts.get_request(stub)
     for data in rpc_client.get_data(stub, req):
-        print(len(data.enc_vals))
+        for enc in data.enc_vals:
+            ary = dbutil.decode_numeric_array(enc)
+            print(f"{data.run_handle}, {ary.dtype}:{ary.shape}")
 
 
 

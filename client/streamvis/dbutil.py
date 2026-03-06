@@ -19,7 +19,7 @@ def encode_numeric_array(
     """
     if ary.dtype not in (np.dtype('float32'), np.dtype('int32')):
         raise RuntimeError(
-            f"Array has dtype {ary.dtype} but expected 'int32' or 'float32'")
+                f"Array has dtype {ary.dtype} but expected 'int32' or 'float32'")
 
     shape = tuple(ary.shape)
     range_spans = [None] * ary.ndim
@@ -46,7 +46,7 @@ def encode_numeric_array(
         range_spans = tuple(pb.OptionalFloat(value=sp) for sp in range_spans)
         msg.float_spans.values.extend(range_spans)
     return msg
-    
+
 
 def encode_bool_or_string_array(
     field_handle: str,
@@ -54,7 +54,7 @@ def encode_bool_or_string_array(
 ) -> pb.EncTyp: 
     if not (np.issubdtype(ary.dtype, np.str_) or np.issubdtype(ary.dtype, np.bool)):
         raise RuntimeError(
-            f"Array has dtype {ary.dtype}, but expected 'str_' or 'bool'")
+                f"Array has dtype {ary.dtype}, but expected 'str_' or 'bool'")
     bcast = [None] * ary.ndim
     for d in range(ary.ndim):
         slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
@@ -90,24 +90,24 @@ def decode_numeric_array(enc: pb.EncTyp) -> np.array:
             f"'int_spans' or 'float_spans'")
 
     if set_field == 'int_spans':
-        range_spans = enc.int_spans
+        range_spans = enc.int_spans.values
         base = np.frombuffer(enc.base, dtype=np.int32)
     else:
-        range_spans = enc.float_spans
+        range_spans = enc.float_spans.values
         base = np.frombuffer(enc.base, dtype=np.float32)
 
     N = len(enc.shape)
-    shape = tuple(sz if sp is None else 1 for sz, sp in zip(enc.shape, range_spans))
-    base = base(*shape)
+    shape = tuple(sz if sp.HasField('value') else 1 for sz, sp in zip(enc.shape, range_spans))
+    base = base.reshape(*shape)
     ranges = []
     for i, (sz, sp) in enumerate(zip(enc.shape, range_spans)):
-        if sp is None:
+        if not sp.HasField('value'):
             continue
         rng = np.linspace(0, sp, sz)
         rng = np.expand_dims(rng, axis=tuple(j for j in range(N) if j != i))
         ranges.append(rng)
     terms = np.broadcast_arrays(base, *ranges)
-    print(tuple(r.shape for r in terms))
+    # print(tuple(r.shape for r in terms))
     return np.add.reduce(terms).astype(base.dtype)
 
 
