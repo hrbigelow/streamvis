@@ -5,7 +5,7 @@ CREATE VIEW series_vw AS
 SELECT
   s.name,
   s.handle,
-  array_agg(ROW(f.handle, f.name, f.data_type, f.description)::field_typ) fields
+  array_agg(ROW(c.handle, f.handle, f.name, f.data_type, f.description)::coord_typ) coords 
 FROM series s
 INNER JOIN coord c ON c.series_id = s.id
 INNER JOIN field f ON f.id = c.field_id
@@ -267,19 +267,21 @@ BEGIN
   FROM coord
   WHERE handle = ANY(p_coord_handles);
 
+  RETURN QUERY
   WITH attrs AS (
     SELECT 
       ra.run_id, 
-      ch.id chunk_id,
+      c.id chunk_id,
       a.ord field_order, 
       project_field_value(ra.attr_value, c.num_points) val
     FROM run_attr ra
     JOIN unnest(p_run_ids) AS rh(run_id) ON rh.run_id = ra.run_id
     JOIN field f ON f.id = ra.field_id
-    JOIN chunk ch ON ch.run_id = r.id
+    JOIN chunk c ON c.run_id = rh.run_id
     JOIN unnest(p_attr_handles) WITH ORDINALITY AS a(handle, ord) ON a.handle = f.handle
-    WHERE ch.series_id = v_series_id
-    AND (p_min_chunk_id IS NULL OR ch.id > p_min_chunk_id)
+    WHERE c.series_id = v_series_id
+    AND (p_min_chunk_id IS NULL OR c.id >= p_min_chunk_id)
+    AND (p_max_chunk_id IS NULL OR c.id <= p_max_chunk_id)
   ),
   coords AS (
     SELECT 
@@ -291,8 +293,8 @@ BEGIN
     JOIN coord co ON co.id = cd.coord_id
     JOIN chunk c ON c.id = cd.chunk_id
     JOIN unnest(p_coord_handles) WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
-    WHERE (p_min_chunk_id IS NULL OR ch.id >= p_min_chunk_id)
-    AND (p_max_chunk_id IS NULL OR ch.id <= p_max_chunk_id)
+    WHERE (p_min_chunk_id IS NULL OR c.id >= p_min_chunk_id)
+    AND (p_max_chunk_id IS NULL OR c.id <= p_max_chunk_id)
   ),
   combined AS (
     SELECT * FROM attrs
@@ -301,15 +303,15 @@ BEGIN
   )
   SELECT r.handle, array_agg(val ORDER BY field_order)
   FROM combined c
-  JOIN run r ON (r.id = c.run_id)
-  GROUP BY c.run_id;
+  JOIN run r ON r.id = c.run_id
+  GROUP BY r.handle, c.run_id;
 END;
 $$;
 
 
 CREATE OR REPLACE FUNCTION query_run_data(
   IN p_attr_handles UUID[], -- field handles of attributes to be returned
-  IN p_coord_handles UUID[], 
+  IN p_coord_handles UUID[], -- handles from coord table
   IN p_min_chunk_id BIGINT,
   IN p_max_chunk_id BIGINT,
   IN p_attribute_filters attribute_filter_typ[],

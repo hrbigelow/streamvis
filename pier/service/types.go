@@ -259,10 +259,34 @@ func (ft Field) toProtobuf() (pb.Field, error) {
 	return msg, nil
 }
 
+type Coord struct {
+	CoordHandle uuid.UUID `db:"coord_handle"`
+	FieldHandle uuid.UUID `db:"field_handle"`
+	Name        string    `db:"name"`
+	DataType    string    `db:"data_type"`
+	Description string    `db:"description"`
+}
+
+func (co Coord) toProtobuf() (pb.Coord, error) {
+	dataType, err := dataTypeToProtobuf(co.DataType)
+	if err != nil {
+		return pb.Coord{}, err
+	}
+
+	msg := pb.Coord{
+		CoordHandle: co.CoordHandle.String(),
+		FieldHandle: co.FieldHandle.String(),
+		Name:        co.Name,
+		DataType:    dataType,
+		Description: co.Description,
+	}
+	return msg, nil
+}
+
 type Series struct {
 	Name   string    `db:"name"`
 	Handle uuid.UUID `db:"handle"`
-	Fields []*Field  `db:"fields"`
+	Coords []*Coord  `db:"coords"`
 }
 
 func (sr Series) toProtobuf() (pb.Series, error) {
@@ -270,13 +294,13 @@ func (sr Series) toProtobuf() (pb.Series, error) {
 		Name:   sr.Name,
 		Handle: sr.Handle.String(),
 	}
-	msg.Fields = make([]*pb.Field, len(sr.Fields))
-	for i, field := range sr.Fields {
-		pbfield, err := field.toProtobuf()
+	msg.Coords = make([]*pb.Coord, len(sr.Coords))
+	for i, coord := range sr.Coords {
+		pbcoord, err := coord.toProtobuf()
 		if err != nil {
 			return msg, err
 		}
-		msg.Fields[i] = &pbfield
+		msg.Coords[i] = &pbcoord
 	}
 	return msg, nil
 }
@@ -396,7 +420,7 @@ func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
 
 type ChunkData struct {
 	RunHandle uuid.UUID      `db:"run_handle"`
-	EncVals   []*EncTypValue `db:"enc_val"`
+	EncVals   []*EncTypValue `db:"enc_vals"`
 }
 
 func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {

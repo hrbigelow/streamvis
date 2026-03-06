@@ -21,9 +21,19 @@ For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 \echo 'create field_data_typ'
 CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'string', 'bool');
 
+
 \echo 'create field_typ'
 CREATE TYPE field_typ AS (
   handle UUID,
+  name TEXT,
+  data_type field_data_typ,
+  description TEXT
+);
+
+\echo 'create coord_typ'
+CREATE TYPE coord_typ AS (
+  coord_handle UUID,
+  field_handle UUID,
   name TEXT,
   data_type field_data_typ,
   description TEXT

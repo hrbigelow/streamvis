@@ -1621,6 +1621,82 @@ func (x *Field) GetDescription() string {
 	return ""
 }
 
+type Coord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CoordHandle   string                 `protobuf:"bytes,1,opt,name=coord_handle,json=coordHandle,proto3" json:"coord_handle,omitempty"`
+	FieldHandle   string                 `protobuf:"bytes,2,opt,name=field_handle,json=fieldHandle,proto3" json:"field_handle,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	DataType      FieldDataType          `protobuf:"varint,4,opt,name=data_type,json=dataType,proto3,enum=streamvis.v1.FieldDataType" json:"data_type,omitempty"`
+	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Coord) Reset() {
+	*x = Coord{}
+	mi := &file_streamvis_v1_data_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Coord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Coord) ProtoMessage() {}
+
+func (x *Coord) ProtoReflect() protoreflect.Message {
+	mi := &file_streamvis_v1_data_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Coord.ProtoReflect.Descriptor instead.
+func (*Coord) Descriptor() ([]byte, []int) {
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *Coord) GetCoordHandle() string {
+	if x != nil {
+		return x.CoordHandle
+	}
+	return ""
+}
+
+func (x *Coord) GetFieldHandle() string {
+	if x != nil {
+		return x.FieldHandle
+	}
+	return ""
+}
+
+func (x *Coord) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Coord) GetDataType() FieldDataType {
+	if x != nil {
+		return x.DataType
+	}
+	return FieldDataType_FIELD_DATA_TYPE_UNSPECIFIED
+}
+
+func (x *Coord) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
 type ListAttributeValuesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1629,7 +1705,7 @@ type ListAttributeValuesRequest struct {
 
 func (x *ListAttributeValuesRequest) Reset() {
 	*x = ListAttributeValuesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[31]
+	mi := &file_streamvis_v1_data_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +1717,7 @@ func (x *ListAttributeValuesRequest) String() string {
 func (*ListAttributeValuesRequest) ProtoMessage() {}
 
 func (x *ListAttributeValuesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[31]
+	mi := &file_streamvis_v1_data_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +1730,7 @@ func (x *ListAttributeValuesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAttributeValuesRequest.ProtoReflect.Descriptor instead.
 func (*ListAttributeValuesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{31}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{32}
 }
 
 type AnyArray struct {
@@ -1672,7 +1748,7 @@ type AnyArray struct {
 
 func (x *AnyArray) Reset() {
 	*x = AnyArray{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[32]
+	mi := &file_streamvis_v1_data_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1684,7 +1760,7 @@ func (x *AnyArray) String() string {
 func (*AnyArray) ProtoMessage() {}
 
 func (x *AnyArray) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[32]
+	mi := &file_streamvis_v1_data_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1697,7 +1773,7 @@ func (x *AnyArray) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnyArray.ProtoReflect.Descriptor instead.
 func (*AnyArray) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{32}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *AnyArray) GetValue() isAnyArray_Value {
@@ -1781,7 +1857,7 @@ type AttributeValues struct {
 
 func (x *AttributeValues) Reset() {
 	*x = AttributeValues{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[33]
+	mi := &file_streamvis_v1_data_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1793,7 +1869,7 @@ func (x *AttributeValues) String() string {
 func (*AttributeValues) ProtoMessage() {}
 
 func (x *AttributeValues) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[33]
+	mi := &file_streamvis_v1_data_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1806,7 +1882,7 @@ func (x *AttributeValues) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttributeValues.ProtoReflect.Descriptor instead.
 func (*AttributeValues) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{33}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *AttributeValues) GetField() *Field {
@@ -1827,14 +1903,14 @@ type Series struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Handle        string                 `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Fields        []*Field               `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
+	Coords        []*Coord               `protobuf:"bytes,3,rep,name=coords,proto3" json:"coords,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Series) Reset() {
 	*x = Series{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[34]
+	mi := &file_streamvis_v1_data_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1846,7 +1922,7 @@ func (x *Series) String() string {
 func (*Series) ProtoMessage() {}
 
 func (x *Series) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[34]
+	mi := &file_streamvis_v1_data_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1859,7 +1935,7 @@ func (x *Series) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Series.ProtoReflect.Descriptor instead.
 func (*Series) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{34}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *Series) GetHandle() string {
@@ -1876,9 +1952,9 @@ func (x *Series) GetName() string {
 	return ""
 }
 
-func (x *Series) GetFields() []*Field {
+func (x *Series) GetCoords() []*Coord {
 	if x != nil {
-		return x.Fields
+		return x.Coords
 	}
 	return nil
 }
@@ -1891,7 +1967,7 @@ type ListSeriesRequest struct {
 
 func (x *ListSeriesRequest) Reset() {
 	*x = ListSeriesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[35]
+	mi := &file_streamvis_v1_data_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1903,7 +1979,7 @@ func (x *ListSeriesRequest) String() string {
 func (*ListSeriesRequest) ProtoMessage() {}
 
 func (x *ListSeriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[35]
+	mi := &file_streamvis_v1_data_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1916,7 +1992,7 @@ func (x *ListSeriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSeriesRequest.ProtoReflect.Descriptor instead.
 func (*ListSeriesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{35}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{36}
 }
 
 type ListFieldsRequest struct {
@@ -1927,7 +2003,7 @@ type ListFieldsRequest struct {
 
 func (x *ListFieldsRequest) Reset() {
 	*x = ListFieldsRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[36]
+	mi := &file_streamvis_v1_data_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1939,7 +2015,7 @@ func (x *ListFieldsRequest) String() string {
 func (*ListFieldsRequest) ProtoMessage() {}
 
 func (x *ListFieldsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[36]
+	mi := &file_streamvis_v1_data_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1952,7 +2028,7 @@ func (x *ListFieldsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFieldsRequest.ProtoReflect.Descriptor instead.
 func (*ListFieldsRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{36}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{37}
 }
 
 type RunFilter struct {
@@ -1967,7 +2043,7 @@ type RunFilter struct {
 
 func (x *RunFilter) Reset() {
 	*x = RunFilter{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[37]
+	mi := &file_streamvis_v1_data_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1979,7 +2055,7 @@ func (x *RunFilter) String() string {
 func (*RunFilter) ProtoMessage() {}
 
 func (x *RunFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[37]
+	mi := &file_streamvis_v1_data_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1992,7 +2068,7 @@ func (x *RunFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunFilter.ProtoReflect.Descriptor instead.
 func (*RunFilter) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{37}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RunFilter) GetAttributeFilters() []*AttributeFilter {
@@ -2036,7 +2112,7 @@ type Run struct {
 
 func (x *Run) Reset() {
 	*x = Run{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[38]
+	mi := &file_streamvis_v1_data_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2048,7 +2124,7 @@ func (x *Run) String() string {
 func (*Run) ProtoMessage() {}
 
 func (x *Run) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[38]
+	mi := &file_streamvis_v1_data_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2061,7 +2137,7 @@ func (x *Run) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Run.ProtoReflect.Descriptor instead.
 func (*Run) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{38}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *Run) GetHandle() string {
@@ -2108,7 +2184,7 @@ type RunId struct {
 
 func (x *RunId) Reset() {
 	*x = RunId{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[39]
+	mi := &file_streamvis_v1_data_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2120,7 +2196,7 @@ func (x *RunId) String() string {
 func (*RunId) ProtoMessage() {}
 
 func (x *RunId) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[39]
+	mi := &file_streamvis_v1_data_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2133,7 +2209,7 @@ func (x *RunId) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunId.ProtoReflect.Descriptor instead.
 func (*RunId) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{39}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *RunId) GetHandle() string {
@@ -2151,7 +2227,7 @@ type ListStartedAtRequest struct {
 
 func (x *ListStartedAtRequest) Reset() {
 	*x = ListStartedAtRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[40]
+	mi := &file_streamvis_v1_data_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2163,7 +2239,7 @@ func (x *ListStartedAtRequest) String() string {
 func (*ListStartedAtRequest) ProtoMessage() {}
 
 func (x *ListStartedAtRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[40]
+	mi := &file_streamvis_v1_data_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2176,7 +2252,7 @@ func (x *ListStartedAtRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStartedAtRequest.ProtoReflect.Descriptor instead.
 func (*ListStartedAtRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{40}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{41}
 }
 
 type RunStartTime struct {
@@ -2188,7 +2264,7 @@ type RunStartTime struct {
 
 func (x *RunStartTime) Reset() {
 	*x = RunStartTime{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[41]
+	mi := &file_streamvis_v1_data_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2200,7 +2276,7 @@ func (x *RunStartTime) String() string {
 func (*RunStartTime) ProtoMessage() {}
 
 func (x *RunStartTime) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[41]
+	mi := &file_streamvis_v1_data_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2213,7 +2289,7 @@ func (x *RunStartTime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunStartTime.ProtoReflect.Descriptor instead.
 func (*RunStartTime) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{41}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RunStartTime) GetStartedAt() *timestamppb.Timestamp {
@@ -2231,7 +2307,7 @@ type ListTagsRequest struct {
 
 func (x *ListTagsRequest) Reset() {
 	*x = ListTagsRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[42]
+	mi := &file_streamvis_v1_data_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2243,7 +2319,7 @@ func (x *ListTagsRequest) String() string {
 func (*ListTagsRequest) ProtoMessage() {}
 
 func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[42]
+	mi := &file_streamvis_v1_data_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2256,7 +2332,7 @@ func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTagsRequest.ProtoReflect.Descriptor instead.
 func (*ListTagsRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{42}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{43}
 }
 
 type TagValue struct {
@@ -2268,7 +2344,7 @@ type TagValue struct {
 
 func (x *TagValue) Reset() {
 	*x = TagValue{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[43]
+	mi := &file_streamvis_v1_data_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2280,7 +2356,7 @@ func (x *TagValue) String() string {
 func (*TagValue) ProtoMessage() {}
 
 func (x *TagValue) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[43]
+	mi := &file_streamvis_v1_data_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2293,7 +2369,7 @@ func (x *TagValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagValue.ProtoReflect.Descriptor instead.
 func (*TagValue) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{43}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *TagValue) GetTag() string {
@@ -2313,7 +2389,7 @@ type ChunkData struct {
 
 func (x *ChunkData) Reset() {
 	*x = ChunkData{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[44]
+	mi := &file_streamvis_v1_data_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2325,7 +2401,7 @@ func (x *ChunkData) String() string {
 func (*ChunkData) ProtoMessage() {}
 
 func (x *ChunkData) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[44]
+	mi := &file_streamvis_v1_data_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2338,7 +2414,7 @@ func (x *ChunkData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChunkData.ProtoReflect.Descriptor instead.
 func (*ChunkData) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{44}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ChunkData) GetRunHandle() string {
@@ -2364,7 +2440,7 @@ type IntList struct {
 
 func (x *IntList) Reset() {
 	*x = IntList{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[45]
+	mi := &file_streamvis_v1_data_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2376,7 +2452,7 @@ func (x *IntList) String() string {
 func (*IntList) ProtoMessage() {}
 
 func (x *IntList) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[45]
+	mi := &file_streamvis_v1_data_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2389,7 +2465,7 @@ func (x *IntList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IntList.ProtoReflect.Descriptor instead.
 func (*IntList) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{45}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *IntList) GetVals() []int32 {
@@ -2409,7 +2485,7 @@ type IntRange struct {
 
 func (x *IntRange) Reset() {
 	*x = IntRange{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[46]
+	mi := &file_streamvis_v1_data_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2421,7 +2497,7 @@ func (x *IntRange) String() string {
 func (*IntRange) ProtoMessage() {}
 
 func (x *IntRange) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[46]
+	mi := &file_streamvis_v1_data_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2434,7 +2510,7 @@ func (x *IntRange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IntRange.ProtoReflect.Descriptor instead.
 func (*IntRange) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{46}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *IntRange) GetImin() int32 {
@@ -2461,7 +2537,7 @@ type FloatRange struct {
 
 func (x *FloatRange) Reset() {
 	*x = FloatRange{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[47]
+	mi := &file_streamvis_v1_data_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2473,7 +2549,7 @@ func (x *FloatRange) String() string {
 func (*FloatRange) ProtoMessage() {}
 
 func (x *FloatRange) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[47]
+	mi := &file_streamvis_v1_data_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2486,7 +2562,7 @@ func (x *FloatRange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FloatRange.ProtoReflect.Descriptor instead.
 func (*FloatRange) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{47}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *FloatRange) GetFmin() float32 {
@@ -2512,7 +2588,7 @@ type BoolList struct {
 
 func (x *BoolList) Reset() {
 	*x = BoolList{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[48]
+	mi := &file_streamvis_v1_data_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2524,7 +2600,7 @@ func (x *BoolList) String() string {
 func (*BoolList) ProtoMessage() {}
 
 func (x *BoolList) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[48]
+	mi := &file_streamvis_v1_data_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2537,7 +2613,7 @@ func (x *BoolList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BoolList.ProtoReflect.Descriptor instead.
 func (*BoolList) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{48}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *BoolList) GetVals() []bool {
@@ -2556,7 +2632,7 @@ type StringList struct {
 
 func (x *StringList) Reset() {
 	*x = StringList{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[49]
+	mi := &file_streamvis_v1_data_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2568,7 +2644,7 @@ func (x *StringList) String() string {
 func (*StringList) ProtoMessage() {}
 
 func (x *StringList) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[49]
+	mi := &file_streamvis_v1_data_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2581,7 +2657,7 @@ func (x *StringList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StringList.ProtoReflect.Descriptor instead.
 func (*StringList) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{49}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *StringList) GetVals() []string {
@@ -2609,7 +2685,7 @@ type AttributeFilter struct {
 
 func (x *AttributeFilter) Reset() {
 	*x = AttributeFilter{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[50]
+	mi := &file_streamvis_v1_data_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2621,7 +2697,7 @@ func (x *AttributeFilter) String() string {
 func (*AttributeFilter) ProtoMessage() {}
 
 func (x *AttributeFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[50]
+	mi := &file_streamvis_v1_data_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2634,7 +2710,7 @@ func (x *AttributeFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttributeFilter.ProtoReflect.Descriptor instead.
 func (*AttributeFilter) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{50}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *AttributeFilter) GetFieldHandle() string {
@@ -2747,7 +2823,7 @@ type TagFilter struct {
 
 func (x *TagFilter) Reset() {
 	*x = TagFilter{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[51]
+	mi := &file_streamvis_v1_data_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2759,7 +2835,7 @@ func (x *TagFilter) String() string {
 func (*TagFilter) ProtoMessage() {}
 
 func (x *TagFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[51]
+	mi := &file_streamvis_v1_data_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2772,7 +2848,7 @@ func (x *TagFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagFilter.ProtoReflect.Descriptor instead.
 func (*TagFilter) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{51}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *TagFilter) GetTags() []string {
@@ -2798,7 +2874,7 @@ type ListRunsRequest struct {
 
 func (x *ListRunsRequest) Reset() {
 	*x = ListRunsRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[52]
+	mi := &file_streamvis_v1_data_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2810,7 +2886,7 @@ func (x *ListRunsRequest) String() string {
 func (*ListRunsRequest) ProtoMessage() {}
 
 func (x *ListRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[52]
+	mi := &file_streamvis_v1_data_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2823,7 +2899,7 @@ func (x *ListRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRunsRequest.ProtoReflect.Descriptor instead.
 func (*ListRunsRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{52}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ListRunsRequest) GetRunFilter() *RunFilter {
@@ -2841,7 +2917,7 @@ type GetMaxChunkIdRequest struct {
 
 func (x *GetMaxChunkIdRequest) Reset() {
 	*x = GetMaxChunkIdRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[53]
+	mi := &file_streamvis_v1_data_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2853,7 +2929,7 @@ func (x *GetMaxChunkIdRequest) String() string {
 func (*GetMaxChunkIdRequest) ProtoMessage() {}
 
 func (x *GetMaxChunkIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[53]
+	mi := &file_streamvis_v1_data_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2866,7 +2942,7 @@ func (x *GetMaxChunkIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMaxChunkIdRequest.ProtoReflect.Descriptor instead.
 func (*GetMaxChunkIdRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{53}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{54}
 }
 
 type GetMaxChunkIdResponse struct {
@@ -2878,7 +2954,7 @@ type GetMaxChunkIdResponse struct {
 
 func (x *GetMaxChunkIdResponse) Reset() {
 	*x = GetMaxChunkIdResponse{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[54]
+	mi := &file_streamvis_v1_data_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2890,7 +2966,7 @@ func (x *GetMaxChunkIdResponse) String() string {
 func (*GetMaxChunkIdResponse) ProtoMessage() {}
 
 func (x *GetMaxChunkIdResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[54]
+	mi := &file_streamvis_v1_data_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2903,7 +2979,7 @@ func (x *GetMaxChunkIdResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMaxChunkIdResponse.ProtoReflect.Descriptor instead.
 func (*GetMaxChunkIdResponse) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{54}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *GetMaxChunkIdResponse) GetId() int64 {
@@ -2926,7 +3002,7 @@ type QueryRunDataRequest struct {
 
 func (x *QueryRunDataRequest) Reset() {
 	*x = QueryRunDataRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[55]
+	mi := &file_streamvis_v1_data_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2938,7 +3014,7 @@ func (x *QueryRunDataRequest) String() string {
 func (*QueryRunDataRequest) ProtoMessage() {}
 
 func (x *QueryRunDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[55]
+	mi := &file_streamvis_v1_data_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2951,7 +3027,7 @@ func (x *QueryRunDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRunDataRequest.ProtoReflect.Descriptor instead.
 func (*QueryRunDataRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{55}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *QueryRunDataRequest) GetAttrHandles() []string {
@@ -2998,7 +3074,7 @@ type ListCommonAttributesRequest struct {
 
 func (x *ListCommonAttributesRequest) Reset() {
 	*x = ListCommonAttributesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[56]
+	mi := &file_streamvis_v1_data_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3010,7 +3086,7 @@ func (x *ListCommonAttributesRequest) String() string {
 func (*ListCommonAttributesRequest) ProtoMessage() {}
 
 func (x *ListCommonAttributesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[56]
+	mi := &file_streamvis_v1_data_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3023,7 +3099,7 @@ func (x *ListCommonAttributesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommonAttributesRequest.ProtoReflect.Descriptor instead.
 func (*ListCommonAttributesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{56}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ListCommonAttributesRequest) GetRunFilter() *RunFilter {
@@ -3042,7 +3118,7 @@ type ListCommonSeriesRequest struct {
 
 func (x *ListCommonSeriesRequest) Reset() {
 	*x = ListCommonSeriesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[57]
+	mi := &file_streamvis_v1_data_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3054,7 +3130,7 @@ func (x *ListCommonSeriesRequest) String() string {
 func (*ListCommonSeriesRequest) ProtoMessage() {}
 
 func (x *ListCommonSeriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[57]
+	mi := &file_streamvis_v1_data_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3067,7 +3143,7 @@ func (x *ListCommonSeriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommonSeriesRequest.ProtoReflect.Descriptor instead.
 func (*ListCommonSeriesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{57}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ListCommonSeriesRequest) GetRunFilter() *RunFilter {
@@ -3174,7 +3250,13 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x128\n" +
 	"\tdata_type\x18\x03 \x01(\x0e2\x1b.streamvis.v1.FieldDataTypeR\bdataType\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\"\x1c\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\"\xbd\x01\n" +
+	"\x05Coord\x12!\n" +
+	"\fcoord_handle\x18\x01 \x01(\tR\vcoordHandle\x12!\n" +
+	"\ffield_handle\x18\x02 \x01(\tR\vfieldHandle\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x128\n" +
+	"\tdata_type\x18\x04 \x01(\x0e2\x1b.streamvis.v1.FieldDataTypeR\bdataType\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\"\x1c\n" +
 	"\x1aListAttributeValuesRequest\"\xdd\x01\n" +
 	"\bAnyArray\x12,\n" +
 	"\x04ints\x18\x01 \x01(\v2\x16.streamvis.v1.IntArrayH\x00R\x04ints\x122\n" +
@@ -3188,7 +3270,7 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x06Series\x12\x16\n" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12+\n" +
-	"\x06fields\x18\x03 \x03(\v2\x13.streamvis.v1.FieldR\x06fields\"\x13\n" +
+	"\x06coords\x18\x03 \x03(\v2\x13.streamvis.v1.CoordR\x06coords\"\x13\n" +
 	"\x11ListSeriesRequest\"\x13\n" +
 	"\x11ListFieldsRequest\"\x93\x02\n" +
 	"\tRunFilter\x12J\n" +
@@ -3316,7 +3398,7 @@ func file_streamvis_v1_data_proto_rawDescGZIP() []byte {
 }
 
 var file_streamvis_v1_data_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_streamvis_v1_data_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_streamvis_v1_data_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
 var file_streamvis_v1_data_proto_goTypes = []any{
 	(FieldDataType)(0),                  // 0: streamvis.v1.FieldDataType
 	(*CreateFieldRequest)(nil),          // 1: streamvis.v1.CreateFieldRequest
@@ -3350,34 +3432,35 @@ var file_streamvis_v1_data_proto_goTypes = []any{
 	(*DeleteRunTagRequest)(nil),         // 29: streamvis.v1.DeleteRunTagRequest
 	(*DeleteRunTagResponse)(nil),        // 30: streamvis.v1.DeleteRunTagResponse
 	(*Field)(nil),                       // 31: streamvis.v1.Field
-	(*ListAttributeValuesRequest)(nil),  // 32: streamvis.v1.ListAttributeValuesRequest
-	(*AnyArray)(nil),                    // 33: streamvis.v1.AnyArray
-	(*AttributeValues)(nil),             // 34: streamvis.v1.AttributeValues
-	(*Series)(nil),                      // 35: streamvis.v1.Series
-	(*ListSeriesRequest)(nil),           // 36: streamvis.v1.ListSeriesRequest
-	(*ListFieldsRequest)(nil),           // 37: streamvis.v1.ListFieldsRequest
-	(*RunFilter)(nil),                   // 38: streamvis.v1.RunFilter
-	(*Run)(nil),                         // 39: streamvis.v1.Run
-	(*RunId)(nil),                       // 40: streamvis.v1.RunId
-	(*ListStartedAtRequest)(nil),        // 41: streamvis.v1.ListStartedAtRequest
-	(*RunStartTime)(nil),                // 42: streamvis.v1.RunStartTime
-	(*ListTagsRequest)(nil),             // 43: streamvis.v1.ListTagsRequest
-	(*TagValue)(nil),                    // 44: streamvis.v1.TagValue
-	(*ChunkData)(nil),                   // 45: streamvis.v1.ChunkData
-	(*IntList)(nil),                     // 46: streamvis.v1.IntList
-	(*IntRange)(nil),                    // 47: streamvis.v1.IntRange
-	(*FloatRange)(nil),                  // 48: streamvis.v1.FloatRange
-	(*BoolList)(nil),                    // 49: streamvis.v1.BoolList
-	(*StringList)(nil),                  // 50: streamvis.v1.StringList
-	(*AttributeFilter)(nil),             // 51: streamvis.v1.AttributeFilter
-	(*TagFilter)(nil),                   // 52: streamvis.v1.TagFilter
-	(*ListRunsRequest)(nil),             // 53: streamvis.v1.ListRunsRequest
-	(*GetMaxChunkIdRequest)(nil),        // 54: streamvis.v1.GetMaxChunkIdRequest
-	(*GetMaxChunkIdResponse)(nil),       // 55: streamvis.v1.GetMaxChunkIdResponse
-	(*QueryRunDataRequest)(nil),         // 56: streamvis.v1.QueryRunDataRequest
-	(*ListCommonAttributesRequest)(nil), // 57: streamvis.v1.ListCommonAttributesRequest
-	(*ListCommonSeriesRequest)(nil),     // 58: streamvis.v1.ListCommonSeriesRequest
-	(*timestamppb.Timestamp)(nil),       // 59: google.protobuf.Timestamp
+	(*Coord)(nil),                       // 32: streamvis.v1.Coord
+	(*ListAttributeValuesRequest)(nil),  // 33: streamvis.v1.ListAttributeValuesRequest
+	(*AnyArray)(nil),                    // 34: streamvis.v1.AnyArray
+	(*AttributeValues)(nil),             // 35: streamvis.v1.AttributeValues
+	(*Series)(nil),                      // 36: streamvis.v1.Series
+	(*ListSeriesRequest)(nil),           // 37: streamvis.v1.ListSeriesRequest
+	(*ListFieldsRequest)(nil),           // 38: streamvis.v1.ListFieldsRequest
+	(*RunFilter)(nil),                   // 39: streamvis.v1.RunFilter
+	(*Run)(nil),                         // 40: streamvis.v1.Run
+	(*RunId)(nil),                       // 41: streamvis.v1.RunId
+	(*ListStartedAtRequest)(nil),        // 42: streamvis.v1.ListStartedAtRequest
+	(*RunStartTime)(nil),                // 43: streamvis.v1.RunStartTime
+	(*ListTagsRequest)(nil),             // 44: streamvis.v1.ListTagsRequest
+	(*TagValue)(nil),                    // 45: streamvis.v1.TagValue
+	(*ChunkData)(nil),                   // 46: streamvis.v1.ChunkData
+	(*IntList)(nil),                     // 47: streamvis.v1.IntList
+	(*IntRange)(nil),                    // 48: streamvis.v1.IntRange
+	(*FloatRange)(nil),                  // 49: streamvis.v1.FloatRange
+	(*BoolList)(nil),                    // 50: streamvis.v1.BoolList
+	(*StringList)(nil),                  // 51: streamvis.v1.StringList
+	(*AttributeFilter)(nil),             // 52: streamvis.v1.AttributeFilter
+	(*TagFilter)(nil),                   // 53: streamvis.v1.TagFilter
+	(*ListRunsRequest)(nil),             // 54: streamvis.v1.ListRunsRequest
+	(*GetMaxChunkIdRequest)(nil),        // 55: streamvis.v1.GetMaxChunkIdRequest
+	(*GetMaxChunkIdResponse)(nil),       // 56: streamvis.v1.GetMaxChunkIdResponse
+	(*QueryRunDataRequest)(nil),         // 57: streamvis.v1.QueryRunDataRequest
+	(*ListCommonAttributesRequest)(nil), // 58: streamvis.v1.ListCommonAttributesRequest
+	(*ListCommonSeriesRequest)(nil),     // 59: streamvis.v1.ListCommonSeriesRequest
+	(*timestamppb.Timestamp)(nil),       // 60: google.protobuf.Timestamp
 }
 var file_streamvis_v1_data_proto_depIdxs = []int32{
 	7,  // 0: streamvis.v1.EncTyp.int_spans:type_name -> streamvis.v1.IntValues
@@ -3389,75 +3472,76 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	5,  // 6: streamvis.v1.AppendToSeriesRequest.field_vals:type_name -> streamvis.v1.EncTyp
 	22, // 7: streamvis.v1.SetRunAttributesRequest.attrs:type_name -> streamvis.v1.FieldValue
 	0,  // 8: streamvis.v1.Field.data_type:type_name -> streamvis.v1.FieldDataType
-	6,  // 9: streamvis.v1.AnyArray.ints:type_name -> streamvis.v1.IntArray
-	9,  // 10: streamvis.v1.AnyArray.floats:type_name -> streamvis.v1.FloatArray
-	13, // 11: streamvis.v1.AnyArray.strings:type_name -> streamvis.v1.StringArray
-	12, // 12: streamvis.v1.AnyArray.bools:type_name -> streamvis.v1.BoolArray
-	31, // 13: streamvis.v1.AttributeValues.field:type_name -> streamvis.v1.Field
-	33, // 14: streamvis.v1.AttributeValues.values:type_name -> streamvis.v1.AnyArray
-	31, // 15: streamvis.v1.Series.fields:type_name -> streamvis.v1.Field
-	51, // 16: streamvis.v1.RunFilter.attribute_filters:type_name -> streamvis.v1.AttributeFilter
-	52, // 17: streamvis.v1.RunFilter.tag_filter:type_name -> streamvis.v1.TagFilter
-	59, // 18: streamvis.v1.RunFilter.min_started_at:type_name -> google.protobuf.Timestamp
-	59, // 19: streamvis.v1.RunFilter.max_started_at:type_name -> google.protobuf.Timestamp
-	59, // 20: streamvis.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	22, // 21: streamvis.v1.Run.attrs:type_name -> streamvis.v1.FieldValue
-	59, // 22: streamvis.v1.RunStartTime.started_at:type_name -> google.protobuf.Timestamp
-	5,  // 23: streamvis.v1.ChunkData.enc_vals:type_name -> streamvis.v1.EncTyp
-	47, // 24: streamvis.v1.AttributeFilter.int_range:type_name -> streamvis.v1.IntRange
-	46, // 25: streamvis.v1.AttributeFilter.int_list:type_name -> streamvis.v1.IntList
-	48, // 26: streamvis.v1.AttributeFilter.float_range:type_name -> streamvis.v1.FloatRange
-	49, // 27: streamvis.v1.AttributeFilter.bool_list:type_name -> streamvis.v1.BoolList
-	50, // 28: streamvis.v1.AttributeFilter.string_list:type_name -> streamvis.v1.StringList
-	38, // 29: streamvis.v1.ListRunsRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	38, // 30: streamvis.v1.QueryRunDataRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	38, // 31: streamvis.v1.ListCommonAttributesRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	38, // 32: streamvis.v1.ListCommonSeriesRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	1,  // 33: streamvis.v1.Service.CreateField:input_type -> streamvis.v1.CreateFieldRequest
-	3,  // 34: streamvis.v1.Service.CreateSeries:input_type -> streamvis.v1.CreateSeriesRequest
-	14, // 35: streamvis.v1.Service.AppendToSeries:input_type -> streamvis.v1.AppendToSeriesRequest
-	16, // 36: streamvis.v1.Service.CreateRun:input_type -> streamvis.v1.CreateRunRequest
-	18, // 37: streamvis.v1.Service.ReplaceRun:input_type -> streamvis.v1.ReplaceRunRequest
-	20, // 38: streamvis.v1.Service.DeleteRun:input_type -> streamvis.v1.DeleteRunRequest
-	23, // 39: streamvis.v1.Service.SetRunAttributes:input_type -> streamvis.v1.SetRunAttributesRequest
-	25, // 40: streamvis.v1.Service.DeleteEmptySeries:input_type -> streamvis.v1.DeleteEmptySeriesRequest
-	27, // 41: streamvis.v1.Service.AddRunTag:input_type -> streamvis.v1.AddRunTagRequest
-	29, // 42: streamvis.v1.Service.DeleteRunTag:input_type -> streamvis.v1.DeleteRunTagRequest
-	36, // 43: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
-	37, // 44: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
-	53, // 45: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
-	54, // 46: streamvis.v1.Service.GetMaxChunkId:input_type -> streamvis.v1.GetMaxChunkIdRequest
-	56, // 47: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
-	57, // 48: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
-	58, // 49: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
-	41, // 50: streamvis.v1.Service.ListStartedAt:input_type -> streamvis.v1.ListStartedAtRequest
-	43, // 51: streamvis.v1.Service.ListTags:input_type -> streamvis.v1.ListTagsRequest
-	32, // 52: streamvis.v1.Service.ListAttributeValues:input_type -> streamvis.v1.ListAttributeValuesRequest
-	2,  // 53: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
-	4,  // 54: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
-	15, // 55: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
-	17, // 56: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
-	19, // 57: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
-	21, // 58: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
-	24, // 59: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
-	26, // 60: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
-	28, // 61: streamvis.v1.Service.AddRunTag:output_type -> streamvis.v1.AddRunTagResponse
-	30, // 62: streamvis.v1.Service.DeleteRunTag:output_type -> streamvis.v1.DeleteRunTagResponse
-	35, // 63: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
-	31, // 64: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
-	39, // 65: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
-	55, // 66: streamvis.v1.Service.GetMaxChunkId:output_type -> streamvis.v1.GetMaxChunkIdResponse
-	45, // 67: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.ChunkData
-	31, // 68: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
-	35, // 69: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series
-	42, // 70: streamvis.v1.Service.ListStartedAt:output_type -> streamvis.v1.RunStartTime
-	44, // 71: streamvis.v1.Service.ListTags:output_type -> streamvis.v1.TagValue
-	34, // 72: streamvis.v1.Service.ListAttributeValues:output_type -> streamvis.v1.AttributeValues
-	53, // [53:73] is the sub-list for method output_type
-	33, // [33:53] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	0,  // 9: streamvis.v1.Coord.data_type:type_name -> streamvis.v1.FieldDataType
+	6,  // 10: streamvis.v1.AnyArray.ints:type_name -> streamvis.v1.IntArray
+	9,  // 11: streamvis.v1.AnyArray.floats:type_name -> streamvis.v1.FloatArray
+	13, // 12: streamvis.v1.AnyArray.strings:type_name -> streamvis.v1.StringArray
+	12, // 13: streamvis.v1.AnyArray.bools:type_name -> streamvis.v1.BoolArray
+	31, // 14: streamvis.v1.AttributeValues.field:type_name -> streamvis.v1.Field
+	34, // 15: streamvis.v1.AttributeValues.values:type_name -> streamvis.v1.AnyArray
+	32, // 16: streamvis.v1.Series.coords:type_name -> streamvis.v1.Coord
+	52, // 17: streamvis.v1.RunFilter.attribute_filters:type_name -> streamvis.v1.AttributeFilter
+	53, // 18: streamvis.v1.RunFilter.tag_filter:type_name -> streamvis.v1.TagFilter
+	60, // 19: streamvis.v1.RunFilter.min_started_at:type_name -> google.protobuf.Timestamp
+	60, // 20: streamvis.v1.RunFilter.max_started_at:type_name -> google.protobuf.Timestamp
+	60, // 21: streamvis.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	22, // 22: streamvis.v1.Run.attrs:type_name -> streamvis.v1.FieldValue
+	60, // 23: streamvis.v1.RunStartTime.started_at:type_name -> google.protobuf.Timestamp
+	5,  // 24: streamvis.v1.ChunkData.enc_vals:type_name -> streamvis.v1.EncTyp
+	48, // 25: streamvis.v1.AttributeFilter.int_range:type_name -> streamvis.v1.IntRange
+	47, // 26: streamvis.v1.AttributeFilter.int_list:type_name -> streamvis.v1.IntList
+	49, // 27: streamvis.v1.AttributeFilter.float_range:type_name -> streamvis.v1.FloatRange
+	50, // 28: streamvis.v1.AttributeFilter.bool_list:type_name -> streamvis.v1.BoolList
+	51, // 29: streamvis.v1.AttributeFilter.string_list:type_name -> streamvis.v1.StringList
+	39, // 30: streamvis.v1.ListRunsRequest.run_filter:type_name -> streamvis.v1.RunFilter
+	39, // 31: streamvis.v1.QueryRunDataRequest.run_filter:type_name -> streamvis.v1.RunFilter
+	39, // 32: streamvis.v1.ListCommonAttributesRequest.run_filter:type_name -> streamvis.v1.RunFilter
+	39, // 33: streamvis.v1.ListCommonSeriesRequest.run_filter:type_name -> streamvis.v1.RunFilter
+	1,  // 34: streamvis.v1.Service.CreateField:input_type -> streamvis.v1.CreateFieldRequest
+	3,  // 35: streamvis.v1.Service.CreateSeries:input_type -> streamvis.v1.CreateSeriesRequest
+	14, // 36: streamvis.v1.Service.AppendToSeries:input_type -> streamvis.v1.AppendToSeriesRequest
+	16, // 37: streamvis.v1.Service.CreateRun:input_type -> streamvis.v1.CreateRunRequest
+	18, // 38: streamvis.v1.Service.ReplaceRun:input_type -> streamvis.v1.ReplaceRunRequest
+	20, // 39: streamvis.v1.Service.DeleteRun:input_type -> streamvis.v1.DeleteRunRequest
+	23, // 40: streamvis.v1.Service.SetRunAttributes:input_type -> streamvis.v1.SetRunAttributesRequest
+	25, // 41: streamvis.v1.Service.DeleteEmptySeries:input_type -> streamvis.v1.DeleteEmptySeriesRequest
+	27, // 42: streamvis.v1.Service.AddRunTag:input_type -> streamvis.v1.AddRunTagRequest
+	29, // 43: streamvis.v1.Service.DeleteRunTag:input_type -> streamvis.v1.DeleteRunTagRequest
+	37, // 44: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
+	38, // 45: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
+	54, // 46: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
+	55, // 47: streamvis.v1.Service.GetMaxChunkId:input_type -> streamvis.v1.GetMaxChunkIdRequest
+	57, // 48: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
+	58, // 49: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
+	59, // 50: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
+	42, // 51: streamvis.v1.Service.ListStartedAt:input_type -> streamvis.v1.ListStartedAtRequest
+	44, // 52: streamvis.v1.Service.ListTags:input_type -> streamvis.v1.ListTagsRequest
+	33, // 53: streamvis.v1.Service.ListAttributeValues:input_type -> streamvis.v1.ListAttributeValuesRequest
+	2,  // 54: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
+	4,  // 55: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
+	15, // 56: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
+	17, // 57: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
+	19, // 58: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
+	21, // 59: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
+	24, // 60: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
+	26, // 61: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
+	28, // 62: streamvis.v1.Service.AddRunTag:output_type -> streamvis.v1.AddRunTagResponse
+	30, // 63: streamvis.v1.Service.DeleteRunTag:output_type -> streamvis.v1.DeleteRunTagResponse
+	36, // 64: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
+	31, // 65: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
+	40, // 66: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
+	56, // 67: streamvis.v1.Service.GetMaxChunkId:output_type -> streamvis.v1.GetMaxChunkIdResponse
+	46, // 68: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.ChunkData
+	31, // 69: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
+	36, // 70: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series
+	43, // 71: streamvis.v1.Service.ListStartedAt:output_type -> streamvis.v1.RunStartTime
+	45, // 72: streamvis.v1.Service.ListTags:output_type -> streamvis.v1.TagValue
+	35, // 73: streamvis.v1.Service.ListAttributeValues:output_type -> streamvis.v1.AttributeValues
+	54, // [54:74] is the sub-list for method output_type
+	34, // [34:54] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_streamvis_v1_data_proto_init() }
@@ -3479,29 +3563,29 @@ func file_streamvis_v1_data_proto_init() {
 		(*FieldValue_StringVal)(nil),
 		(*FieldValue_BoolVal)(nil),
 	}
-	file_streamvis_v1_data_proto_msgTypes[32].OneofWrappers = []any{
+	file_streamvis_v1_data_proto_msgTypes[33].OneofWrappers = []any{
 		(*AnyArray_Ints)(nil),
 		(*AnyArray_Floats)(nil),
 		(*AnyArray_Strings)(nil),
 		(*AnyArray_Bools)(nil),
 	}
-	file_streamvis_v1_data_proto_msgTypes[46].OneofWrappers = []any{}
 	file_streamvis_v1_data_proto_msgTypes[47].OneofWrappers = []any{}
-	file_streamvis_v1_data_proto_msgTypes[50].OneofWrappers = []any{
+	file_streamvis_v1_data_proto_msgTypes[48].OneofWrappers = []any{}
+	file_streamvis_v1_data_proto_msgTypes[51].OneofWrappers = []any{
 		(*AttributeFilter_IntRange)(nil),
 		(*AttributeFilter_IntList)(nil),
 		(*AttributeFilter_FloatRange)(nil),
 		(*AttributeFilter_BoolList)(nil),
 		(*AttributeFilter_StringList)(nil),
 	}
-	file_streamvis_v1_data_proto_msgTypes[55].OneofWrappers = []any{}
+	file_streamvis_v1_data_proto_msgTypes[56].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_streamvis_v1_data_proto_rawDesc), len(file_streamvis_v1_data_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   58,
+			NumMessages:   59,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

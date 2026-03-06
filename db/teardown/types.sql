@@ -24,6 +24,9 @@ DROP TYPE IF EXISTS enc_typ;
 \echo 'drop field_typ'
 DROP TYPE IF EXISTS field_typ;
 
+\echo 'drop coord_typ'
+DROP TYPE IF EXISTS coord_typ;
+
 \echo 'drop field_data_typ'
 DROP TYPE IF EXISTS field_data_typ;
 

@@ -153,6 +153,14 @@ message Field {
   string description = 4;
 }
 
+message Coord {
+  string coord_handle = 1;
+  string field_handle = 2;
+  string name = 3;
+  FieldDataType data_type = 4;
+  string description = 5;
+}
+
 message ListAttributeValuesRequest {}
 
 message AnyArray {
@@ -173,7 +181,7 @@ message AttributeValues {
 message Series {
   string handle = 1;
   string name = 2;
-  repeated Field fields = 3;
+  repeated Coord coords = 3;
 }
 
 message ListSeriesRequest {}
