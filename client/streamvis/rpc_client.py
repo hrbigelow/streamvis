@@ -33,11 +33,11 @@ class QueryRunInfo:
     coords: list[pb.Coord]
 
     @property
-    def names(self):
+    def field_names(self):
         return [a.name for a in self.attrs] + [c.name for c in self.coords]
 
     @property
-    def name_map(self):
+    def field_name_map(self):
         return { f.name: f.description for f in (*self.attrs, *self.coords) }
 
 def get_data_columns(

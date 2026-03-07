@@ -28,6 +28,7 @@ class PlotOpts:
     y: str # y-axis field name
     c: Optional[str] = None # color field_name
     g: Optional[str] = None # group field_name
+    o: Optional[str] = None # order field_name
 
     tags: list[str] = field(default_factory=list)
     match_all: bool = False
@@ -44,37 +45,56 @@ class PlotOpts:
 
     @property
     def field_to_axis(self):
-        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g }
+        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o }
         return { v: k for k, v in m.items() if v is not None }
 
+    @property
+    def axis_to_fname(self):
+        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o }
+        return { k: v for k, v in m.items() if v is not None }
+
+
+    @property
+    def field_names(self):
+        s = set((self.x, self.y, self.c, self.g, self.o))
+        s.discard(None)
+        return list(s)
 
 def as_dataframe(
     stub: ServiceStub, 
     req: pb.QueryRunDataRequest,
-    axis_names: list[str],
+    field_names: list[str],
 ) -> pd.DataFrame:
     def _gen():
         for data in rpc_client.get_data(stub, req):
             arrays = tuple(dbutil.decode_array(enc) for enc in data.enc_vals)
-            df = pd.DataFrame(dict(zip(axis_names, arrays)))
+            df = pd.DataFrame(dict(zip(field_names, arrays)))
             yield df
     return pd.concat(_gen())
 
 
 def line_plot(
     df: pd.DataFrame,
-    axis_label_map: dict[str, str],
+    axis_fname: dict[str, str],
+    fname_desc: dict[str, str],
 ) -> None:
     fig, ax = plt.subplots()
-    if 'g' in df:
-        for group, data in df.groupby('g'):
-            ax.plot(data['x'], data['y'], label=str(group))
+
+    x_fname = axis_fname['x']
+    y_fname = axis_fname['y']
+    group_fname = axis_fname.get('g')
+    if group_fname is not None and group_fname in df:
+        for group, data in df.groupby(group_fname):
+            ax.plot(data[x_fname], data[y_fname], label=str(group))
     else:
-        ax.plot(df['x'], df['y'])
+        ax.plot(df[x_fname], df[y_fname])
 
-    ax.set_xlabel(axis_label_map['x'])
-    ax.set_ylabel(axis_label_map['y'])
+    ax.set_xlabel(fname_desc[x_fname])
+    ax.set_ylabel(fname_desc[y_fname])
 
+    if group_fname is not None:
+        ax.legend(title=group_fname, loc="upper right")
+    plt.tight_layout()
     plt.show()
 
 
@@ -82,7 +102,7 @@ def line_plot(
 def main(cfg: DictConfig):
     opts = instantiate(cfg)
     stub = rpc_client.get_service_stub()
-    info = rpc_client.get_data_columns(stub, opts.series, opts.field_to_axis.keys())
+    info = rpc_client.get_data_columns(stub, opts.series, opts.field_names)
     
     axes = []
     req = pb.QueryRunDataRequest()
@@ -91,14 +111,12 @@ def main(cfg: DictConfig):
     req.run_filter.tag_filter.tags.extend(opts.tags)
     req.run_filter.tag_filter.match_all = opts.match_all
 
-    axis_order = [opts.field_to_axis[fname] for fname in info.names]
+    df = as_dataframe(stub, req, info.field_names)
 
-    df = as_dataframe(stub, req, axis_order)
-    if 'o' in df:
-        df.sort_values(by='o', inplace=True)
+    if opts.o in df:
+        df.sort_values(by=opts.o, inplace=True)
 
-    axis_label_map = { axis: info.name_map[fname] for fname, axis in opts.field_to_axis.items() }
-    line_plot(df, axis_label_map)
+    line_plot(df, opts.axis_to_fname, info.field_name_map)
 
 
 if __name__ == "__main__":
