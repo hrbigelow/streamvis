@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Union
+import io
 import numpy as np
 from .v1 import data_pb2 as pb
 
@@ -61,12 +62,13 @@ def encode_bool_or_string_array(
         bcast[d] = np.all(ary[slices] == ary).item()
     indices = tuple(0 if bc else slice(None) for bc in bcast)
     slice_data = ary[indices]
-
-    msg = pb.EncTyp(field_handle=field_handle, base=slice_data.tobytes(), shape=ary.shape)
+    buf = io.BytesIO()
+    np.save(buf, slice_data)
+    msg = pb.EncTyp(field_handle=field_handle, base=buf.getvalue(), shape=ary.shape)
     if np.issubdtype(ary.dtype, np.str_):
-        msg.bool_bcast.values.extend(bcast)
-    else:
         msg.string_bcast.values.extend(bcast)
+    else:
+        msg.bool_bcast.values.extend(bcast)
     return msg
 
 def encode_array(field_handle: str, ary: np.ndarray) -> pb.EncTyp:
@@ -97,18 +99,48 @@ def decode_numeric_array(enc: pb.EncTyp) -> np.array:
         base = np.frombuffer(enc.base, dtype=np.float32)
 
     N = len(enc.shape)
-    shape = tuple(sz if sp.HasField('value') else 1 for sz, sp in zip(enc.shape, range_spans))
+    shape = tuple(1 if sp.HasField('value') else sz for sz, sp in zip(enc.shape, range_spans))
     base = base.reshape(*shape)
     ranges = []
     for i, (sz, sp) in enumerate(zip(enc.shape, range_spans)):
         if not sp.HasField('value'):
             continue
-        rng = np.linspace(0, sp, sz)
+        rng = np.linspace(0, sp.value, sz)
         rng = np.expand_dims(rng, axis=tuple(j for j in range(N) if j != i))
         ranges.append(rng)
     terms = np.broadcast_arrays(base, *ranges)
     # print(tuple(r.shape for r in terms))
     return np.add.reduce(terms).astype(base.dtype)
+
+def decode_bool_or_string_array(enc: pb.EncTyp) -> np.array:
+    """
+    Converts the normalized data back into a plain np.array.
+    """
+    set_field = enc.WhichOneof('spans')
+    if set_field not in ('bool_bcast', 'string_bcast'):
+        raise RuntimeError(
+            f"The active spans field is {set_field}, but expected "
+            f"bool_bcast or string_bcast")
+    if set_field == 'bool_bcast':
+        bcast_flags = enc.bool_bcast.values
+    else:
+        bcast_flags = enc.string_bcast.values
+    buf = io.BytesIO(enc.base)
+    base = np.load(buf)
+
+    shape = tuple(1 if fl else sz for sz, fl in zip(enc.shape, bcast_flags))
+    base = base.reshape(*shape)
+    return np.broadcast_to(base, enc.shape)
+
+def decode_array(enc: pb.EncTyp) -> np.array:
+    set_field = enc.WhichOneof('spans')
+    match set_field:
+        case 'int_spans' | 'float_spans':
+            return decode_numeric_array(enc)
+        case 'bool_bcast' | 'string_bcast':
+            return decode_bool_or_string_array(enc)
+        case default:
+            raise RuntimeError(f"Unknown span type: {set_field}")
 
 
 def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
@@ -256,7 +288,17 @@ def stack_array_list(array_type: str, arrays: list[ArrayLike]) -> ArrayLike:
         
 
 def convert_and_downcast(ary) -> np.ndarray:
-    ary = np.array(ary)
+    array_type = get_array_type(ary)
+    match array_type:
+        case 'jax':
+            ary = np.array(ary)
+        case 'torch':
+            ary = ary.numpy(force=True)
+        case 'numpy':
+            pass
+        case default:
+            raise RuntimeError(f"Invalid array_type: {array_type}")
+
     if ary.dtype == np.float64:
         return ary.astype(np.float32)
     elif ary.dtype == np.int64:
@@ -270,7 +312,7 @@ class SeriesValues:
     broadcast_shape: tuple[int]
 
     def num_points(self):
-        return np.prod(self.broadcast_shape).item()
+        return np.prod(self.broadcast_shape + (1,)).item()
 
     def shape(self):
         return self.broadcast_shape

@@ -230,7 +230,7 @@ $$;
 /* Get all data from runs identified by p_run_handles with chunk_id > p_min_chunk_id
 Gets just the coordinates from p_coord_handles, and projects the attribute values in
 p_attr_handles into enc_typ.  The returned table packs the enc_vals into the order
-[...p_attr_handles, ...p_coord_handles]
+[...p_attr_handles, ...p_coord_handles], grouped by run_id and chunk
 */
 \echo 'create get_data'
 CREATE FUNCTION get_data(
@@ -248,7 +248,7 @@ AS $$
 DECLARE
   v_count INT;
   v_series_id INT;
-  v_attr_count INT := array_length(p_attr_handles, 1);
+  v_attr_count INT := cardinality(p_attr_handles);
 BEGIN
   
   SELECT COUNT(DISTINCT series_id) INTO v_count
@@ -293,7 +293,8 @@ BEGIN
     JOIN coord co ON co.id = cd.coord_id
     JOIN chunk c ON c.id = cd.chunk_id
     JOIN unnest(p_coord_handles) WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
-    WHERE (p_min_chunk_id IS NULL OR c.id >= p_min_chunk_id)
+    WHERE c.series_id = v_series_id
+    AND (p_min_chunk_id IS NULL OR c.id >= p_min_chunk_id)
     AND (p_max_chunk_id IS NULL OR c.id <= p_max_chunk_id)
   ),
   combined AS (
@@ -304,7 +305,8 @@ BEGIN
   SELECT r.handle, array_agg(val ORDER BY field_order)
   FROM combined c
   JOIN run r ON r.id = c.run_id
-  GROUP BY r.handle, c.run_id;
+  GROUP BY r.handle, c.run_id, c.chunk_id
+  ORDER BY c.chunk_id;
 END;
 $$;
 

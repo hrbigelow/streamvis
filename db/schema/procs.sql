@@ -168,10 +168,19 @@ BEGIN
   WHERE c.series_id = v_series_id; 
 
   FOREACH v_field_val IN ARRAY p_field_vals LOOP
-    IF NOT (valid_enc_typ(v_field_val) 
-      AND (v_field_val).field_handle = ANY(v_series_field_handles)
-    ) THEN
-      RAISE EXCEPTION 'Field %s invalid', (v_field_val).field_handle;
+    IF NOT valid_enc_typ(v_field_val) THEN
+      RAISE EXCEPTION 'enc_typ invalid: %', (
+        (v_field_val).field_handle,
+        (v_field_val).shape,
+        (v_field_val).int_spans,
+        (v_field_val).float_spans,
+        (v_field_val).bool_bcast,
+        (v_field_val).string_bcast
+      );
+    ELSIF (v_field_val).field_handle <> ALL(v_series_field_handles) THEN
+      RAISE EXCEPTION 'Field %s not found in series %s', 
+        (v_field_val).field_handle, 
+        p_series_handle;
     END IF;
   END LOOP;
 

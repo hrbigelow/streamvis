@@ -23,9 +23,11 @@ func main() {
 		os.Exit(1)
 	}
 	port := flag.Int("port", 8001, "Port to listen on")
+	doTraceDb := flag.Bool("debug", false, "enable debugging")
+
 	flag.Parse()
 
-	store, err := service.NewStore(context.Background(), dbUri)
+	store, err := service.NewStore(context.Background(), dbUri, *doTraceDb)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create Store: %v\n", err)
 		os.Exit(1)

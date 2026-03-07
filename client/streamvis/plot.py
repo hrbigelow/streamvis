@@ -1,5 +1,7 @@
 from typing import Optional
 from dataclasses import dataclass, field
+import matplotlib.pyplot as plt
+import pandas as pd
 from enum import Enum
 import datetime
 import hydra
@@ -40,45 +42,63 @@ class PlotOpts:
         if self.max_started_at is not None:
             self.max_started_at = datetime.fromisoformat(self.max_started_at)
 
-    def get_request(self, stub: ServiceStub) -> pb.QueryRunDataRequest:
-        series_msg = None
-        for s in rpc_client.list_series(stub):
-            if s.name == self.series:
-                series_msg = s
-                break
-        if series_msg is None:
-            raise RuntimeError(f"Series {self.series} does not exist")
+    @property
+    def field_to_axis(self):
+        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g }
+        return { v: k for k, v in m.items() if v is not None }
 
-        all_fields = { f.name: f for f in rpc_client.list_fields(stub) }
-        all_coords = { c.name: c for c in series_msg.coords }
-        msg = pb.QueryRunDataRequest()
-        for field_name in (self.x, self.y, self.c, self.g):
-            if field_name is None:
-                continue
-            if field_name in all_coords:
-                coord = all_coords[field_name]
-                msg.coord_handles.append(coord.coord_handle)
-            elif field_name in all_fields:
-                field = all_fields[field_name]
-                msg.attr_handles.append(field.handle)
-            else:
-                raise RuntimeError(f"field '{field}' not found in database")
-        msg.run_filter.tag_filter.tags.extend(self.tags)
-        msg.run_filter.tag_filter.match_all = self.match_all
 
-        return msg
+def as_dataframe(
+    stub: ServiceStub, 
+    req: pb.QueryRunDataRequest,
+    axis_names: list[str],
+) -> pd.DataFrame:
+    def _gen():
+        for data in rpc_client.get_data(stub, req):
+            arrays = tuple(dbutil.decode_array(enc) for enc in data.enc_vals)
+            df = pd.DataFrame(dict(zip(axis_names, arrays)))
+            yield df
+    return pd.concat(_gen())
+
+
+def line_plot(
+    df: pd.DataFrame,
+    axis_label_map: dict[str, str],
+) -> None:
+    fig, ax = plt.subplots()
+    if 'g' in df:
+        for group, data in df.groupby('g'):
+            ax.plot(data['x'], data['y'], label=str(group))
+    else:
+        ax.plot(df['x'], df['y'])
+
+    ax.set_xlabel(axis_label_map['x'])
+    ax.set_ylabel(axis_label_map['y'])
+
+    plt.show()
 
 
 @hydra.main(config_path="./opts", config_name="plot", version_base="1.2")
 def main(cfg: DictConfig):
     opts = instantiate(cfg)
     stub = rpc_client.get_service_stub()
-    req = opts.get_request(stub)
-    for data in rpc_client.get_data(stub, req):
-        for enc in data.enc_vals:
-            ary = dbutil.decode_numeric_array(enc)
-            print(f"{data.run_handle}, {ary.dtype}:{ary.shape}")
+    info = rpc_client.get_data_columns(stub, opts.series, opts.field_to_axis.keys())
+    
+    axes = []
+    req = pb.QueryRunDataRequest()
+    req.coord_handles.extend((c.coord_handle for c in info.coords))
+    req.attr_handles.extend((a.handle for a in info.attrs))
+    req.run_filter.tag_filter.tags.extend(opts.tags)
+    req.run_filter.tag_filter.match_all = opts.match_all
 
+    axis_order = [opts.field_to_axis[fname] for fname in info.names]
+
+    df = as_dataframe(stub, req, axis_order)
+    if 'o' in df:
+        df.sort_values(by='o', inplace=True)
+
+    axis_label_map = { axis: info.name_map[fname] for fname, axis in opts.field_to_axis.items() }
+    line_plot(df, axis_label_map)
 
 
 if __name__ == "__main__":

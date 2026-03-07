@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from dataclasses import dataclass
 import grpc
 import os
 from .v1 import data_pb2 as pb
@@ -20,8 +21,59 @@ def list_fields(stub: ServiceStub) -> Iterable[pb.Field]:
     req = pb.ListFieldsRequest()
     yield from stub.ListFields(req)
 
-def get_data(stub: ServiceStub, req: pb.QueryRunDataRequest) -> Iterable[pb.ChunkData]:
-    yield from stub.QueryRunData(req)
+def get_data(
+    stub: ServiceStub, 
+    req: pb.QueryRunDataRequest,
+) -> Iterable[pb.ChunkData]:
+    return stub.QueryRunData(req)
+
+@dataclass
+class QueryRunInfo:
+    attrs: list[pb.Field]
+    coords: list[pb.Coord]
+
+    @property
+    def names(self):
+        return [a.name for a in self.attrs] + [c.name for c in self.coords]
+
+    @property
+    def name_map(self):
+        return { f.name: f.description for f in (*self.attrs, *self.coords) }
+
+def get_data_columns(
+    stub: ServiceStub,
+    series_name: str,
+    field_names: list[str],
+) -> QueryRunInfo:
+    """
+    Find 
+    """
+    attrs = []
+    coords = []
+
+    series = None
+    for ser in list_series(stub):
+        if ser.name == series_name:
+            series = ser
+            break
+    if series is None:
+        raise RuntimeError(f"Series {series_name} not found")
+
+    field_map = { f.name: f for f in list_fields(stub) }
+    field_map.update({ c.name: c for c in series.coords })
+
+    for fname in field_names:
+        msg = field_map.get(fname)
+        if msg is None:
+            raise RuntimeError(f"Could not find field name {fname} as coord or field")
+        match type(msg):
+            case pb.Field:
+                attrs.append(msg)
+            case pb.Coord:
+                coords.append(msg)
+    
+    return QueryRunInfo(attrs, coords)
+
 
 
 

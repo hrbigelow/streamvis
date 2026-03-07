@@ -114,21 +114,21 @@ class BaseLogger:
         arrays = [] # field values in Series.Field order.
         array_types = [] # numpy, torch, or jax
         shapes = []
-        for field in series.fields:
-            val = field_values.pop(field.name, None) 
+        for coord in series.coords:
+            val = field_values.pop(coord.name, None) 
             if val is None:
                 raise RuntimeError(
-                    f"Series {series_name} field {field.name} value missing from input.  "
+                    f"Series {series_name} coord {coord.name} value missing from input.  "
                     f"Values given are: {', '.join(field_values.keys())}")
             try:
                 ary = dbutil.convert_to_array(val)
                 field_type = dbutil.get_element_type(ary)
-                if field_type != field.data_type:
+                if field_type != coord.data_type:
                     raise ValueError(
-                        f"Series field type is {field.data_type} but given {field_type}") 
+                        f"Series field type is {coord.data_type} but given {field_type}") 
 
             except ValueError as ve:
-                raise ValueError(f"Error processing value for field {field.name}: {ve}")
+                raise ValueError(f"Error processing value for field {coord.name}: {ve}")
             shapes.append(dbutil.array_shape(ary))
             arrays.append(ary) 
 
@@ -140,10 +140,10 @@ class BaseLogger:
         try:
             bcast_shape = np.broadcast_shapes(*shapes)
         except ValueError as ve:
-            z = zip(series.fields, shapes)
+            z = zip(series.coords, shapes)
             raise RuntimeError(
                 f"Field data were not broadcastable: "
-                ", ".join(f"{f.name}: {sh}" for f, sh in z))
+                ", ".join(f"{c.name}: {sh}" for c, sh in z))
 
         if series_name not in self.queues:
             self.queues[series_name] = asyncio.Queue() 
@@ -175,6 +175,15 @@ class BaseLogger:
                     or (current_shape is not None and item.shape() != current_shape)
                     or (current_size + item.num_points() > self.max_chunk_size))
 
+            """
+            print(f"in _flush_series with {series.name} and "
+                  f"current_shape: {current_shape}, "
+                  f"item.shape(): {item.shape()}, "
+                  f"current_size: {current_size}, "
+                  f"item.num_points(): {item.num_points()}, "
+                  f"should_process: {should_process}")
+            """
+
             if should_process and current_chunk:
                 self._process_chunk(current_chunk, series)
                 current_chunk = []
@@ -188,6 +197,11 @@ class BaseLogger:
             current_shape = item.shape() 
             current_size += item.num_points() 
 
+        # now, process if anything is there to process
+        if len(current_chunk) > 0:
+            self._process_chunk(current_chunk, series)
+
+
         return finished 
 
     def _process_chunk(
@@ -199,8 +213,8 @@ class BaseLogger:
         chunk = dbutil.stack_series_values(chunk)
         field_datas = chunk.to_exported()
 
-        for field, ary in zip(series.fields, field_datas):
-            msg = dbutil.encode_array(field.handle, ary)
+        for coord, ary in zip(series.coords, field_datas):
+            msg = dbutil.encode_array(coord.field_handle, ary)
             req.field_vals.append(msg)
 
         resp = self.stub.AppendToSeries(req)

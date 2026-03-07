@@ -9,14 +9,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 )
 
 type Store struct {
 	pool *pgxpool.Pool
 }
 
-func NewStore(ctx context.Context, dbUri string) (*Store, error) {
+func NewStore(ctx context.Context, dbUri string, doTrace bool) (*Store, error) {
 	config, err := pgxpool.ParseConfig(dbUri)
 	if err != nil {
 		return nil, err
@@ -28,7 +30,7 @@ func NewStore(ctx context.Context, dbUri string) (*Store, error) {
 
 	config.AfterConnect = registerCustomTypes
 
-	/*
+	if doTrace {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
 			Logger: tracelog.LoggerFunc(
 				func(
@@ -44,7 +46,7 @@ func NewStore(ctx context.Context, dbUri string) (*Store, error) {
 		config.ConnConfig.OnNotice = func(pc *pgconn.PgConn, n *pgconn.Notice) {
 			fmt.Printf("NOTICE: %s\n", n.Message)
 		}
-	*/
+	}
 
 	pool, err2 := pgxpool.NewWithConfig(ctx, config)
 	if err2 != nil {
