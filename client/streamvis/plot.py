@@ -118,8 +118,10 @@ def main(cfg: DictConfig):
     req.attr_handles.extend((a.handle for a in info.attrs))
     req.run_filter.tag_filter.tags.extend(opts.tags)
     req.run_filter.tag_filter.match_all = opts.match_all
-    req.run_filter.min_started_at = opts.min_started_at
-    req.run_filter.max_started_at = opts.max_started_at
+    if opts.min_started_at is not None:
+        req.run_filter.min_started_at = opts.min_started_at
+    if opts.max_started_at is not None:
+        req.run_filter.max_started_at = opts.max_started_at
 
     df = as_dataframe(stub, req, info.field_names)
 

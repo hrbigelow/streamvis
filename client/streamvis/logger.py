@@ -55,7 +55,7 @@ class BaseLogger:
             raise RuntimeError(f"handle `{handle}` is not a valid UUID string: %s", ve)
         self.run_handle = handle
 
-    def set_run_attributes(self, attrs: dict):
+    def set_run_attributes(self, /, **attrs):
         """Write a set of attributes to associate with this run.
 
         This is useful for recording hyperparameters, settings, configuration etc.
