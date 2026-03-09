@@ -30,8 +30,7 @@ def encode_numeric_array(
             continue
         diffs = slice_in_dim(ary, slice(0, -1), d) - slice_in_dim(ary, slice(1, None), d)
         lo, hi = diffs.min(), diffs.max()
-        magnitude = np.abs(hi + lo) / 2.0
-        if hi == lo or (hi - lo) / magnitude < rtol:
+        if (hi - lo) < rtol * max(np.abs(lo), np.abs(hi)):
             spans = slice_in_dim(ary, -1, d) - slice_in_dim(ary, 0, d)
             span = spans.flatten()[0].item()
             range_spans[d] = span 

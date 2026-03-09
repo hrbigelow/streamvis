@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
 import pandas as pd
 from enum import Enum
-import datetime
+from datetime import datetime
 import hydra
 from hydra.utils import instantiate
 from hydra.core.config_store import ConfigStore
@@ -70,6 +70,7 @@ def as_dataframe(
             arrays = tuple(dbutil.decode_array(enc) for enc in data.enc_vals)
             df = pd.DataFrame(dict(zip(field_names, arrays)))
             yield df
+        yield pd.DataFrame(columns=field_names) # sentinel
     return pd.concat(_gen())
 
 
@@ -78,7 +79,10 @@ def line_plot(
     axis_fname: dict[str, str],
     fname_desc: dict[str, str],
 ) -> None:
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(15,10))
+    if len(df) == 0:
+        print(f"No data to display")
+        return
 
     x_fname = axis_fname['x']
     y_fname = axis_fname['y']
@@ -89,11 +93,15 @@ def line_plot(
     else:
         ax.plot(df[x_fname], df[y_fname])
 
-    ax.set_xlabel(fname_desc[x_fname])
-    ax.set_ylabel(fname_desc[y_fname])
+    ax.set_xlabel(fname_desc[x_fname], fontsize=16)
+    ax.set_ylabel(fname_desc[y_fname], fontsize=20)
 
     if group_fname is not None:
-        ax.legend(title=group_fname, loc="upper right")
+        ax.legend(title=group_fname, loc="upper right", 
+                  fontsize=16,
+                  title_fontsize=18,
+                  markerscale=1.5,
+        )
     plt.tight_layout()
     plt.show()
 
@@ -110,6 +118,8 @@ def main(cfg: DictConfig):
     req.attr_handles.extend((a.handle for a in info.attrs))
     req.run_filter.tag_filter.tags.extend(opts.tags)
     req.run_filter.tag_filter.match_all = opts.match_all
+    req.run_filter.min_started_at = opts.min_started_at
+    req.run_filter.max_started_at = opts.max_started_at
 
     df = as_dataframe(stub, req, info.field_names)
 

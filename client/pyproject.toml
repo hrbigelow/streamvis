@@ -19,6 +19,7 @@ dependencies = [
   "fire>=0.7.1",
   "pydantic>=2.12.5",
   "asyncpg>=0.31.0",
+  "matplotlib>=3.10.8",
 ]
 
 [project.scripts]

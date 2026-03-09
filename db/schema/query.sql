@@ -292,6 +292,7 @@ BEGIN
     FROM coord_data cd
     JOIN coord co ON co.id = cd.coord_id
     JOIN chunk c ON c.id = cd.chunk_id
+    JOIN unnest(p_run_ids) AS rh(run_id) ON rh.run_id = c.run_id
     JOIN unnest(p_coord_handles) WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
     WHERE c.series_id = v_series_id
     AND (p_min_chunk_id IS NULL OR c.id >= p_min_chunk_id)
