@@ -189,11 +189,12 @@ END;
 $$;
 
 
+
 /* Convert a scalar field_value_typ into a broadcasted enc_typ.
    Assume the field_val is valid.
 */
 \echo 'create project_field_value'
-CREATE FUNCTION project_field_value(
+CREATE OR REPLACE FUNCTION project_field_value(
   field_val field_value_typ,
   num_points INT
 )
@@ -203,7 +204,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE v_enc_val enc_typ := ROW(
   field_val.field_handle, 
-  field_val.base,
+	NULL,
   ARRAY[num_points],
   NULL,
   NULL,
@@ -212,12 +213,18 @@ DECLARE v_enc_val enc_typ := ROW(
 BEGIN
   CASE 
     WHEN field_val.int_val IS NOT NULL THEN
+			v_enc_val.base := reverse(int4send(field_val.int_val));
       v_enc_val.int_spans := ARRAY[0];
     WHEN field_val.float_val IS NOT NULL THEN
+			v_enc_val.base := reverse(float4send(field_val.float_val::float4));
       v_enc_val.float_spans := ARRAY[0.0];
-    WHEN field_val.bool_bcast IS NOT NULL THEN
+    WHEN field_val.bool_val IS NOT NULL THEN
+			v_enc_val.base := CASE WHEN field_val.bool_val THEN '\x01'::BYTEA ELSE '\x00'::BYTEA END;
       v_enc_val.bool_bcast := ARRAY[TRUE];
-    WHEN field_val.string_bcast IS NOT NULL THEN
+    WHEN field_val.string_val IS NOT NULL THEN
+			v_enc_val.base := 
+				reverse(int4send(length(field_val.string_val)))
+				|| convert_to(field_val.string_val, 'UTF8');
       v_enc_val.string_bcast := ARRAY[TRUE];
     ELSE
       RAISE EXCEPTION 'field_val has no non-null fields';

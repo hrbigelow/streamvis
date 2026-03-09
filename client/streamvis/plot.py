@@ -27,8 +27,8 @@ class PlotOpts:
     x: str # x-axis field name
     y: str # y-axis field name
     c: Optional[str] = None # color field_name
-    g: Optional[str] = None # group field_name
-    o: Optional[str] = None # order field_name
+    g: list[str] = field(default_factory=list) # group field_name
+    o: list[str] = field(default_factory=list) # order field_name
 
     tags: list[str] = field(default_factory=list)
     match_all: bool = False
@@ -56,7 +56,7 @@ class PlotOpts:
 
     @property
     def field_names(self):
-        s = set((self.x, self.y, self.c, self.g, self.o))
+        s = set((self.x, self.y, self.c, *self.g, *self.o))
         s.discard(None)
         return list(s)
 
@@ -86,9 +86,9 @@ def line_plot(
 
     x_fname = axis_fname['x']
     y_fname = axis_fname['y']
-    group_fname = axis_fname.get('g')
-    if group_fname is not None and group_fname in df:
-        for group, data in df.groupby(group_fname):
+    group_fnames = axis_fname.get('g')
+    if len(group_fnames) > 0:
+        for group, data in df.groupby(group_fnames):
             ax.plot(data[x_fname], data[y_fname], label=str(group))
     else:
         ax.plot(df[x_fname], df[y_fname])
@@ -96,11 +96,13 @@ def line_plot(
     ax.set_xlabel(fname_desc[x_fname], fontsize=16)
     ax.set_ylabel(fname_desc[y_fname], fontsize=20)
 
-    if group_fname is not None:
-        ax.legend(title=group_fname, loc="upper right", 
-                  fontsize=16,
-                  title_fontsize=18,
-                  markerscale=1.5,
+    if len(group_fnames) > 0:
+        ax.legend(
+            title=','.join(group_fnames), 
+            loc="upper right", 
+            fontsize=16,
+            title_fontsize=18,
+            markerscale=1.5,
         )
     plt.tight_layout()
     plt.show()
@@ -108,7 +110,7 @@ def line_plot(
 
 @hydra.main(config_path="./opts", config_name="plot", version_base="1.2")
 def main(cfg: DictConfig):
-    opts = instantiate(cfg)
+    opts = instantiate(cfg, _convert_='all') # _convert_ needed for lists
     stub = rpc_client.get_service_stub()
     info = rpc_client.get_data_columns(stub, opts.series, opts.field_names)
     
@@ -125,7 +127,7 @@ def main(cfg: DictConfig):
 
     df = as_dataframe(stub, req, info.field_names)
 
-    if opts.o in df:
+    if all(field in df for field in opts.o):
         df.sort_values(by=opts.o, inplace=True)
 
     line_plot(df, opts.axis_to_fname, info.field_name_map)

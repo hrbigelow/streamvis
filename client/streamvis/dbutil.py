@@ -1,3 +1,4 @@
+import struct
 from dataclasses import dataclass
 from typing import Any, Union
 import io
@@ -47,23 +48,38 @@ def encode_numeric_array(
         msg.float_spans.values.extend(range_spans)
     return msg
 
-
-def encode_bool_or_string_array(
+def encode_bool_array(
     field_handle: str,
     ary: np.ndarray
 ) -> pb.EncTyp: 
-    if not (np.issubdtype(ary.dtype, np.str_) or np.issubdtype(ary.dtype, np.bool)):
-        raise RuntimeError(
-                f"Array has dtype {ary.dtype}, but expected 'str_' or 'bool'")
+    if not np.issubdtype(ary.dtype, np.bool):
+        raise RuntimeError(f"Array has dtype {ary.dtype}, but expected 'bool'")
     bcast = [None] * ary.ndim
     for d in range(ary.ndim):
         slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
         bcast[d] = np.all(ary[slices] == ary).item()
     indices = tuple(0 if bc else slice(None) for bc in bcast)
     slice_data = ary[indices]
-    buf = io.BytesIO()
-    np.save(buf, slice_data)
-    msg = pb.EncTyp(field_handle=field_handle, base=buf.getvalue(), shape=ary.shape)
+    msg = pb.EncTyp(field_handle=field_handle, base=slice_data.tobytes(), shape=ary.shape)
+    msg.bool_bcast.values.extend(bcast)
+    return msg
+
+
+def encode_string_array(
+    field_handle: str,
+    ary: np.ndarray
+) -> pb.EncTyp: 
+    if not np.issubdtype(ary.dtype, np.str_):
+        raise RuntimeError(f"Array has dtype {ary.dtype}, but expected 'str_'")
+    bcast = [None] * ary.ndim
+    for d in range(ary.ndim):
+        slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
+        bcast[d] = np.all(ary[slices] == ary).item()
+    indices = tuple(0 if bc else slice(None) for bc in bcast)
+    slice_data = ary[indices].astype('S')
+    header = struct.pack('<i', slice_data.dtype.itemsize)
+    encoded = header + slice_data.tobytes()
+    msg = pb.EncTyp(field_handle=field_handle, base=encoded, shape=ary.shape)
     if np.issubdtype(ary.dtype, np.str_):
         msg.string_bcast.values.extend(bcast)
     else:
@@ -73,9 +89,10 @@ def encode_bool_or_string_array(
 def encode_array(field_handle: str, ary: np.ndarray) -> pb.EncTyp:
     if ary.dtype in (np.dtype('int32'), np.dtype('float32')):
         return encode_numeric_array(field_handle, ary)
+    elif ary.dtype == np.dtype('bool'):
+        return encode_bool_array(field_handle, ary)
     else:
-        return encode_bool_or_string_array(field_handle, ary)
-
+        return encode_string_array(field_handle, ary)
 
 def decode_numeric_array(enc: pb.EncTyp) -> np.array:
     """
@@ -111,33 +128,47 @@ def decode_numeric_array(enc: pb.EncTyp) -> np.array:
     # print(tuple(r.shape for r in terms))
     return np.add.reduce(terms).astype(base.dtype)
 
-def decode_bool_or_string_array(enc: pb.EncTyp) -> np.array:
+def decode_bool_array(enc: pb.EncTyp) -> np.array:
     """
     Converts the normalized data back into a plain np.array.
     """
     set_field = enc.WhichOneof('spans')
-    if set_field not in ('bool_bcast', 'string_bcast'):
+    if set_field != 'bool_bcast':
         raise RuntimeError(
-            f"The active spans field is {set_field}, but expected "
-            f"bool_bcast or string_bcast")
-    if set_field == 'bool_bcast':
-        bcast_flags = enc.bool_bcast.values
-    else:
-        bcast_flags = enc.string_bcast.values
-    buf = io.BytesIO(enc.base)
-    base = np.load(buf)
+            f"The active spans field is {set_field}, but expected bool_bcast")
+    bcast_flags = enc.bool_bcast.values
+    base = np.frombuffer(enc.base, dtype=np.bool)
 
     shape = tuple(1 if fl else sz for sz, fl in zip(enc.shape, bcast_flags))
     base = base.reshape(*shape)
     return np.broadcast_to(base, enc.shape)
+
+def decode_string_array(enc: pb.EncTyp) -> np.array:
+    """
+    Converts the normalized data back into a plain np.array.
+    """
+    set_field = enc.WhichOneof('spans')
+    if set_field != 'string_bcast':
+        raise RuntimeError(
+            f"The active spans field is {set_field}, but expected string_bcast")
+    bcast_flags = enc.string_bcast.values
+    itemsize = struct.unpack("<i", enc.base[:4])[0]
+    base = np.frombuffer(enc.base[4:], dtype=np.dtype(('S', itemsize)))
+
+    shape = tuple(1 if fl else sz for sz, fl in zip(enc.shape, bcast_flags))
+    base = base.reshape(*shape).astype('U')
+    return np.broadcast_to(base, enc.shape)
+
 
 def decode_array(enc: pb.EncTyp) -> np.array:
     set_field = enc.WhichOneof('spans')
     match set_field:
         case 'int_spans' | 'float_spans':
             return decode_numeric_array(enc)
-        case 'bool_bcast' | 'string_bcast':
-            return decode_bool_or_string_array(enc)
+        case 'bool_bcast':
+            return decode_bool_array(enc)
+        case 'string_bcast':
+            return decode_string_array(enc)
         case default:
             raise RuntimeError(f"Unknown span type: {set_field}")
 
