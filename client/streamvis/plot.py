@@ -1,6 +1,10 @@
+import asyncio
 from typing import Optional
 from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 import pandas as pd
 from enum import Enum
 from datetime import datetime
@@ -19,6 +23,26 @@ class PlotType(Enum):
     SCATTER = 'scatter'
     LINE = 'line'
 
+@dataclass
+class AttrFilter:
+    name: str|None = None
+    inc_missing: bool = False
+    lo: float|int|None = None
+    hi: float|int|None = None
+    vals: list[float|int|bool|str] = field(default_factory=list)
+
+    @property
+    def is_range_filter(self):
+        return self.lo is not None or self.hi is not None
+
+    @property
+    def is_value_filter(self):
+        return len(self.vals) > 0
+
+    def __post_init__(self):
+        if self.name is not None and self.is_range_filter == self.is_value_filter:
+            raise RuntimeError(f"must set either vals or (lo and/or hi)")
+
 
 @dataclass
 class PlotOpts:
@@ -32,6 +56,12 @@ class PlotOpts:
 
     tags: list[str] = field(default_factory=list)
     match_all: bool = False
+
+    f1: AttrFilter = None
+    f2: AttrFilter = None
+    f3: AttrFilter = None
+    f4: AttrFilter = None
+    f5: AttrFilter = None
 
     min_started_at: Optional[str] = None
     max_started_at: Optional[str] = None
@@ -53,12 +83,16 @@ class PlotOpts:
         m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o }
         return { k: v for k, v in m.items() if v is not None }
 
-
     @property
     def field_names(self):
         s = set((self.x, self.y, self.c, *self.g, *self.o))
         s.discard(None)
         return list(s)
+
+    @property
+    def filters(self):
+        s = (self.f1, self.f2, self.f3, self.f4, self.f5)
+        return tuple(f for f in s if f is not None) 
 
 def as_dataframe(
     stub: ServiceStub, 
@@ -75,14 +109,16 @@ def as_dataframe(
 
 
 def line_plot(
+    fig: Figure,
+    ax: Axes,
     df: pd.DataFrame,
     axis_fname: dict[str, str],
     fname_desc: dict[str, str],
 ) -> None:
-    fig, ax = plt.subplots(figsize=(15,10))
     if len(df) == 0:
         print(f"No data to display")
         return
+    ax.clear()
 
     x_fname = axis_fname['x']
     y_fname = axis_fname['y']
@@ -105,37 +141,85 @@ def line_plot(
             markerscale=1.5,
         )
     plt.tight_layout()
-    plt.show()
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+    # plt.draw()
+    # plt.pause(0.1)
+
 
 
 @hydra.main(config_path="./opts", config_name="plot", version_base="1.2")
 def main(cfg: DictConfig):
+    asyncio.run(amain(cfg))
+
+async def amain(cfg: DictConfig):
     opts = instantiate(cfg, _convert_='all') # _convert_ needed for lists
     stub = rpc_client.get_service_stub()
     info = rpc_client.get_data_columns(stub, opts.series, opts.field_names)
+    field_map = {}
+    for field in rpc_client.list_fields(stub):
+        field_map[field.name] = field
     
     axes = []
     req = pb.QueryRunDataRequest()
     req.coord_handles.extend((c.coord_handle for c in info.coords))
     req.attr_handles.extend((a.handle for a in info.attrs))
-    req.run_filter.tag_filter.tags.extend(opts.tags)
-    req.run_filter.tag_filter.match_all = opts.match_all
+
+    rf = req.run_filter
+    tf = rf.tag_filter
+
+    tf.tags.extend(opts.tags)
+    tf.match_all = opts.match_all
     if opts.min_started_at is not None:
-        req.run_filter.min_started_at = opts.min_started_at
+        rf.min_started_at = opts.min_started_at
     if opts.max_started_at is not None:
-        req.run_filter.max_started_at = opts.max_started_at
+        rf.max_started_at = opts.max_started_at
 
-    df = as_dataframe(stub, req, info.field_names)
+    for filt in opts.filters:
+        if filt.name is None:
+            continue
+        field = field_map.get(filt.name)
+        if field is None:
+            raise RuntimeError(
+                f"Filter field name {name} is not a valid Field. "
+                f"Use streamvis.v1.Service.ListFields RPC endpoint to see valid fields")
 
-    if all(field in df for field in opts.o):
-        df.sort_values(by=opts.o, inplace=True)
+        af = pb.AttributeFilter(field_handle=field.handle,
+                                include_missing=filt.inc_missing)
+        match field.data_type:
+            case pb.FieldDataType.FIELD_DATA_TYPE_INT:
+                if filt.is_range_filter:
+                    af.int_range.imin = filt.lo
+                    af.int_range.imax = filt.hi
+                else:
+                    af.int_list.vals.extend(filt.vals)
+            case pb.FieldDataType.FIELD_DATA_TYPE_FLOAT:
+                if not filt.is_range_filter:
+                    raise RuntimeError(
+                        f"filter {filt.name} is a Float filter. "
+                        f"only a range style is supported")
+                af.float_range.vals.extend(filt.vals)
+            case pb.FieldDataType.FIELD_DATA_TYPE_BOOL:
+                pass
+            case pb.FieldDataType.FIELD_DATA_TYPE_STRING:
+                pass
 
-    line_plot(df, opts.axis_to_fname, info.field_name_map)
+        rf.attribute_filters.append(af)
+
+
+    fig, ax = plt.subplots(figsize=(15,10))
+    plt.ion()
+    plt.show()
+
+    while True:
+        df = as_dataframe(stub, req, info.field_names)
+
+        if all(field in df for field in opts.o):
+            df.sort_values(by=opts.o, inplace=True)
+
+        line_plot(fig, ax, df, opts.axis_to_fname, info.field_name_map)
+        await asyncio.sleep(5)
 
 
 if __name__ == "__main__":
     main()
-
-
-
-

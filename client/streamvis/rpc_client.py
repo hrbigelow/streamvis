@@ -19,7 +19,7 @@ def list_series(stub: ServiceStub) -> Iterable[pb.Series]:
 
 def list_fields(stub: ServiceStub) -> Iterable[pb.Field]:
     req = pb.ListFieldsRequest()
-    yield from stub.ListFields(req)
+    return stub.ListFields(req)
 
 def get_data(
     stub: ServiceStub, 

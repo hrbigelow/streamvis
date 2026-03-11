@@ -1,5 +1,13 @@
 _target_: streamvis.plot.PlotOpts
 
+defaults:
+  - _self_
+  - filter@f1: filter 
+  - filter@f2: filter 
+  - filter@f3: filter
+  - filter@f4: filter
+  - filter@f5: filter
+
 ty: scatter
 series: null
 x: null
