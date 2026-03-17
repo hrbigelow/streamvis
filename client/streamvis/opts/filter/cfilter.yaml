@@ -1,0 +1,8 @@
+_target_: streamvis.plot.ColumnFilter
+
+name: null
+lo: null
+hi: null
+vals: []
+
+

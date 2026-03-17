@@ -2909,26 +2909,26 @@ func (x *ListRunsRequest) GetRunFilter() *RunFilter {
 	return nil
 }
 
-type GetMaxChunkIdRequest struct {
+type GetEndChunkIdRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetMaxChunkIdRequest) Reset() {
-	*x = GetMaxChunkIdRequest{}
+func (x *GetEndChunkIdRequest) Reset() {
+	*x = GetEndChunkIdRequest{}
 	mi := &file_streamvis_v1_data_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetMaxChunkIdRequest) String() string {
+func (x *GetEndChunkIdRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetMaxChunkIdRequest) ProtoMessage() {}
+func (*GetEndChunkIdRequest) ProtoMessage() {}
 
-func (x *GetMaxChunkIdRequest) ProtoReflect() protoreflect.Message {
+func (x *GetEndChunkIdRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_streamvis_v1_data_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2940,32 +2940,32 @@ func (x *GetMaxChunkIdRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetMaxChunkIdRequest.ProtoReflect.Descriptor instead.
-func (*GetMaxChunkIdRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetEndChunkIdRequest.ProtoReflect.Descriptor instead.
+func (*GetEndChunkIdRequest) Descriptor() ([]byte, []int) {
 	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{54}
 }
 
-type GetMaxChunkIdResponse struct {
+type GetEndChunkIdResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetMaxChunkIdResponse) Reset() {
-	*x = GetMaxChunkIdResponse{}
+func (x *GetEndChunkIdResponse) Reset() {
+	*x = GetEndChunkIdResponse{}
 	mi := &file_streamvis_v1_data_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetMaxChunkIdResponse) String() string {
+func (x *GetEndChunkIdResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetMaxChunkIdResponse) ProtoMessage() {}
+func (*GetEndChunkIdResponse) ProtoMessage() {}
 
-func (x *GetMaxChunkIdResponse) ProtoReflect() protoreflect.Message {
+func (x *GetEndChunkIdResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_streamvis_v1_data_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2977,12 +2977,12 @@ func (x *GetMaxChunkIdResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetMaxChunkIdResponse.ProtoReflect.Descriptor instead.
-func (*GetMaxChunkIdResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetEndChunkIdResponse.ProtoReflect.Descriptor instead.
+func (*GetEndChunkIdResponse) Descriptor() ([]byte, []int) {
 	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{55}
 }
 
-func (x *GetMaxChunkIdResponse) GetId() int64 {
+func (x *GetEndChunkIdResponse) GetId() int64 {
 	if x != nil {
 		return x.Id
 	}
@@ -2993,8 +2993,8 @@ type QueryRunDataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AttrHandles   []string               `protobuf:"bytes,1,rep,name=attr_handles,json=attrHandles,proto3" json:"attr_handles,omitempty"`
 	CoordHandles  []string               `protobuf:"bytes,2,rep,name=coord_handles,json=coordHandles,proto3" json:"coord_handles,omitempty"`
-	MinChunkId    *int64                 `protobuf:"varint,3,opt,name=min_chunk_id,json=minChunkId,proto3,oneof" json:"min_chunk_id,omitempty"`
-	MaxChunkId    *int64                 `protobuf:"varint,4,opt,name=max_chunk_id,json=maxChunkId,proto3,oneof" json:"max_chunk_id,omitempty"`
+	BeginChunkId  *int64                 `protobuf:"varint,3,opt,name=begin_chunk_id,json=beginChunkId,proto3,oneof" json:"begin_chunk_id,omitempty"`
+	EndChunkId    *int64                 `protobuf:"varint,4,opt,name=end_chunk_id,json=endChunkId,proto3,oneof" json:"end_chunk_id,omitempty"`
 	RunFilter     *RunFilter             `protobuf:"bytes,5,opt,name=run_filter,json=runFilter,proto3" json:"run_filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3044,16 +3044,16 @@ func (x *QueryRunDataRequest) GetCoordHandles() []string {
 	return nil
 }
 
-func (x *QueryRunDataRequest) GetMinChunkId() int64 {
-	if x != nil && x.MinChunkId != nil {
-		return *x.MinChunkId
+func (x *QueryRunDataRequest) GetBeginChunkId() int64 {
+	if x != nil && x.BeginChunkId != nil {
+		return *x.BeginChunkId
 	}
 	return 0
 }
 
-func (x *QueryRunDataRequest) GetMaxChunkId() int64 {
-	if x != nil && x.MaxChunkId != nil {
-		return *x.MaxChunkId
+func (x *QueryRunDataRequest) GetEndChunkId() int64 {
+	if x != nil && x.EndChunkId != nil {
+		return *x.EndChunkId
 	}
 	return 0
 }
@@ -3334,20 +3334,19 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x0fListRunsRequest\x126\n" +
 	"\n" +
 	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"\x16\n" +
-	"\x14GetMaxChunkIdRequest\"'\n" +
-	"\x15GetMaxChunkIdResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x85\x02\n" +
+	"\x14GetEndChunkIdRequest\"'\n" +
+	"\x15GetEndChunkIdResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x8b\x02\n" +
 	"\x13QueryRunDataRequest\x12!\n" +
 	"\fattr_handles\x18\x01 \x03(\tR\vattrHandles\x12#\n" +
-	"\rcoord_handles\x18\x02 \x03(\tR\fcoordHandles\x12%\n" +
-	"\fmin_chunk_id\x18\x03 \x01(\x03H\x00R\n" +
-	"minChunkId\x88\x01\x01\x12%\n" +
-	"\fmax_chunk_id\x18\x04 \x01(\x03H\x01R\n" +
-	"maxChunkId\x88\x01\x01\x126\n" +
+	"\rcoord_handles\x18\x02 \x03(\tR\fcoordHandles\x12)\n" +
+	"\x0ebegin_chunk_id\x18\x03 \x01(\x03H\x00R\fbeginChunkId\x88\x01\x01\x12%\n" +
+	"\fend_chunk_id\x18\x04 \x01(\x03H\x01R\n" +
+	"endChunkId\x88\x01\x01\x126\n" +
 	"\n" +
-	"run_filter\x18\x05 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilterB\x0f\n" +
-	"\r_min_chunk_idB\x0f\n" +
-	"\r_max_chunk_id\"U\n" +
+	"run_filter\x18\x05 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilterB\x11\n" +
+	"\x0f_begin_chunk_idB\x0f\n" +
+	"\r_end_chunk_id\"U\n" +
 	"\x1bListCommonAttributesRequest\x126\n" +
 	"\n" +
 	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"Q\n" +
@@ -3377,7 +3376,7 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\n" +
 	"ListFields\x12\x1f.streamvis.v1.ListFieldsRequest\x1a\x13.streamvis.v1.Field0\x01\x12>\n" +
 	"\bListRuns\x12\x1d.streamvis.v1.ListRunsRequest\x1a\x11.streamvis.v1.Run0\x01\x12X\n" +
-	"\rGetMaxChunkId\x12\".streamvis.v1.GetMaxChunkIdRequest\x1a#.streamvis.v1.GetMaxChunkIdResponse\x12L\n" +
+	"\rGetEndChunkId\x12\".streamvis.v1.GetEndChunkIdRequest\x1a#.streamvis.v1.GetEndChunkIdResponse\x12L\n" +
 	"\fQueryRunData\x12!.streamvis.v1.QueryRunDataRequest\x1a\x17.streamvis.v1.ChunkData0\x01\x12X\n" +
 	"\x14ListCommonAttributes\x12).streamvis.v1.ListCommonAttributesRequest\x1a\x13.streamvis.v1.Field0\x01\x12Q\n" +
 	"\x10ListCommonSeries\x12%.streamvis.v1.ListCommonSeriesRequest\x1a\x14.streamvis.v1.Series0\x01\x12Q\n" +
@@ -3455,8 +3454,8 @@ var file_streamvis_v1_data_proto_goTypes = []any{
 	(*AttributeFilter)(nil),             // 52: streamvis.v1.AttributeFilter
 	(*TagFilter)(nil),                   // 53: streamvis.v1.TagFilter
 	(*ListRunsRequest)(nil),             // 54: streamvis.v1.ListRunsRequest
-	(*GetMaxChunkIdRequest)(nil),        // 55: streamvis.v1.GetMaxChunkIdRequest
-	(*GetMaxChunkIdResponse)(nil),       // 56: streamvis.v1.GetMaxChunkIdResponse
+	(*GetEndChunkIdRequest)(nil),        // 55: streamvis.v1.GetEndChunkIdRequest
+	(*GetEndChunkIdResponse)(nil),       // 56: streamvis.v1.GetEndChunkIdResponse
 	(*QueryRunDataRequest)(nil),         // 57: streamvis.v1.QueryRunDataRequest
 	(*ListCommonAttributesRequest)(nil), // 58: streamvis.v1.ListCommonAttributesRequest
 	(*ListCommonSeriesRequest)(nil),     // 59: streamvis.v1.ListCommonSeriesRequest
@@ -3510,7 +3509,7 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	37, // 44: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
 	38, // 45: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
 	54, // 46: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
-	55, // 47: streamvis.v1.Service.GetMaxChunkId:input_type -> streamvis.v1.GetMaxChunkIdRequest
+	55, // 47: streamvis.v1.Service.GetEndChunkId:input_type -> streamvis.v1.GetEndChunkIdRequest
 	57, // 48: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
 	58, // 49: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
 	59, // 50: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
@@ -3530,7 +3529,7 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	36, // 64: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
 	31, // 65: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
 	40, // 66: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
-	56, // 67: streamvis.v1.Service.GetMaxChunkId:output_type -> streamvis.v1.GetMaxChunkIdResponse
+	56, // 67: streamvis.v1.Service.GetEndChunkId:output_type -> streamvis.v1.GetEndChunkIdResponse
 	46, // 68: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.ChunkData
 	31, // 69: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
 	36, // 70: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series

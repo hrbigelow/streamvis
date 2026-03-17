@@ -237,15 +237,15 @@ func (s *Service) ListRuns(
 	return streamRecords[pb.Run](ctx, *stream, dataCh, errCh)
 }
 
-func (s *Service) GetMaxChunkId(
+func (s *Service) GetEndChunkId(
 	ctx context.Context,
-	req *pb.GetMaxChunkIdRequest,
-) (*pb.GetMaxChunkIdResponse, error) {
-	maxId, err := s.store.GetMaxChunkId(ctx)
+	req *pb.GetEndChunkIdRequest,
+) (*pb.GetEndChunkIdResponse, error) {
+	endId, err := s.store.GetEndChunkId(ctx)
 	if err != nil {
-		return &pb.GetMaxChunkIdResponse{}, status.Errorf(codes.Internal, "Internal error: %v", err)
+		return &pb.GetEndChunkIdResponse{}, status.Errorf(codes.Internal, "Internal error: %v", err)
 	}
-	return &pb.GetMaxChunkIdResponse{Id: maxId}, nil
+	return &pb.GetEndChunkIdResponse{Id: endId}, nil
 }
 
 func (s *Service) QueryRunData(
@@ -266,7 +266,7 @@ func (s *Service) QueryRunData(
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
 	dataCh, errCh := s.store.QueryRunData(
-		ctx, attrHandles, coordHandles, req.MinChunkId, req.MaxChunkId, runFilter,
+		ctx, attrHandles, coordHandles, req.BeginChunkId, req.EndChunkId, runFilter,
 	)
 	return streamRecords[pb.ChunkData](ctx, *stream, dataCh, errCh)
 }

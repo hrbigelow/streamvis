@@ -288,16 +288,16 @@ func (st *Store) ListRuns(
 	)
 }
 
-func (st *Store) GetMaxChunkId(
+func (st *Store) GetEndChunkId(
 	ctx context.Context,
 ) (int64, error) {
-	sql := `SELECT * FROM get_max_chunk_id()`
-	var maxId int64
-	err := st.pool.QueryRow(ctx, sql).Scan(&maxId)
+	sql := `SELECT * FROM get_end_chunk_id()`
+	var endId int64
+	err := st.pool.QueryRow(ctx, sql).Scan(&endId)
 	if err != nil {
 		return 0, err
 	}
-	return maxId, nil
+	return endId, nil
 }
 
 func (st *Store) QueryRunData(

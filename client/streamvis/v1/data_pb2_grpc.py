@@ -99,10 +99,10 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.Run.FromString,
                 _registered_method=True)
-        self.GetMaxChunkId = channel.unary_unary(
-                '/streamvis.v1.Service/GetMaxChunkId',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.GetMaxChunkIdRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.GetMaxChunkIdResponse.FromString,
+        self.GetEndChunkId = channel.unary_unary(
+                '/streamvis.v1.Service/GetEndChunkId',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.GetEndChunkIdRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.GetEndChunkIdResponse.FromString,
                 _registered_method=True)
         self.QueryRunData = channel.unary_stream(
                 '/streamvis.v1.Service/QueryRunData',
@@ -217,7 +217,7 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetMaxChunkId(self, request, context):
+    def GetEndChunkId(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -327,10 +327,10 @@ def add_ServiceServicer_to_server(servicer, server):
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListRunsRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.Run.SerializeToString,
             ),
-            'GetMaxChunkId': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetMaxChunkId,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.GetMaxChunkIdRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.GetMaxChunkIdResponse.SerializeToString,
+            'GetEndChunkId': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEndChunkId,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.GetEndChunkIdRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.GetEndChunkIdResponse.SerializeToString,
             ),
             'QueryRunData': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRunData,
@@ -725,7 +725,7 @@ class Service(object):
             _registered_method=True)
 
     @staticmethod
-    def GetMaxChunkId(request,
+    def GetEndChunkId(request,
             target,
             options=(),
             channel_credentials=None,
@@ -738,9 +738,9 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/streamvis.v1.Service/GetMaxChunkId',
-            streamvis_dot_v1_dot_data__pb2.GetMaxChunkIdRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.GetMaxChunkIdResponse.FromString,
+            '/streamvis.v1.Service/GetEndChunkId',
+            streamvis_dot_v1_dot_data__pb2.GetEndChunkIdRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.GetEndChunkIdResponse.FromString,
             options,
             channel_credentials,
             insecure,

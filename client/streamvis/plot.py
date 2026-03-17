@@ -1,7 +1,12 @@
+import numpy as np
 import asyncio
+import textwrap
 from typing import Optional
 from dataclasses import dataclass, field
+from collections.abc import Iterable
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import colorsys
 from matplotlib.lines import Line2D
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -43,6 +48,21 @@ class AttrFilter:
         if self.name is not None and self.is_range_filter == self.is_value_filter:
             raise RuntimeError(f"must set either vals or (lo and/or hi)")
 
+@dataclass
+class ColumnFilter:
+    name: str|None = None
+    lo: float|int|None = None
+    hi: float|int|None = None
+    vals: list[float|int|bool|str] = field(default_factory=list)
+
+    @property
+    def is_range_filter(self):
+        return self.lo is not None or self.hi is not None
+
+    @property
+    def is_value_filter(self):
+        return len(self.vals) > 0
+
 
 @dataclass
 class PlotOpts:
@@ -50,7 +70,7 @@ class PlotOpts:
     series: str
     x: str # x-axis field name
     y: str # y-axis field name
-    c: Optional[str] = None # color field_name
+    c: list[str] = field(default_factory=list) # color field_name
     g: list[str] = field(default_factory=list) # group field_name
     o: list[str] = field(default_factory=list) # order field_name
 
@@ -65,6 +85,18 @@ class PlotOpts:
 
     min_started_at: Optional[str] = None
     max_started_at: Optional[str] = None
+
+    fig_width: int = None
+    fig_height: int = None
+
+    dpi: int = None
+    legend_at: str = None
+
+    c1: ColumnFilter = None
+    c2: ColumnFilter = None
+    c3: ColumnFilter = None
+    c4: ColumnFilter = None
+    c5: ColumnFilter = None
 
     def __post_init__(self):
         self.ty = PlotType(self.ty)
@@ -85,7 +117,7 @@ class PlotOpts:
 
     @property
     def field_names(self):
-        s = set((self.x, self.y, self.c, *self.g, *self.o))
+        s = set((self.x, self.y, *self.c, *self.g, *self.o))
         s.discard(None)
         return list(s)
 
@@ -94,18 +126,60 @@ class PlotOpts:
         s = (self.f1, self.f2, self.f3, self.f4, self.f5)
         return tuple(f for f in s if f is not None) 
 
-def as_dataframe(
+    @property
+    def cfilters(self):
+        s = (self.c1, self.c2, self.c3, self.c4, self.c5)
+        return tuple(c for c in s if c is not None)
+
+STARTED_AT = '_run_started_at'
+RUN_HANDLE = '_run_handle'
+
+def color2d(i: int, j: int, jmax: int):
+    pass
+
+def empty_dataframe(field_names: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(columns=(STARTED_AT, RUN_HANDLE, *field_names))
+
+def to_dataframes(
     stub: ServiceStub, 
     req: pb.QueryRunDataRequest,
     field_names: list[str],
-) -> pd.DataFrame:
+) -> list[pd.DataFrame]:
+    run_req = pb.ListRunsRequest(run_filter=req.run_filter)
+    runs = { run.handle: run for run in stub.ListRuns(run_req) }
+
     def _gen():
         for data in rpc_client.get_data(stub, req):
+            run = runs.get(data.run_handle)
+            if run is None:
+                raise RuntimeError(f"Couldn't get run metadata")
             arrays = tuple(dbutil.decode_array(enc) for enc in data.enc_vals)
-            df = pd.DataFrame(dict(zip(field_names, arrays)))
+            d = dict(zip(field_names, arrays))
+            d[STARTED_AT] = run.started_at.seconds
+            d[RUN_HANDLE] = run.handle
+            df = pd.DataFrame(d)
             yield df
-        yield pd.DataFrame(columns=field_names) # sentinel
-    return pd.concat(_gen())
+        yield empty_dataframe(field_names) 
+
+    return list(_gen())
+
+def get_color(color_group: tuple, color_groups: list[tuple]) -> str:
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    cols = tuple(tuple(sorted(set(c))) for c in zip(*color_groups))
+    colmaps = tuple({v: i for i, v in enumerate(col)} for col in cols)
+    cinds = tuple(cm[col] for cm, col in zip(colmaps, color_group)) 
+
+    N = len(cinds)
+
+    base = colors[cinds[0] % len(colors)]
+    if N == 1:
+        return base
+    elif N == 2:
+        mults = np.linspace(-0.3, 0.3, len(colmaps[1]))
+        factor = 1.0 + mults[cinds[1]]
+        c = base
+        c = colorsys.rgb_to_hls(*mcolors.to_rgb(c))
+        return colorsys.hls_to_rgb(c[0], max(0, min(1, factor * c[1])), c[2])
 
 
 def line_plot(
@@ -114,6 +188,7 @@ def line_plot(
     df: pd.DataFrame,
     axis_fname: dict[str, str],
     fname_desc: dict[str, str],
+    opts: PlotOpts, 
 ) -> None:
     if len(df) == 0:
         print(f"No data to display")
@@ -122,23 +197,32 @@ def line_plot(
 
     x_fname = axis_fname['x']
     y_fname = axis_fname['y']
-    group_fnames = axis_fname.get('g')
-    if len(group_fnames) > 0:
-        for group, data in df.groupby(group_fnames):
-            ax.plot(data[x_fname], data[y_fname], label=str(group))
-    else:
-        ax.plot(df[x_fname], df[y_fname])
+    group_fnames = [RUN_HANDLE] + axis_fname.get('g')
+    color_fnames = [RUN_HANDLE] + axis_fname.get('c')
 
-    ax.set_xlabel(fname_desc[x_fname], fontsize=16)
-    ax.set_ylabel(fname_desc[y_fname], fontsize=20)
+    color_df = df.groupby(color_fnames)
+    color_groups = list(x[1:] for x in color_df.groups.keys())
+
+    for color_group, color_data in df.groupby(color_fnames):
+        for glyph_group, glyph_data in color_data.groupby(group_fnames):
+            color = get_color(color_group[1:], color_groups)
+            label = str(glyph_group[1:])
+            ax.plot(
+                glyph_data[x_fname], 
+                glyph_data[y_fname], 
+                label=label,
+                color=color,
+                linewidth=1)
+
+    ax.set_xlabel(fname_desc[x_fname], fontsize=10)
+    ax.set_ylabel(fname_desc[y_fname], fontsize=10)
 
     if len(group_fnames) > 0:
         ax.legend(
-            title=','.join(group_fnames), 
-            loc="upper right", 
-            fontsize=16,
-            title_fontsize=18,
-            markerscale=1.5,
+            title=textwrap.fill(', '.join(group_fnames), width=80),
+            loc=opts.legend_at, 
+            fontsize=8,
+            title_fontsize=6
         )
     plt.tight_layout()
     fig.canvas.draw()
@@ -200,24 +284,55 @@ async def amain(cfg: DictConfig):
                         f"only a range style is supported")
                 af.float_range.vals.extend(filt.vals)
             case pb.FieldDataType.FIELD_DATA_TYPE_BOOL:
-                pass
+                if not filt.is_value_filter:
+                    raise RuntimeError(
+                        f"filter {filt.name} is a Bool filter. "
+                        f"only a value style is supported")
+                af.bool_list.vals.extend(filt.vals)
             case pb.FieldDataType.FIELD_DATA_TYPE_STRING:
-                pass
+                if not filt.is_value_filter:
+                    raise RuntimeError(
+                        f"filter {filt.name} is a String filter. "
+                        f"only a value style is supported")
+                af.string_list.vals.extend(filt.vals)
 
         rf.attribute_filters.append(af)
 
 
-    fig, ax = plt.subplots(figsize=(15,10))
+    fig, ax = plt.subplots(figsize=(opts.fig_width, opts.fig_height), dpi=opts.dpi)
     plt.ion()
     plt.show()
 
+    runs = {}
+    df = empty_dataframe(info.field_names) 
+
     while True:
-        df = as_dataframe(stub, req, info.field_names)
+        # filter out any stale data
+        pbruns = stub.ListRuns(pb.ListRunsRequest(run_filter=req.run_filter))
+        new_runs = { r.handle: r for r in pbruns }
+        stale_handles = [h for h, r in runs.items() if h not in new_runs or
+                         new_runs[h].started_at.seconds > r.started_at.seconds]
+        df = df[~df[RUN_HANDLE].isin(stale_handles)]
+        runs = new_runs
+        
+        new_dfs = to_dataframes(stub, req, info.field_names)
+        req.begin_chunk_id = rpc_client.get_end_chunk_id(stub) 
+
+        df = pd.concat([df, *new_dfs], ignore_index=True)
+        df.sort_values(by=STARTED_AT, inplace=True)
+
+        for cf in opts.cfilters:
+            if cf.name is None:
+                continue
+            if cf.is_range_filter:
+                df = df[df[cf.name].between(cf.lo, cf.hi)]
+            else:
+                df = df[df[cf.name].isin(cf.vals)]
 
         if all(field in df for field in opts.o):
             df.sort_values(by=opts.o, inplace=True)
 
-        line_plot(fig, ax, df, opts.axis_to_fname, info.field_name_map)
+        line_plot(fig, ax, df, opts.axis_to_fname, info.field_name_map, opts)
         await asyncio.sleep(5)
 
 

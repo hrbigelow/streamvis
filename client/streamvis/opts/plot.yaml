@@ -7,6 +7,11 @@ defaults:
   - filter@f3: filter
   - filter@f4: filter
   - filter@f5: filter
+  - filter@c1: cfilter
+  - filter@c2: cfilter
+  - filter@c3: cfilter
+  - filter@c4: cfilter
+  - filter@c5: cfilter
 
 ty: scatter
 series: null
@@ -22,4 +27,9 @@ match_all: false
 min_started_at: null
 max_started_at: null
 
+fig_width: 9
+fig_height: 6
+
+dpi: 300
+legend_at: 'upper right'
 

@@ -21,6 +21,11 @@ def list_fields(stub: ServiceStub) -> Iterable[pb.Field]:
     req = pb.ListFieldsRequest()
     return stub.ListFields(req)
 
+def get_end_chunk_id(stub: ServiceStub) -> int:
+	req = pb.GetEndChunkIdRequest()
+	resp = stub.GetEndChunkId(req)
+	return resp.id
+
 def get_data(
     stub: ServiceStub, 
     req: pb.QueryRunDataRequest,
