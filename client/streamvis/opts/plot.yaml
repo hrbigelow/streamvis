@@ -17,9 +17,9 @@ ty: scatter
 series: null
 x: null
 y: null
-c: null
-g: null
-o: null
+c: []
+g: []
+o: []
 
 tags: []
 match_all: false
