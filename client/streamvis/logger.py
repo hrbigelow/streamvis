@@ -216,6 +216,14 @@ class BaseLogger:
 
         for coord, ary in zip(series.coords, field_datas):
             msg = dbutil.encode_array(coord.field_handle, ary)
+            """
+            if ary.size == 3168:
+                np.set_printoptions(linewidth=180, threshold=100000)
+                print(ary)
+                print(
+                        f"series '{series.name}': {len(msg.base)=}, "
+                        f"{ary.dtype=}, {ary.size=}, {ary.shape=}")
+            """
             req.field_vals.append(msg)
 
         try:

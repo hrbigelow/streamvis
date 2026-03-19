@@ -155,7 +155,7 @@ def to_dataframes(
             run = runs.get(data.run_handle)
             if run is None:
                 raise RuntimeError(f"Couldn't get run metadata")
-            arrays = tuple(dbutil.decode_array(enc) for enc in data.enc_vals)
+            arrays = tuple(dbutil.decode_array_flat(enc) for enc in data.enc_vals)
             d = dict(zip(field_names, arrays))
             d[STARTED_AT] = run.started_at.seconds
             d[RUN_HANDLE] = run.handle

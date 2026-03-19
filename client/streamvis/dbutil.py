@@ -23,6 +23,8 @@ def encode_numeric_array(
         raise RuntimeError(
                 f"Array has dtype {ary.dtype} but expected 'int32' or 'float32'")
 
+    # import pdb
+    # pdb.set_trace()
     shape = tuple(ary.shape)
     range_spans = [None] * ary.ndim
 
@@ -31,7 +33,7 @@ def encode_numeric_array(
             continue
         diffs = slice_in_dim(ary, slice(0, -1), d) - slice_in_dim(ary, slice(1, None), d)
         lo, hi = diffs.min(), diffs.max()
-        if (hi - lo) < rtol * max(np.abs(lo), np.abs(hi)):
+        if (hi - lo) <= rtol * max(np.abs(lo), np.abs(hi)):
             spans = slice_in_dim(ary, -1, d) - slice_in_dim(ary, 0, d)
             span = spans.flatten()[0].item()
             range_spans[d] = span 
@@ -91,8 +93,11 @@ def encode_array(field_handle: str, ary: np.ndarray) -> pb.EncTyp:
         return encode_numeric_array(field_handle, ary)
     elif ary.dtype == np.dtype('bool'):
         return encode_bool_array(field_handle, ary)
-    else:
+    elif np.issubdtype(ary.dtype, np.dtype('str_')):
         return encode_string_array(field_handle, ary)
+    else:
+        raise RuntimeError(
+                f"ary must have a dtype of int32, float32, bool, or str_. Got {ary.dtype}")
 
 def decode_numeric_array(enc: pb.EncTyp) -> np.array:
     """
@@ -172,6 +177,8 @@ def decode_array(enc: pb.EncTyp) -> np.array:
         case default:
             raise RuntimeError(f"Unknown span type: {set_field}")
 
+def decode_array_flat(enc: pb.EncTyp) -> np.array:
+    return decode_array(enc).flatten()
 
 def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
     attr = pb.FieldValue(handle=field.handle)
