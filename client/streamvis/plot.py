@@ -10,6 +10,7 @@ import colorsys
 from matplotlib.lines import Line2D
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.widgets import Slider
 import pandas as pd
 from enum import Enum
 from datetime import datetime
@@ -73,6 +74,7 @@ class PlotOpts:
     c: list[str] = field(default_factory=list) # color field_name
     g: list[str] = field(default_factory=list) # group field_name
     o: list[str] = field(default_factory=list) # order field_name
+    s: list[str] = field(default_factory=list) # slider field_names
 
     tags: list[str] = field(default_factory=list)
     match_all: bool = False
@@ -107,17 +109,17 @@ class PlotOpts:
 
     @property
     def field_to_axis(self):
-        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o }
+        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o, 's': self.s }
         return { v: k for k, v in m.items() if v is not None }
 
     @property
     def axis_to_fname(self):
-        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o }
+        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o, 's': self.s }
         return { k: v for k, v in m.items() if v is not None }
 
     @property
     def field_names(self):
-        s = set((self.x, self.y, *self.c, *self.g, *self.o))
+        s = set((self.x, self.y, *self.c, *self.g, *self.o, *self.s))
         s.discard(None)
         return list(s)
 
@@ -170,13 +172,15 @@ def get_color(color_group: tuple, color_groups: list[tuple]) -> str:
     cinds = tuple(cm[col] for cm, col in zip(colmaps, color_group)) 
 
     N = len(cinds)
-
-    base = colors[cinds[0] % len(colors)]
+    if N == 0:
+        return None
     if N == 1:
+        base = colors[cinds[0] % len(colors)]
         return base
     elif N == 2:
         mults = np.linspace(-0.3, 0.3, len(colmaps[1]))
         factor = 1.0 + mults[cinds[1]]
+        base = colors[cinds[0] % len(colors)]
         c = base
         c = colorsys.rgb_to_hls(*mcolors.to_rgb(c))
         return colorsys.hls_to_rgb(c[0], max(0, min(1, factor * c[1])), c[2])
@@ -197,17 +201,19 @@ def line_plot(
 
     x_fname = axis_fname['x']
     y_fname = axis_fname['y']
-    group_fnames = [RUN_HANDLE] + axis_fname.get('g')
-    color_fnames = [RUN_HANDLE] + axis_fname.get('c')
+    group_fnames = [RUN_HANDLE, RUN_HANDLE] + axis_fname.get('g')
+    color_fnames = [RUN_HANDLE, RUN_HANDLE] + axis_fname.get('c')
 
     color_df = df.groupby(color_fnames)
     color_groups = list(x[1:] for x in color_df.groups.keys())
 
+
+
     for color_group, color_data in df.groupby(color_fnames):
         for glyph_group, glyph_data in color_data.groupby(group_fnames):
-            color = get_color(color_group[1:], color_groups)
-            label = str(glyph_group[1:])
-            ax.plot(
+            color = get_color(color_group[2:], color_groups)
+            label = str(glyph_group[2:])
+            line, = ax.plot(
                 glyph_data[x_fname], 
                 glyph_data[y_fname], 
                 label=label,
@@ -219,7 +225,7 @@ def line_plot(
 
     if len(group_fnames) > 0:
         ax.legend(
-            title=textwrap.fill(', '.join(group_fnames), width=80),
+            title=textwrap.fill(', '.join(group_fnames[2:]), width=80),
             loc=opts.legend_at, 
             fontsize=8,
             title_fontsize=6

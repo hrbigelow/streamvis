@@ -244,6 +244,15 @@ def get_array_type(ary):
     else:
         raise ValueError(f"Unknown array type: {mod}")
 
+def expand_to_ndim(ary: ArrayLike, ndim: int) -> ArrayLike:
+    shape = array_shape(ary)
+    if ndim == len(shape):
+        return ary
+
+    assert len(shape) <= ndim, "Cannot expand ary of shape {shape} to {ndim} dims"
+    new_shape = (1,) * (ndim - len(shape)) + shape
+    return ary.reshape(*new_shape)
+
 def concat_arrays(arrays: list[Any]):
     if len(arrays) == 0:
         raise ValueError("empty list")
@@ -351,6 +360,10 @@ class SeriesValues:
         fields = tuple(convert_and_downcast(field) for field in self.fields)
         return np.broadcast_arrays(*fields)
 
+    def __post_init__(self):
+        ndim = len(self.broadcast_shape)
+        self.fields = tuple(expand_to_ndim(f, ndim) for f in self.fields)
+
 
 def stack_series_values(
     series_values_list: list[SeriesValues]
@@ -366,7 +379,11 @@ def stack_series_values(
         stacked_fields.append(stacked)
         shapes.append(array_shape(stacked))
 
-    bcast_shape = np.broadcast_shapes(*shapes)
+    try:
+        bcast_shape = np.broadcast_shapes(*shapes)
+    except ValueError as ve:
+        raise RuntimeError(f"Couldn't find broadcast shape for shapes: {shapes}") from ve
+
     return SeriesValues(tuple(stacked_fields), bcast_shape)
 
 

@@ -156,7 +156,8 @@ class BaseLogger:
         for series_name in self.queues.keys():
             queue = self.queues[series_name]
             series = self.all_series[series_name]
-            all_done = all_done and self._flush_series(series, queue)
+            done = self._flush_series(series, queue)
+            all_done = all_done and done
         return all_done 
 
     def _flush_series(self, series: pb.Series, queue: asyncio.Queue) -> bool:
@@ -198,9 +199,9 @@ class BaseLogger:
             current_size += item.num_points() 
 
         # now, process if anything is there to process
+        # print(f"{series.name}: {len(current_chunk)}")
         if len(current_chunk) > 0:
             self._process_chunk(current_chunk, series)
-
 
         return finished 
 
@@ -217,7 +218,10 @@ class BaseLogger:
             msg = dbutil.encode_array(coord.field_handle, ary)
             req.field_vals.append(msg)
 
-        resp = self.stub.AppendToSeries(req)
+        try:
+            resp = self.stub.AppendToSeries(req)
+        except Exception as ex:
+            print(f"Got exception {ex} calling AppendToSeries. Ignoring!")
 
 
 class AsyncDataLogger(BaseLogger):
