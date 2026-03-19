@@ -376,7 +376,10 @@ type TagFilterValue struct {
 	MatchAll bool     `db:"match_all"`
 }
 
-func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
+func NewTagFilterValue(msg *pb.TagFilter) (TagFilterValue, error) {
+	if msg == nil {
+		return TagFilterValue{}, fmt.Errorf("Received nil tag_filter")
+	}
 	tags := make([]string, len(msg.Tags))
 	for i, tag := range msg.Tags {
 		tags[i] = tag
@@ -385,10 +388,9 @@ func NewTagFilterValue(msg *pb.TagFilter) TagFilterValue {
 		Tags:     tags,
 		MatchAll: msg.MatchAll,
 	}
-	return val
+	return val, nil
 }
 
-// TODO: update DB to mirror this struct
 type RunFilter struct {
 	AttributeFilters []AttributeFilterValue
 	TagFilter        TagFilterValue
@@ -409,7 +411,10 @@ func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
 			return RunFilter{}, err
 		}
 	}
-	rf.TagFilter = NewTagFilterValue(msg.GetTagFilter())
+	rf.TagFilter, err = NewTagFilterValue(msg.GetTagFilter())
+	if err != nil {
+		return RunFilter{}, err
+	}
 	if msg.MinStartedAt != nil {
 		t := msg.MinStartedAt.AsTime()
 		rf.MinStartedAt = &t

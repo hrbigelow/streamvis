@@ -79,41 +79,41 @@ JOIN field f ON f.id = a.field_id;
 CREATE OR REPLACE FUNCTION filter_by_attribute(
   p_data_type field_data_typ,
   p_value field_value_typ,
-  p_filter attribute_filter_typ
+  p_attr_filter attribute_filter_typ
 )
 RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF p_value.field_handle != p_filter.field_handle THEN
-    RAISE EXCEPTION 'Field handles of p_value and p_filter unequal';
+  IF p_value.field_handle != p_attr_filter.field_handle THEN
+    RAISE EXCEPTION 'Field handles of p_value and p_attr_filter unequal';
   END IF;
 
-  IF p_data_type IS NULL AND p_filter.include_missing THEN
+  IF p_data_type IS NULL AND p_attr_filter.include_missing THEN
     RETURN TRUE;
   END IF;
 
   -- we just trust that p_data_type matches that of the field handle
   CASE p_data_type
     WHEN 'int' THEN
-      IF p_filter.int_vals IS NOT NULL THEN
-        RETURN p_value.int_val = ANY(p_filter.int_vals);
+      IF p_attr_filter.int_vals IS NOT NULL THEN
+        RETURN p_value.int_val = ANY(p_attr_filter.int_vals);
       ELSE
         RETURN (
-          (p_filter.int_min IS NULL OR p_value.int_val >= p_filter.int_min) AND
-          (p_filter.int_max IS NULL OR p_value.int_val <= p_filter.int_max)
+          (p_attr_filter.int_min IS NULL OR p_value.int_val >= p_attr_filter.int_min) AND
+          (p_attr_filter.int_max IS NULL OR p_value.int_val <= p_attr_filter.int_max)
         );
       END IF;
     WHEN 'float' THEN
       RETURN (
-        (p_filter.float_min IS NULL OR p_value.float_val >= p_filter.float_min) AND 
-        (p_filter.float_max IS NULL OR p_value.float_val <= p_filter.float_max)
+        (p_attr_filter.float_min IS NULL OR p_value.float_val >= p_attr_filter.float_min) AND 
+        (p_attr_filter.float_max IS NULL OR p_value.float_val <= p_attr_filter.float_max)
       );
     WHEN 'bool' THEN
-      RETURN p_value.bool_val = ANY(p_filter.bool_vals);
+      RETURN p_value.bool_val = ANY(p_attr_filter.bool_vals);
     WHEN 'string' THEN
-      RETURN p_value.string_val = ANY(p_filter.string_vals);
+      RETURN p_value.string_val = ANY(p_attr_filter.string_vals);
   END CASE;
 END;
 $$;
@@ -124,18 +124,18 @@ $$;
 */
 CREATE OR REPLACE FUNCTION filter_by_tags(
   p_run_tags TEXT[], -- not NULL by constraint on the run table
-  p_filter tag_filter_typ
+  p_tag_filter tag_filter_typ
 ) RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF cardinality(p_filter.tags) = 0 THEN
+  IF cardinality(p_tag_filter.tags) = 0 THEN
     RETURN TRUE; 
-  ELSIF p_filter.match_all THEN
-    RETURN (p_run_tags @> p_filter.tags);
+  ELSIF p_tag_filter.match_all THEN
+    RETURN (p_run_tags @> p_tag_filter.tags);
   ELSE
-    RETURN (p_run_tags && p_filter.tags);
+    RETURN (p_run_tags && p_tag_filter.tags);
   END IF;
 END;
 $$;
@@ -187,42 +187,45 @@ CREATE OR REPLACE FUNCTION list_runs(
   attrs field_value_typ[],
   series_handles UUID[]
 ) 
-LANGUAGE sql
--- LANGUAGE plpgsql
+LANGUAGE plpgsql
 AS $$
-  /*
-  RAISE NOTICE '%', format(
-    'in list_runs with p_attribute_filters=%L, ' ||
-    'p_tag_filter=(tags=%L, match_all=%L) ' ||
-    'p_min_started_at=%L  p_max_started_at=%L', 
-    p_attribute_filters, (p_tag_filter).tags, (p_tag_filter).match_all,
-    p_min_started_at, p_max_started_at
-  );
-  */
-WITH run_series AS (
-  SELECT DISTINCT
-    run_id,
-    series_id
-  FROM chunk
-)
-SELECT 
-  r.handle,
-  r.tags,
-  r.started_at,
-  array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs,
-  array_agg(s.handle) FILTER (WHERE s.handle IS NOT NULL) series
-FROM run r
-JOIN list_runs_internal(
-  p_attribute_filters,
-  p_tag_filter,
-  p_min_started_at,
-  p_max_started_at
-) ri ON ri.run_id = r.id
-LEFT JOIN run_attr ra ON ra.run_id = r.id
-LEFT JOIN run_series rs ON rs.run_id = r.id
-LEFT JOIN series s ON s.id = rs.series_id 
-GROUP BY r.handle, r.tags, r.started_at
-ORDER BY r.started_at;
+BEGIN
+	IF p_tag_filter.tags IS NULL THEN
+		RAISE EXCEPTION 'p_tag_filter.tags cannot be NULL';
+	END IF;
+	IF p_tag_filter.match_all IS NULL THEN
+		RAISE EXCEPTION 'p_tag_filter.match_all cannot be NULL';
+	END IF;
+	IF p_attribute_filters IS NULL THEN
+		RAISE EXCEPTION 'p_attribute_filters cannot be NULL';
+	END IF;
+
+	RETURN QUERY
+	WITH run_series AS (
+		SELECT DISTINCT
+			run_id,
+			series_id
+		FROM chunk
+	)
+	SELECT 
+		r.handle,
+		r.tags,
+		r.started_at,
+		array_agg(ra.attr_value) FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs,
+		array_agg(s.handle) FILTER (WHERE s.handle IS NOT NULL) series
+	FROM run r
+	JOIN list_runs_internal(
+		p_attribute_filters,
+		p_tag_filter,
+		p_min_started_at,
+		p_max_started_at
+	) ri ON ri.run_id = r.id
+	LEFT JOIN run_attr ra ON ra.run_id = r.id
+	LEFT JOIN run_series rs ON rs.run_id = r.id
+	LEFT JOIN series s ON s.id = rs.series_id 
+	GROUP BY r.handle, r.tags, r.started_at
+	ORDER BY r.started_at;
+END;
 $$;
 
 
