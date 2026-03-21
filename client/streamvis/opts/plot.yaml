@@ -13,6 +13,11 @@ defaults:
   - filter@c4: cfilter
   - filter@c5: cfilter
 
+fig_width: 9
+fig_height: 6
+dpi: 300
+legend_at: 'upper right'
+
 ty: scatter
 series: null
 x: null
@@ -20,16 +25,11 @@ y: null
 c: []
 g: []
 o: []
+s: []
 
 tags: []
 match_all: false
 
 min_started_at: null
 max_started_at: null
-
-fig_width: 9
-fig_height: 6
-
-dpi: 300
-legend_at: 'upper right'
 

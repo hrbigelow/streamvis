@@ -1,7 +1,10 @@
 import numpy as np
 import asyncio
 import textwrap
-from typing import Optional
+import traceback
+import time
+from typing import Optional, Any, Callable
+from functools import reduce
 from dataclasses import dataclass, field
 from collections.abc import Iterable
 import matplotlib.pyplot as plt
@@ -10,7 +13,7 @@ import colorsys
 from matplotlib.lines import Line2D
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, RangeSlider
 import pandas as pd
 from enum import Enum
 from datetime import datetime
@@ -24,6 +27,77 @@ from . import rpc_client
 from . import dbutil
 
 
+class DataFrameWrapper:
+    def __init__(self, df: pd.DataFrame, *group_cols: str):
+        self.fields = group_cols 
+        self.ncols = len(self.fields)
+
+        match self.ncols:
+            case 0: 
+                self.df = df
+            case 1: 
+                self.df = df.groupby(group_cols[0])
+            case default: 
+                self.df = df.groupby(list(self.fields))
+
+    def __iter__(self):
+        if self.ncols == 0:
+            yield tuple(), self.df
+            return
+
+        for key, frame in self.df:
+            if isinstance(key, str):
+                yield (key,), frame
+            else:
+                yield key, frame
+
+    @property
+    def groups(self) -> list[Any]:
+        if self.ncols == 0:
+            return () 
+        return list(self.df.groups.keys())
+
+class CategoricalSlider:
+    def __init__(self, ax: plt.Axes, label: str):
+        self.ax = ax
+        self.label = label
+        self.w = None 
+        self.values = None 
+        self.callback = None
+
+    def update(self, values: np.array):
+        if np.array_equal(self.values, values):
+            return
+
+        self.ax.clear()
+        self.values = values
+        prev_val = 0 if self.w is None else self.w.val
+        
+        self.w = Slider(self.ax, self.label, valmin=0, valmax=values.size-1, valstep=1)
+        self.w.set_val(np.clip(prev_val, self.w.valmin, self.w.valmax))
+
+        if self.callback is not None:
+            self.w.on_changed(self.callback)
+
+    def on_changed(self, func: Callable):
+        def func_wrap(val: float):
+            sval = str(self.values[int(val)])
+            self.w.valtext.set_text(sval)
+            func(val)
+        self.callback = func_wrap
+
+    def contains(self, val: Any) -> bool:
+        return self.catval == val
+
+    @property
+    def catval(self):
+        if self.w is None:
+            return None
+        return self.values[int(self.w.val)]
+
+class CategoricalRangeSlider:
+    pass
+
 
 class PlotType(Enum):
     SCATTER = 'scatter'
@@ -36,18 +110,6 @@ class AttrFilter:
     lo: float|int|None = None
     hi: float|int|None = None
     vals: list[float|int|bool|str] = field(default_factory=list)
-
-    @property
-    def is_range_filter(self):
-        return self.lo is not None or self.hi is not None
-
-    @property
-    def is_value_filter(self):
-        return len(self.vals) > 0
-
-    def __post_init__(self):
-        if self.name is not None and self.is_range_filter == self.is_value_filter:
-            raise RuntimeError(f"must set either vals or (lo and/or hi)")
 
 @dataclass
 class ColumnFilter:
@@ -69,6 +131,12 @@ class ColumnFilter:
 class PlotOpts:
     ty: PlotType 
     series: str
+
+    fig_width: int
+    fig_height: int
+    dpi: int
+    legend_at: str
+
     x: str # x-axis field name
     y: str # y-axis field name
     c: list[str] = field(default_factory=list) # color field_name
@@ -88,12 +156,6 @@ class PlotOpts:
     min_started_at: Optional[str] = None
     max_started_at: Optional[str] = None
 
-    fig_width: int = None
-    fig_height: int = None
-
-    dpi: int = None
-    legend_at: str = None
-
     c1: ColumnFilter = None
     c2: ColumnFilter = None
     c3: ColumnFilter = None
@@ -106,11 +168,6 @@ class PlotOpts:
             self.min_started_at = datetime.fromisoformat(self.min_started_at)
         if self.max_started_at is not None:
             self.max_started_at = datetime.fromisoformat(self.max_started_at)
-
-    @property
-    def field_to_axis(self):
-        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o, 's': self.s }
-        return { v: k for k, v in m.items() if v is not None }
 
     @property
     def axis_to_fname(self):
@@ -136,11 +193,192 @@ class PlotOpts:
 STARTED_AT = '_run_started_at'
 RUN_HANDLE = '_run_handle'
 
-def color2d(i: int, j: int, jmax: int):
-    pass
+class PlotManager:
+    def __init__(self, opts: PlotOpts):
+        self.opts = opts
+        self.data_req: pb.QueryRunDataRequest = None
+        self.data_info: rpc_client.QueryRunInfo = None
+        self.df: pd.DataFrame = None
 
-def empty_dataframe(field_names: list[str]) -> pd.DataFrame:
-    return pd.DataFrame(columns=(STARTED_AT, RUN_HANDLE, *field_names))
+
+        self.runs = {} # handle => pb.Run
+        self.glyphs = {} # glyph_id => plt.Artist 
+        self.filters = {} # name => plt.Widget 
+        self.refresh_cond = asyncio.Condition()
+        self.filter_moved = False
+        self.data_changed = False
+
+
+    def prepare(self, stub: ServiceStub):
+        o = self.opts
+        req, info = rpc_client.get_query_run_data_request(
+            stub, o.series, o.field_names, o.tags, o.match_all, o.min_started_at, o.max_started_at)
+
+        for f in self.opts.filters:
+            if f.name is None:
+                continue
+            af = rpc_client.get_attribute_filter(stub, f.name, f.lo, f.hi, f.vals, f.inc_missing)
+            req.run_filter.attribute_filters.append(af)
+
+        self.data_req = req
+        self.data_info = info 
+        self.df = pd.DataFrame(columns=(STARTED_AT, RUN_HANDLE, *self.data_info.field_names))
+        self.df[RUN_HANDLE] = self.df[RUN_HANDLE].astype('category')
+
+        xdesc = info.field_name_map[self.opts.x]
+        ydesc = info.field_name_map[self.opts.y]
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(
+            figsize=(self.opts.fig_width, self.opts.fig_height), 
+            dpi=self.opts.dpi)
+
+        self.ax.set_xlabel(xdesc, fontsize=10)
+        self.ax.set_ylabel(ydesc, fontsize=10)
+
+        for s in self.opts.s:
+            self.add_slider(s)
+
+        plt.tight_layout()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+    def add_slider(self, field_name: str):
+        slider_ax = self.fig.add_axes([0.15, 0.02, 0.7, 0.03])
+        self.filters[field_name] = w = CategoricalSlider(slider_ax, field_name) 
+        w.on_changed(self.on_slider_changed)
+
+
+    async def refresh_data(self, stub: ServiceStub):
+        # start_time = time.perf_counter()
+
+        pbruns = rpc_client.list_runs(stub, self.data_req.run_filter)
+        old_runs = self.runs
+        self.runs = { r.handle: r for r in pbruns }
+        stale_handles = [
+            h for h, r in old_runs.items() 
+            if h not in self.runs 
+            or self.runs[h].started_at.seconds > r.started_at.seconds
+        ]
+
+        self.df = self.df[~self.df[RUN_HANDLE].isin(stale_handles)]
+
+        new_dfs = to_dataframes(stub, self.data_req, self.data_info.field_names)
+        pre_chunk_id = self.data_req.begin_chunk_id
+        self.data_req.begin_chunk_id = cur_chunk_id = rpc_client.get_end_chunk_id(stub) 
+        
+        self.data_changed = (pre_chunk_id != cur_chunk_id or len(stale_handles) > 0)
+
+        if len(new_dfs) > 0: 
+            self.df = pd.concat([self.df, *new_dfs], ignore_index=True)
+            self.df[RUN_HANDLE] = self.df[RUN_HANDLE].astype('category')
+            self.df.sort_values(by=STARTED_AT, inplace=True)
+
+        for cf in self.opts.cfilters:
+            if cf.name is None:
+                continue
+            if cf.is_range_filter:
+                self.df = self.df[self.df[cf.name].between(cf.lo, cf.hi)]
+            else:
+                self.df = self.df[self.df[cf.name].isin(cf.vals)]
+
+        if all(field in self.df for field in self.opts.o):
+            self.df.sort_values(by=self.opts.o, inplace=True)
+
+        self.group_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.g)
+
+        for field_name, w in self.filters.items():
+            values = self.df[field_name].unique()
+            values.sort()
+            w.update(values)
+
+        self.refresh_glyphs()
+
+        async with self.refresh_cond: 
+            self.refresh_cond.notify_all()
+
+        # elapsed = time.perf_counter() - start_time
+        # print(f"refresh_data took {elapsed:.4f} s")
+
+    def refresh_glyphs(self):
+        """
+        called every time self.df gets updated.  
+        """
+        glyph_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.g)
+        plot_groups = list(self.glyphs.keys())
+
+        for glyph_id in plot_groups:
+            if glyph_id not in glyph_df.groups:
+                del self.glyphs[glyph_id]
+
+        color_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.c)
+        color_groups = list(x[1:] for x in color_df.groups)
+
+        for color_group, color_data in color_df:
+            color_glyph_data = DataFrameWrapper(color_data, RUN_HANDLE, *self.opts.g)
+            for glyph_id, data in color_glyph_data:
+                if glyph_id not in plot_groups:
+                    color = get_color(color_group[2:], color_groups)
+                    self.glyphs[glyph_id], = self.ax.plot(
+                        0, 0,
+                        label=str(glyph_id), 
+                        color=color, 
+                        linewidth=1)
+                self.glyphs[glyph_id].set_data(data[self.opts.x], data[self.opts.y])
+
+
+    async def refresh_glyph_visibility(self):
+        async with self.refresh_cond:
+            await self.refresh_cond.wait_for(lambda: self.filter_moved)
+
+        all_groups = self.group_df.groups
+        fields = self.group_df.fields
+        field_map = { v: i for i, v in enumerate(fields) }
+
+        for group, glyph in self.glyphs.items():
+            show = True
+            for filt in self.filters.values():
+                val = group[field_map[filt.label]]
+                show = show and filt.contains(val)
+            glyph.set_visible(show)
+        self.filter_moved = False
+
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.fig.canvas.draw()
+
+    async def refresh_task(self, stub: ServiceStub, refresh_every: int=5):
+        while True:
+            await self.refresh_data(stub)
+            await asyncio.sleep(refresh_every)
+
+    async def apply_filters_task(self):
+        while True:
+            await self.refresh_glyph_visibility()
+
+    async def gui_loop(self):
+        while True:
+            # print(f"flush_events")
+            self.fig.canvas.flush_events()
+            await asyncio.sleep(0.2)
+
+    async def _on_filter_changed(self):
+        self.filter_moved = True
+        async with self.refresh_cond:
+            self.refresh_cond.notify_all()
+
+    def on_slider_changed(self, val: float):
+        # print(f"on_slider_changed: {val}")
+        asyncio.create_task(self._on_filter_changed())
+
+    async def start(self, stub):
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(self.gui_loop())
+                tg.create_task(self.refresh_task(stub))
+                tg.create_task(self.apply_filters_task())
+        except ExceptionGroup as eg:
+            traceback.print_exception(eg)
 
 def to_dataframes(
     stub: ServiceStub, 
@@ -161,7 +399,6 @@ def to_dataframes(
             d[RUN_HANDLE] = run.handle
             df = pd.DataFrame(d)
             yield df
-        yield empty_dataframe(field_names) 
 
     return list(_gen())
 
@@ -207,22 +444,6 @@ def line_plot(
     color_df = df.groupby(color_fnames)
     color_groups = list(x[1:] for x in color_df.groups.keys())
 
-
-
-    for color_group, color_data in df.groupby(color_fnames):
-        for glyph_group, glyph_data in color_data.groupby(group_fnames):
-            color = get_color(color_group[2:], color_groups)
-            label = str(glyph_group[2:])
-            line, = ax.plot(
-                glyph_data[x_fname], 
-                glyph_data[y_fname], 
-                label=label,
-                color=color,
-                linewidth=1)
-
-    ax.set_xlabel(fname_desc[x_fname], fontsize=10)
-    ax.set_ylabel(fname_desc[y_fname], fontsize=10)
-
     if len(group_fnames) > 0:
         ax.legend(
             title=textwrap.fill(', '.join(group_fnames[2:]), width=80),
@@ -231,6 +452,7 @@ def line_plot(
             title_fontsize=6
         )
     plt.tight_layout()
+    plt.show()
     fig.canvas.draw()
     fig.canvas.flush_events()
     # plt.draw()
@@ -242,105 +464,13 @@ def line_plot(
 def main(cfg: DictConfig):
     asyncio.run(amain(cfg))
 
+
 async def amain(cfg: DictConfig):
     opts = instantiate(cfg, _convert_='all') # _convert_ needed for lists
     stub = rpc_client.get_service_stub()
-    info = rpc_client.get_data_columns(stub, opts.series, opts.field_names)
-    field_map = {}
-    for field in rpc_client.list_fields(stub):
-        field_map[field.name] = field
-    
-    axes = []
-    req = pb.QueryRunDataRequest()
-    req.coord_handles.extend((c.coord_handle for c in info.coords))
-    req.attr_handles.extend((a.handle for a in info.attrs))
-
-    rf = req.run_filter
-    tf = rf.tag_filter
-
-    tf.tags.extend(opts.tags)
-    tf.match_all = opts.match_all
-    if opts.min_started_at is not None:
-        rf.min_started_at = opts.min_started_at
-    if opts.max_started_at is not None:
-        rf.max_started_at = opts.max_started_at
-
-    for filt in opts.filters:
-        if filt.name is None:
-            continue
-        field = field_map.get(filt.name)
-        if field is None:
-            raise RuntimeError(
-                f"Filter field name {name} is not a valid Field. "
-                f"Use streamvis.v1.Service.ListFields RPC endpoint to see valid fields")
-
-        af = pb.AttributeFilter(field_handle=field.handle,
-                                include_missing=filt.inc_missing)
-        match field.data_type:
-            case pb.FieldDataType.FIELD_DATA_TYPE_INT:
-                if filt.is_range_filter:
-                    af.int_range.imin = filt.lo
-                    af.int_range.imax = filt.hi
-                else:
-                    af.int_list.vals.extend(filt.vals)
-            case pb.FieldDataType.FIELD_DATA_TYPE_FLOAT:
-                if not filt.is_range_filter:
-                    raise RuntimeError(
-                        f"filter {filt.name} is a Float filter. "
-                        f"only a range style is supported")
-                af.float_range.vals.extend(filt.vals)
-            case pb.FieldDataType.FIELD_DATA_TYPE_BOOL:
-                if not filt.is_value_filter:
-                    raise RuntimeError(
-                        f"filter {filt.name} is a Bool filter. "
-                        f"only a value style is supported")
-                af.bool_list.vals.extend(filt.vals)
-            case pb.FieldDataType.FIELD_DATA_TYPE_STRING:
-                if not filt.is_value_filter:
-                    raise RuntimeError(
-                        f"filter {filt.name} is a String filter. "
-                        f"only a value style is supported")
-                af.string_list.vals.extend(filt.vals)
-
-        rf.attribute_filters.append(af)
-
-
-    fig, ax = plt.subplots(figsize=(opts.fig_width, opts.fig_height), dpi=opts.dpi)
-    plt.ion()
-    plt.show()
-
-    runs = {}
-    df = empty_dataframe(info.field_names) 
-
-    while True:
-        # filter out any stale data
-        pbruns = stub.ListRuns(pb.ListRunsRequest(run_filter=req.run_filter))
-        new_runs = { r.handle: r for r in pbruns }
-        stale_handles = [h for h, r in runs.items() if h not in new_runs or
-                         new_runs[h].started_at.seconds > r.started_at.seconds]
-        df = df[~df[RUN_HANDLE].isin(stale_handles)]
-        runs = new_runs
-        
-        new_dfs = to_dataframes(stub, req, info.field_names)
-        req.begin_chunk_id = rpc_client.get_end_chunk_id(stub) 
-
-        df = pd.concat([df, *new_dfs], ignore_index=True)
-        df.sort_values(by=STARTED_AT, inplace=True)
-
-        for cf in opts.cfilters:
-            if cf.name is None:
-                continue
-            if cf.is_range_filter:
-                df = df[df[cf.name].between(cf.lo, cf.hi)]
-            else:
-                df = df[df[cf.name].isin(cf.vals)]
-
-        if all(field in df for field in opts.o):
-            df.sort_values(by=opts.o, inplace=True)
-
-        line_plot(fig, ax, df, opts.axis_to_fname, info.field_name_map, opts)
-        await asyncio.sleep(5)
-
+    mgr = PlotManager(opts)
+    mgr.prepare(stub)
+    await mgr.start(stub) 
 
 if __name__ == "__main__":
     main()
