@@ -53,9 +53,13 @@ class DataFrameWrapper:
 
     @property
     def groups(self) -> list[Any]:
-        if self.ncols == 0:
-            return () 
-        return list(self.df.groups.keys())
+        match self.ncols:
+            case 0:
+                return []
+            case 1:
+                return [(g,) for g in self.df.groups.keys()]
+            case default:
+                return (self.df.groups.keys())
 
 class CategoricalSlider:
     def __init__(self, ax: plt.Axes, label: str):
@@ -204,9 +208,7 @@ class PlotManager:
         self.runs = {} # handle => pb.Run
         self.glyphs = {} # glyph_id => plt.Artist 
         self.filters = {} # name => plt.Widget 
-        self.refresh_cond = asyncio.Condition()
-        self.filter_moved = False
-        self.data_changed = False
+        self.visibility_event = asyncio.Event()
 
 
     def prepare(self, stub: ServiceStub):
@@ -239,7 +241,7 @@ class PlotManager:
         for s in self.opts.s:
             self.add_slider(s)
 
-        plt.tight_layout()
+        # plt.tight_layout()
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
@@ -248,8 +250,8 @@ class PlotManager:
         self.filters[field_name] = w = CategoricalSlider(slider_ax, field_name) 
         w.on_changed(self.on_slider_changed)
 
-
     async def refresh_data(self, stub: ServiceStub):
+        print("refresh_data")
         # start_time = time.perf_counter()
 
         pbruns = rpc_client.list_runs(stub, self.data_req.run_filter)
@@ -292,45 +294,37 @@ class PlotManager:
             values.sort()
             w.update(values)
 
-        self.refresh_glyphs()
-
-        async with self.refresh_cond: 
-            self.refresh_cond.notify_all()
+        if self.data_changed:
+            self._refresh_glyphs()
 
         # elapsed = time.perf_counter() - start_time
         # print(f"refresh_data took {elapsed:.4f} s")
 
-    def refresh_glyphs(self):
-        """
-        called every time self.df gets updated.  
-        """
-        glyph_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.g)
+    def _refresh_glyphs(self):
+        # update
+        print("_refresh_glyphs")
         plot_groups = list(self.glyphs.keys())
+        color_df = DataFrameWrapper(self.df, *self.opts.c)
+        color_inds = tuple(self.group_df.fields.index(f) for f in color_df.fields)
 
-        for glyph_id in plot_groups:
-            if glyph_id not in glyph_df.groups:
-                del self.glyphs[glyph_id]
+        for glyph_id, data in self.group_df:
+            if glyph_id not in plot_groups:
+                color_group = tuple(glyph_id[c] for c in color_inds) 
+                color = get_color(color_group, color_df.groups)
+                self.glyphs[glyph_id], = self.ax.plot(
+                    0, 0,
+                    label=str(glyph_id), 
+                    color=color, 
+                    linewidth=1)
+            self.glyphs[glyph_id].set_data(data[self.opts.x], data[self.opts.y])
 
-        color_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.c)
-        color_groups = list(x[1:] for x in color_df.groups)
-
-        for color_group, color_data in color_df:
-            color_glyph_data = DataFrameWrapper(color_data, RUN_HANDLE, *self.opts.g)
-            for glyph_id, data in color_glyph_data:
-                if glyph_id not in plot_groups:
-                    color = get_color(color_group[2:], color_groups)
-                    self.glyphs[glyph_id], = self.ax.plot(
-                        0, 0,
-                        label=str(glyph_id), 
-                        color=color, 
-                        linewidth=1)
-                self.glyphs[glyph_id].set_data(data[self.opts.x], data[self.opts.y])
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.fig.canvas.draw()
 
 
-    async def refresh_glyph_visibility(self):
-        async with self.refresh_cond:
-            await self.refresh_cond.wait_for(lambda: self.filter_moved)
-
+    def _update_visibility(self):
+        print(f"_update_visibility")
         all_groups = self.group_df.groups
         fields = self.group_df.fields
         field_map = { v: i for i, v in enumerate(fields) }
@@ -341,42 +335,38 @@ class PlotManager:
                 val = group[field_map[filt.label]]
                 show = show and filt.contains(val)
             glyph.set_visible(show)
-        self.filter_moved = False
 
         self.ax.relim()
         self.ax.autoscale_view()
         self.fig.canvas.draw()
+
+
+    async def refresh_glyph_visibility(self):
+        while True:
+            await self.visibility_event.wait()
+            self.visibility_event.clear()
+            self._update_visibility()
 
     async def refresh_task(self, stub: ServiceStub, refresh_every: int=5):
         while True:
             await self.refresh_data(stub)
             await asyncio.sleep(refresh_every)
 
-    async def apply_filters_task(self):
-        while True:
-            await self.refresh_glyph_visibility()
-
     async def gui_loop(self):
         while True:
             # print(f"flush_events")
             self.fig.canvas.flush_events()
-            await asyncio.sleep(0.2)
-
-    async def _on_filter_changed(self):
-        self.filter_moved = True
-        async with self.refresh_cond:
-            self.refresh_cond.notify_all()
+            await asyncio.sleep(0.1)
 
     def on_slider_changed(self, val: float):
-        # print(f"on_slider_changed: {val}")
-        asyncio.create_task(self._on_filter_changed())
+        self.visibility_event.set()
 
     async def start(self, stub):
         try:
             async with asyncio.TaskGroup() as tg:
                 tg.create_task(self.gui_loop())
                 tg.create_task(self.refresh_task(stub))
-                tg.create_task(self.apply_filters_task())
+                tg.create_task(self.refresh_glyph_visibility())
         except ExceptionGroup as eg:
             traceback.print_exception(eg)
 
