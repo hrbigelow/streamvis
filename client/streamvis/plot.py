@@ -326,7 +326,7 @@ class PlotManager:
 
 
     def _update_visibility(self):
-        print(f"_update_visibility")
+        # print(f"_update_visibility")
         all_groups = self.group_df.groups
         fields = self.group_df.fields
         field_map = { v: i for i, v in enumerate(fields) }
