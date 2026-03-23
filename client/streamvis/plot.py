@@ -237,6 +237,8 @@ class PlotManager:
 
         self.ax.set_xlabel(xdesc, fontsize=10)
         self.ax.set_ylabel(ydesc, fontsize=10)
+        self.legend_title = textwrap.fill(', '.join(o.g), width=80)
+
 
         for s in self.opts.s:
             self.add_slider(s)
@@ -251,7 +253,6 @@ class PlotManager:
         w.on_changed(self.on_slider_changed)
 
     async def refresh_data(self, stub: ServiceStub):
-        print("refresh_data")
         # start_time = time.perf_counter()
 
         pbruns = rpc_client.list_runs(stub, self.data_req.run_filter)
@@ -302,7 +303,6 @@ class PlotManager:
 
     def _refresh_glyphs(self):
         # update
-        print("_refresh_glyphs")
         plot_groups = list(self.glyphs.keys())
         color_df = DataFrameWrapper(self.df, *self.opts.c)
         color_inds = tuple(self.group_df.fields.index(f) for f in color_df.fields)
@@ -313,11 +313,13 @@ class PlotManager:
                 color = get_color(color_group, color_df.groups)
                 self.glyphs[glyph_id], = self.ax.plot(
                     0, 0,
-                    label=str(glyph_id), 
+                    label=str(glyph_id[1:]), 
                     color=color, 
                     linewidth=1)
             self.glyphs[glyph_id].set_data(data[self.opts.x], data[self.opts.y])
 
+        self.ax.legend(
+            title=self.legend_title, loc=self.opts.legend_at, fontsize=8, title_fontsize=6)
         self.ax.relim()
         self.ax.autoscale_view()
         self.fig.canvas.draw()
@@ -336,6 +338,8 @@ class PlotManager:
                 show = show and filt.contains(val)
             glyph.set_visible(show)
 
+        self.ax.legend(
+            title=self.legend_title, loc=self.opts.legend_at, fontsize=8, title_fontsize=6)
         self.ax.relim()
         self.ax.autoscale_view()
         self.fig.canvas.draw()
@@ -411,43 +415,6 @@ def get_color(color_group: tuple, color_groups: list[tuple]) -> str:
         c = base
         c = colorsys.rgb_to_hls(*mcolors.to_rgb(c))
         return colorsys.hls_to_rgb(c[0], max(0, min(1, factor * c[1])), c[2])
-
-
-def line_plot(
-    fig: Figure,
-    ax: Axes,
-    df: pd.DataFrame,
-    axis_fname: dict[str, str],
-    fname_desc: dict[str, str],
-    opts: PlotOpts, 
-) -> None:
-    if len(df) == 0:
-        print(f"No data to display")
-        return
-    ax.clear()
-
-    x_fname = axis_fname['x']
-    y_fname = axis_fname['y']
-    group_fnames = [RUN_HANDLE, RUN_HANDLE] + axis_fname.get('g')
-    color_fnames = [RUN_HANDLE, RUN_HANDLE] + axis_fname.get('c')
-
-    color_df = df.groupby(color_fnames)
-    color_groups = list(x[1:] for x in color_df.groups.keys())
-
-    if len(group_fnames) > 0:
-        ax.legend(
-            title=textwrap.fill(', '.join(group_fnames[2:]), width=80),
-            loc=opts.legend_at, 
-            fontsize=8,
-            title_fontsize=6
-        )
-    plt.tight_layout()
-    plt.show()
-    fig.canvas.draw()
-    fig.canvas.flush_events()
-    # plt.draw()
-    # plt.pause(0.1)
-
 
 
 @hydra.main(config_path="./opts", config_name="plot", version_base="1.2")

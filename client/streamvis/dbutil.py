@@ -199,9 +199,9 @@ def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
                     f"value `{val}` given for field `{field.name}` was {type(val)} but expected str")
             attr.string_val = val
         case pb.FIELD_DATA_TYPE_BOOL:
-            if not isinstance(val, str):
+            if not isinstance(val, bool):
                 raise RuntimeError(
-                    f"value `{val}` given for field `{field.name}` was {type(val)} but expected str")
+                    f"value `{val}` given for field `{field.name}` was {type(val)} but expected bool")
             attr.bool_val = val
         case pb.FIELD_DATA_TYPE_UNSPECIFIED:
             raise RuntimeError(f"database field `{field.name}` has undefined data type")

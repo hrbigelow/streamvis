@@ -33,3 +33,9 @@ match_all: false
 min_started_at: null
 max_started_at: null
 
+
+hydra:
+  run:
+    dir: ${oc.env:HOME}/.hydra
+  output_subdir: .hydra
+
