@@ -83,6 +83,20 @@ def get_data_columns(
 
     return QueryRunInfo(attrs, coords)
 
+def get_run_filter(
+    tags: list[str],
+    match_all_tags: bool,
+    min_started_at: datetime|None,
+    max_started_at: datetime|None,
+) -> pb.RunFilter:
+    msg = pb.RunFilter(
+        min_started_at=min_started_at,
+        max_started_at=max_started_at,
+    )
+    msg.tag_filter.tags.extend(tags)
+    msg.tag_filter.match_all = match_all_tags
+    return msg
+
 def get_query_run_data_request(
         stub: ServiceStub,
         series: str,

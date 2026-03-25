@@ -2,6 +2,7 @@ import numpy as np
 import asyncio
 import textwrap
 import traceback
+import dateparser
 import time
 from typing import Optional, Any, Callable
 from functools import reduce
@@ -59,7 +60,7 @@ class DataFrameWrapper:
             case 1:
                 return [(g,) for g in self.df.groups.keys()]
             case default:
-                return (self.df.groups.keys())
+                return tuple(self.df.groups.keys())
 
 class CategoricalSlider:
     def __init__(self, ax: plt.Axes, label: str):
@@ -143,10 +144,12 @@ class PlotOpts:
 
     x: str # x-axis field name
     y: str # y-axis field name
-    c: list[str] = field(default_factory=list) # color field_name
+    cm: list[str] = field(default_factory=list) # color main field_name
+    cs: list[str] = field(default_factory=list) # color sub field_name
     g: list[str] = field(default_factory=list) # group field_name
     o: list[str] = field(default_factory=list) # order field_name
-    s: list[str] = field(default_factory=list) # slider field_names
+    s: list[str] = field(default_factory=list) # slider field_name
+    l: list[str] = field(default_factory=list) # label field_name
 
     tags: list[str] = field(default_factory=list)
     match_all: bool = False
@@ -157,8 +160,8 @@ class PlotOpts:
     f4: AttrFilter = None
     f5: AttrFilter = None
 
-    min_started_at: Optional[str] = None
-    max_started_at: Optional[str] = None
+    after: Optional[str] = None
+    before: Optional[str] = None
 
     c1: ColumnFilter = None
     c2: ColumnFilter = None
@@ -168,19 +171,28 @@ class PlotOpts:
 
     def __post_init__(self):
         self.ty = PlotType(self.ty)
-        if self.min_started_at is not None:
-            self.min_started_at = datetime.fromisoformat(self.min_started_at)
-        if self.max_started_at is not None:
-            self.max_started_at = datetime.fromisoformat(self.max_started_at)
+        if self.after is not None:
+            self.after = dateparser.parse(self.after)
+        if self.before is not None:
+            self.before = dateparser.parse(self.before)
+        if any(l not in self.g for l in self.l):
+            raise RuntimeError(f"l must be a subset of g")
+        if any(c not in self.g for c in self.cm):
+            raise RuntimeError(f"cm must be a subset of g")
+        if any(c not in self.g for c in self.cs):
+            raise RuntimeError(f"cs must be a subset of g")
 
     @property
     def axis_to_fname(self):
-        m = { 'x': self.x, 'y': self.y, 'c': self.c, 'g': self.g, 'o': self.o, 's': self.s }
+        m = { 
+             'x': self.x, 'y': self.y, 'cm': self.cm, 'cs': self.cs, 'g': self.g,
+             'o': self.o, 's': self.s, 'l': self.l 
+            }
         return { k: v for k, v in m.items() if v is not None }
 
     @property
     def field_names(self):
-        s = set((self.x, self.y, *self.c, *self.g, *self.o, *self.s))
+        s = set((self.x, self.y, *self.g, *self.o, *self.s))
         s.discard(None)
         return list(s)
 
@@ -204,17 +216,21 @@ class PlotManager:
         self.data_info: rpc_client.QueryRunInfo = None
         self.df: pd.DataFrame = None
 
-
         self.runs = {} # handle => pb.Run
         self.glyphs = {} # glyph_id => plt.Artist 
         self.filters = {} # name => plt.Widget 
         self.visibility_event = asyncio.Event()
 
+        self.legend_opts = dict(
+            title=textwrap.fill(', '.join(opts.l), width=80), 
+            loc=self.opts.legend_at, 
+            fontsize=8, 
+            title_fontsize=6)
 
     def prepare(self, stub: ServiceStub):
         o = self.opts
         req, info = rpc_client.get_query_run_data_request(
-            stub, o.series, o.field_names, o.tags, o.match_all, o.min_started_at, o.max_started_at)
+            stub, o.series, o.field_names, o.tags, o.match_all, o.after, o.before)
 
         for f in self.opts.filters:
             if f.name is None:
@@ -237,8 +253,6 @@ class PlotManager:
 
         self.ax.set_xlabel(xdesc, fontsize=10)
         self.ax.set_ylabel(ydesc, fontsize=10)
-        self.legend_title = textwrap.fill(', '.join(o.g), width=80)
-
 
         for s in self.opts.s:
             self.add_slider(s)
@@ -275,7 +289,7 @@ class PlotManager:
         if len(new_dfs) > 0: 
             self.df = pd.concat([self.df, *new_dfs], ignore_index=True)
             self.df[RUN_HANDLE] = self.df[RUN_HANDLE].astype('category')
-            self.df.sort_values(by=STARTED_AT, inplace=True)
+            # self.df.sort_values(by=STARTED_AT, inplace=True)
 
         for cf in self.opts.cfilters:
             if cf.name is None:
@@ -285,8 +299,8 @@ class PlotManager:
             else:
                 self.df = self.df[self.df[cf.name].isin(cf.vals)]
 
-        if all(field in self.df for field in self.opts.o):
-            self.df.sort_values(by=self.opts.o, inplace=True)
+        self.df.sort_values(by=[STARTED_AT, *self.opts.g, *self.opts.o],
+                            ascending=True, inplace=True)
 
         self.group_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.g)
 
@@ -304,22 +318,39 @@ class PlotManager:
     def _refresh_glyphs(self):
         # update
         plot_groups = list(self.glyphs.keys())
-        color_df = DataFrameWrapper(self.df, *self.opts.c)
-        color_inds = tuple(self.group_df.fields.index(f) for f in color_df.fields)
+        color_df = DataFrameWrapper(self.df, *self.opts.cm, *self.opts.cs)
+        base_inds = tuple(self.group_df.fields.index(f) for f in self.opts.cm)
+        sub_inds = tuple(self.group_df.fields.index(f) for f in self.opts.cs)
+
+        cgroups = {}
+        nbase = len(self.opts.cm)
+        for cg in color_df.groups:
+            base, sub = cg[:nbase], cg[nbase:]
+            cgroups.setdefault(base, list()).append(sub)
+        base_groups = list(sorted(cgroups.keys()))
+
+        def get_glyph_color(glyph_id):
+            base_gr = tuple(glyph_id[i] for i in base_inds)
+            sub_gr = tuple(glyph_id[i] for i in sub_inds)
+            base_idx = base_groups.index(base_gr)
+            sub_idx = cgroups[base_gr].index(sub_gr)
+            num_sub = len(cgroups[base_gr])
+            return get_color(base_idx, sub_idx, num_sub)
+
+        label_inds = tuple(self.group_df.fields.index(l) for l in self.opts.l)
 
         for glyph_id, data in self.group_df:
             if glyph_id not in plot_groups:
-                color_group = tuple(glyph_id[c] for c in color_inds) 
-                color = get_color(color_group, color_df.groups)
+                color = get_glyph_color(glyph_id)
+                label = tuple(glyph_id[l] for l in label_inds)
                 self.glyphs[glyph_id], = self.ax.plot(
-                    0, 0,
-                    label=str(glyph_id[1:]), 
-                    color=color, 
-                    linewidth=1)
+                    0, 0, label=str(label), color=color, linewidth=1)
             self.glyphs[glyph_id].set_data(data[self.opts.x], data[self.opts.y])
 
-        self.ax.legend(
-            title=self.legend_title, loc=self.opts.legend_at, fontsize=8, title_fontsize=6)
+        by_label = { g.get_label(): g for g in self.glyphs.values() }
+        labels, glyphs = list(zip(*sorted(by_label.items())))
+
+        self.ax.legend(handles=glyphs, labels=labels, **self.legend_opts)
         self.ax.relim()
         self.ax.autoscale_view()
         self.fig.canvas.draw()
@@ -338,8 +369,10 @@ class PlotManager:
                 show = show and filt.contains(val)
             glyph.set_visible(show)
 
-        self.ax.legend(
-            title=self.legend_title, loc=self.opts.legend_at, fontsize=8, title_fontsize=6)
+        by_label = { g.get_label(): g for g in self.glyphs.values() if g.get_visibility() }
+        labels, glyphs = list(zip(*by_label.items()))
+
+        self.ax.legend(handles=glyphs, labels=labels, **self.legend_opts)
         self.ax.relim()
         self.ax.autoscale_view()
         self.fig.canvas.draw()
@@ -396,25 +429,15 @@ def to_dataframes(
 
     return list(_gen())
 
-def get_color(color_group: tuple, color_groups: list[tuple]) -> str:
+def get_color(base_idx: int, sub_idx: int, num_sub: int) -> str:
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    cols = tuple(tuple(sorted(set(c))) for c in zip(*color_groups))
-    colmaps = tuple({v: i for i, v in enumerate(col)} for col in cols)
-    cinds = tuple(cm[col] for cm, col in zip(colmaps, color_group)) 
-
-    N = len(cinds)
-    if N == 0:
-        return None
-    if N == 1:
-        base = colors[cinds[0] % len(colors)]
+    base = colors[base_idx % len(colors)]
+    if sub_idx is None:
         return base
-    elif N == 2:
-        mults = np.linspace(-0.3, 0.3, len(colmaps[1]))
-        factor = 1.0 + mults[cinds[1]]
-        base = colors[cinds[0] % len(colors)]
-        c = base
-        c = colorsys.rgb_to_hls(*mcolors.to_rgb(c))
-        return colorsys.hls_to_rgb(c[0], max(0, min(1, factor * c[1])), c[2])
+
+    fac = np.linspace(0.75, 1.25, num_sub)
+    col = colorsys.rgb_to_hls(*mcolors.to_rgb(base))
+    return colorsys.hls_to_rgb(col[0], np.clip(fac[sub_idx] * col[1], 0, 1), col[2])
 
 
 @hydra.main(config_path="./opts", config_name="plot", version_base="1.2")
