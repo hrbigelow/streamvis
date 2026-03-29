@@ -1,6 +1,8 @@
 \ir teardown/procs.sql
 \ir teardown/query.sql
 \ir teardown/base.sql
-\ir teardown/tables.sql
-\ir teardown/types.sql
+
+\ir schema/base.sql
+\ir schema/query.sql
+\ir schema/procs.sql
 

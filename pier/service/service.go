@@ -195,11 +195,14 @@ func (s *Service) AddRunTag(
 	ctx context.Context,
 	req *pb.AddRunTagRequest,
 ) (*pb.AddRunTagResponse, error) {
-	runHandle, err := uuid.Parse(req.GetRunHandle())
+	runFilter, err := NewRunFilter(req.GetRunFilter())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
+	}
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "runHandle invalid UUID: %v", err)
 	}
-	err = s.store.AddRunTag(ctx, runHandle, req.Tag)
+	err = s.store.AddRunTag(ctx, runFilter, req.Tag)
 	return &pb.AddRunTagResponse{}, err
 }
 

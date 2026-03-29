@@ -99,26 +99,28 @@ def delete_empty_series(series_name: str):
     _ = stub.DeleteEmptySeries(req)
 
 def add_run_tag(
-    after: str,
-    until: str,
-    tag: str,
-    req_tags: list[str]|None = None,
-    match_all_tags: bool = False,
-):
+        tag: str,
+        after: str|None = None,
+        until: str|None = None,
+        req_tags: list[str]|None = None,
+        match_all_tags: bool = False,
+        ):
     if req_tags is None:
         req_tags = []
+
+    if until is not None:
+        until = dateparser.parse(until)
+
+    if after is not None:
+        after = dateparser.parse(after)
 
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
-    until = dateparser.parse(until)
-    after = dateparser.parse(after)
+
     rf = rpc_client.get_run_filter(req_tags, match_all_tags, after, until)
-    req = pb.ListRunsRequest(run_filter=rf)
-    run_handles = list(r.handle for r in stub.ListRuns(req))
-    for handle in run_handles:
-        req = pb.AddRunTagRequest(run_handle=handle, tag=tag)
-        _ = stub.AddRunTag(req)
+    req = pb.AddRunTagRequest(run_filter=rf, tag=tag)
+    resp = stub.AddRunTag(req)
 
 def delete_run_tag(run_handle: str, tag: str):
     global GRPC_URI

@@ -133,7 +133,7 @@ message DeleteEmptySeriesResponse {
 }
 
 message AddRunTagRequest {
-  string run_handle = 1;
+  RunFilter run_filter = 1;
   string tag = 2;
 }
 

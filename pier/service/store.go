@@ -247,11 +247,17 @@ func (st *Store) DeleteEmptySeries(
 
 func (st *Store) AddRunTag(
 	ctx context.Context,
-	runHandle uuid.UUID,
+	runFilter RunFilter,
 	tag string,
 ) error {
-	sql := `CALL add_run_tag($1, $2)`
-	_, err := st.pool.Exec(ctx, sql, runHandle, tag)
+	sql := `CALL add_run_tag($1, $2, $3, $4, $5)`
+	_, err := st.pool.Exec(
+		ctx, sql,
+		runFilter.AttributeFilters,
+		runFilter.TagFilter,
+		runFilter.MinStartedAt,
+		runFilter.MaxStartedAt,
+		tag)
 	return err
 }
 

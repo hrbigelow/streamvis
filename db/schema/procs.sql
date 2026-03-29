@@ -26,12 +26,10 @@ CREATE OR REPLACE PROCEDURE create_field(
   IN p_data_type field_data_typ,
   IN p_description TEXT
 )
-LANGUAGE plpgsql
+LANGUAGE sql
 AS $$
-BEGIN
   INSERT INTO field (name, data_type, description)
   VALUES (p_name, p_data_type, p_description);
-END;
 $$;
 
 
@@ -307,17 +305,24 @@ $$;
 
 \echo 'add_run_tag'
 CREATE OR REPLACE PROCEDURE add_run_tag(
-  IN p_run_handle UUID,
+  IN p_attribute_filters attribute_filter_typ[],
+  IN p_tag_filter tag_filter_typ,
+  IN p_min_started_at TIMESTAMPTZ,
+  IN p_max_started_at TIMESTAMPTZ,
   IN p_tag TEXT
 )
-LANGUAGE plpgsql
+LANGUAGE sql 
 AS $$
-BEGIN
   UPDATE run
   SET tags = array_append(tags, p_tag)
-  WHERE handle = p_run_handle
+	FROM list_runs_internal(
+		p_attribute_filters,
+		p_tag_filter,
+		p_min_started_at,
+		p_max_started_at
+	) as r
+	WHERE run.id = r.run_id
   AND NOT p_tag = ANY(tags);
-END;
 $$;
 
 \echo 'delete_run_tag'
