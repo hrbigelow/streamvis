@@ -109,10 +109,10 @@ def add_run_tag(
         req_tags = []
 
     if until is not None:
-        until = dateparser.parse(until)
+        until = dateparser.parse(until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
     if after is not None:
-        after = dateparser.parse(after)
+        after = dateparser.parse(after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
@@ -137,16 +137,22 @@ def list_series():
     for msg in stub.ListSeries(req):
         print(text_format.MessageToString(msg))
 
-def list_runs():
+def list_runs(
+        after: str|None = None,
+        until: str|None = None,
+    ):
+
+    if until is not None:
+        until = dateparser.parse(until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+
+    if after is not None:
+        after = dateparser.parse(after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
-    req = pb.ListRunsRequest(
-            run_filter=pb.RunFilter(
-                attribute_filters=[],
-                tag_filter=pb.TagFilter(tags=[], match_all=False),
-                )
-            )
+    rf = rpc_client.get_run_filter([], False, after, until)
+    req = pb.ListRunsRequest(run_filter=rf)
     for msg in stub.ListRuns(req):
         print(text_format.MessageToString(msg))
 

@@ -172,9 +172,10 @@ class PlotOpts:
     def __post_init__(self):
         self.ty = PlotType(self.ty)
         if self.after is not None:
-            self.after = dateparser.parse(self.after)
+            self.after = dateparser.parse(self.after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
         if self.before is not None:
-            self.before = dateparser.parse(self.before)
+            self.before = dateparser.parse(self.before, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+
         if any(l not in self.g for l in self.l):
             raise RuntimeError(f"l must be a subset of g")
         if any(c not in self.g for c in self.cm):
