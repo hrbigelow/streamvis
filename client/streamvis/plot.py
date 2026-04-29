@@ -269,7 +269,6 @@ class PlotManager:
 
     async def refresh_data(self, stub: ServiceStub):
         # start_time = time.perf_counter()
-
         pbruns = rpc_client.list_runs(stub, self.data_req.run_filter)
         old_runs = self.runs
         self.runs = { r.handle: r for r in pbruns }

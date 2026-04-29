@@ -5,13 +5,21 @@ import dateparser
 from streamvis.v1 import data_pb2 as pb
 from streamvis.v1 import data_pb2_grpc as pb_grpc
 from . import dbutil, rpc_client
-from google.protobuf import text_format
+from google.protobuf import json_format 
 from typing import Any
+import json
 
 from .demo import log_data, log_data_async
 
 GRPC_URI=None
 WEB_URI=None
+
+def msg_to_json(msg, indent=None):
+    d = json_format.MessageToDict(
+            msg,
+            preserving_proto_field_name=True,
+        )
+    return json.dumps(d, indent=indent)
 
 def init_grpc_uri():
     global GRPC_URI
@@ -71,7 +79,7 @@ def create_run():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.CreateRunRequest()
     resp = stub.CreateRun(req)
-    print(text_format.MessageToString(resp))
+    print(msg_to_json(resp))
 
 
 def set_run_attributes(run_handle, /, attrs: dict[str, Any]):
@@ -135,7 +143,7 @@ def list_series():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListSeriesRequest()
     for msg in stub.ListSeries(req):
-        print(text_format.MessageToString(msg))
+        print(json_format.MessageToString(msg))
 
 def list_runs(
         after: str|None = None,
@@ -154,7 +162,7 @@ def list_runs(
     rf = rpc_client.get_run_filter([], False, after, until)
     req = pb.ListRunsRequest(run_filter=rf)
     for msg in stub.ListRuns(req):
-        print(text_format.MessageToString(msg))
+        print(msg_to_json(msg))
 
 def list_fields():
     global GRPC_URI
@@ -162,7 +170,7 @@ def list_fields():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListFieldsRequest()
     for msg in stub.ListFields(req):
-        print(text_format.MessageToString(msg))
+        print(msg_to_json(msg))
 
 def list_attribute_values():
     global GRPC_URI
@@ -170,7 +178,7 @@ def list_attribute_values():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListAttributeValuesRequest()
     for msg in stub.ListAttributeValues(req):
-        print(text_format.MessageToString(msg))
+        print(msg_to_json(msg))
 
 def list_run_starts():
     global GRPC_URI
@@ -178,7 +186,7 @@ def list_run_starts():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListStartedAtRequest()
     for msg in stub.ListStartedAt(req):
-        print(text_format.MessageToString(msg))
+        print(msg_to_json(msg))
 
 def list_tags():
     global GRPC_URI
@@ -186,7 +194,7 @@ def list_tags():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListTagsRequest()
     for msg in stub.ListTags(req):
-        print(text_format.MessageToString(msg))
+        print(msg_to_json(msg))
 
 
 COMMANDS = { 
