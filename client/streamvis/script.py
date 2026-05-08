@@ -143,7 +143,7 @@ def list_series():
     stub = pb_grpc.ServiceStub(chan)
     req = pb.ListSeriesRequest()
     for msg in stub.ListSeries(req):
-        print(json_format.MessageToString(msg))
+        print(msg_to_json(msg))
 
 def list_runs(
         after: str|None = None,
