@@ -161,7 +161,7 @@ class PlotOpts:
     f5: AttrFilter = None
 
     after: Optional[str] = None
-    before: Optional[str] = None
+    until: Optional[str] = None
 
     c1: ColumnFilter = None
     c2: ColumnFilter = None
@@ -173,8 +173,8 @@ class PlotOpts:
         self.ty = PlotType(self.ty)
         if self.after is not None:
             self.after = dateparser.parse(self.after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
-        if self.before is not None:
-            self.before = dateparser.parse(self.before, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+        if self.until is not None:
+            self.until = dateparser.parse(self.until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
         if any(l not in self.g for l in self.l):
             raise RuntimeError(f"l must be a subset of g")
@@ -231,7 +231,7 @@ class PlotManager:
     def prepare(self, stub: ServiceStub):
         o = self.opts
         req, info = rpc_client.get_query_run_data_request(
-            stub, o.series, o.field_names, o.tags, o.match_all, o.after, o.before)
+            stub, o.series, o.field_names, o.tags, o.match_all, o.after, o.until)
 
         for f in self.opts.filters:
             if f.name is None:

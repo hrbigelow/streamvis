@@ -18,7 +18,9 @@ class BaseLogger:
         grpc_uri: str,
         max_chunk_size: int,
         flush_every: float,
+        dry_run: bool,
     ):
+        self.dry_run = dry_run
         self.queues = {} # series_name => Queue
         self.array_types = {} # series_name => tuple(field_type, ...)
         self.chan = grpc.insecure_channel(grpc_uri)
@@ -49,6 +51,8 @@ class BaseLogger:
             self.run_handle = resp.run_handle
 
     def set_run_handle(self, handle: str):
+        if self.dry_run:
+            return
         try:
             uuid.UUID(handle)
         except ValueError as ve:
@@ -61,6 +65,9 @@ class BaseLogger:
         This is useful for recording hyperparameters, settings, configuration etc.
         for the program.  Can only be called once for the life of the logger.
         """
+        if self.dry_run:
+            return
+
         if self.run_handle is None:
             raise RuntimeError(f"Cannot call set_run_attributes until run started")
 
@@ -87,6 +94,9 @@ class BaseLogger:
         fields: a dict containing values matching the field data type of Field in the Series 
         shapes must be broadcastable to a common shape.
         """
+        if self.dry_run:
+            return
+
         series = self.all_series.get(series_name)
         if series is None:
             raise RuntimeError(
@@ -105,9 +115,9 @@ class BaseLogger:
             target_type = _types.get(arg, None)
             if target_type != dbutil.get_array_type(val):
                 raise RuntimeError(
-                    f"Argument {arg} previously had type {target_type}"
-                    f"but now has type {dbutil.get_array_type(val)}. "
-                    f"write must use consistent types across calls")
+                        f"Argument {arg} previously had type {target_type}"
+                        f"but now has type {dbutil.get_array_type(val)}. "
+                        f"write must use consistent types across calls")
 
         # append data
         # each entry in arrays is one of (np.ndarray, jax.Array, or torch.Tensor)
@@ -142,12 +152,12 @@ class BaseLogger:
         except ValueError as ve:
             z = zip(series.coords, shapes)
             raise RuntimeError(
-                f"Field data were not broadcastable: "
-                ", ".join(f"{c.name}: {sh}" for c, sh in z))
+                    f"Field data were not broadcastable: "
+                    ", ".join(f"{c.name}: {sh}" for c, sh in z))
 
         if series_name not in self.queues:
             self.queues[series_name] = asyncio.Queue() 
-        
+
         points = SeriesValues(tuple(arrays), bcast_shape)
         self.queues[series_name].put_nowait(points)
 
@@ -206,10 +216,10 @@ class BaseLogger:
         return finished 
 
     def _process_chunk(
-        self, 
-        chunk: list[SeriesValues], 
-        series: pb.Series,
-    ):
+            self, 
+            chunk: list[SeriesValues], 
+            series: pb.Series,
+            ):
         req = pb.AppendToSeriesRequest(series_handle=series.handle, run_handle=self.run_handle)
         chunk = dbutil.stack_series_values(chunk)
         field_datas = chunk.to_exported()
@@ -237,13 +247,17 @@ class AsyncDataLogger(BaseLogger):
     def __init__(
         self, 
         grpc_uri: str,
+        *,
         max_chunk_size: int=100000,
-        flush_every: float=2.0
+        flush_every: float=2.0,
+        dry_run: bool=False,
     ):
-        super().__init__(grpc_uri, max_chunk_size, flush_every)
+        super().__init__(grpc_uri, max_chunk_size, flush_every, dry_run)
         self.exiting = False
 
     async def flush_buffer(self):
+        if self.dry_run:
+            return
         while True:
             if not self._flush_all_series():
                 if self.exiting:
@@ -255,6 +269,8 @@ class AsyncDataLogger(BaseLogger):
                 break
 
     async def __aenter__(self):
+        if self.dry_run:
+            return
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
         self._create_or_replace_run()
@@ -264,6 +280,8 @@ class AsyncDataLogger(BaseLogger):
         return self
 
     async def __aexit__(self, *args):
+        if self.dry_run:
+            return
         for queue in self.queues.values():
             queue.put_nowait(None)
         self.exiting = True
@@ -299,20 +317,26 @@ class DataLogger(BaseLogger):
     def __init__(
         self, 
         grpc_uri: str,
+        *,
         max_chunk_size: int=100000,
-        flush_every: float=2.0
+        flush_every: float=2.0,
+        dry_run: bool=False,
     ):
-        super().__init__(grpc_uri, max_chunk_size, flush_every)
+        super().__init__(grpc_uri, max_chunk_size, flush_every, dry_run)
         self.exiting = False
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
     def start(self):
+        if self.dry_run:
+            return
         self._create_or_replace_run()
         self._get_series()
         self._get_fields()
         self._flush_thread.start()
 
     def flush_buffer(self):
+        if self.dry_run:
+            return
         while True:
             if not super()._flush_all_series():
                 if self.exiting:
@@ -320,6 +344,8 @@ class DataLogger(BaseLogger):
             time.sleep(self.flush_every)
 
     def stop(self):
+        if self.dry_run:
+            return
         self.exiting = True
         for queue in self.queues.values():
             queue.put_nowait(None)
