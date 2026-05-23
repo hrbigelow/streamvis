@@ -35,8 +35,13 @@ IMMUTABLE
 LANGUAGE plpgsql
 AS $$
 BEGIN
+	IF p_value IS NULL OR p_value.field_handle IS NULL THEN
+		RETURN COALESCE(p_attr_filter.include_missing, FALSE);
+	END IF;
+
   IF p_value.field_handle != p_attr_filter.field_handle THEN
-    RAISE EXCEPTION 'Field handles of p_value and p_attr_filter unequal';
+    RAISE EXCEPTION 'Field handles of p_value (%) and p_attr_filter (%) unequal',
+		p_value.field_handle, p_attr_filter.field_handle;
   END IF;
 
   IF p_data_type IS NULL AND p_attr_filter.include_missing THEN

@@ -105,8 +105,11 @@ def get_query_run_data_request(
         match_all_tags: bool,
         min_started_at: datetime|None, 
         max_started_at: datetime|None,
-
         ) -> tuple[pb.QueryRunDataRequest, QueryRunInfo]:
+	"""
+	Resolves `fields` into handles for attrs and series coords, then
+	constructs the QueryRunDataRequest from that.
+	"""
 
     info = get_data_columns(stub, series, fields)
     req = pb.QueryRunDataRequest()
@@ -158,7 +161,7 @@ def get_attribute_filter(
         case pb.FieldDataType.FIELD_DATA_TYPE_FLOAT:
             if not (isinstance(lo, float) and isinstance(hi, float)):
                 raise RuntimeError(
-                        f"filter {filt.name} is a float field. "
+                        f"filter {field.name} is a float field. "
                         f"You must provide float-valued [lo, hi]. "
                         f"Got {lo=}, {hi=}")
             af.float_range.fmin = lo

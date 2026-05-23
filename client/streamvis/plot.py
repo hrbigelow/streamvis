@@ -3,6 +3,7 @@ import asyncio
 import textwrap
 import traceback
 import dateparser
+import mplcursors
 import time
 from typing import Optional, Any, Callable
 from functools import reduce
@@ -150,6 +151,7 @@ class PlotOpts:
     o: list[str] = field(default_factory=list) # order field_name
     s: list[str] = field(default_factory=list) # slider field_name
     l: list[str] = field(default_factory=list) # label field_name
+    tip: list[str] = field(default_factory=list) # tooltip field_names
 
     tags: list[str] = field(default_factory=list)
     match_all: bool = False
@@ -221,6 +223,7 @@ class PlotManager:
         self.glyphs = {} # glyph_id => plt.Artist 
         self.filters = {} # name => plt.Widget 
         self.visibility_event = asyncio.Event()
+        self._cursor = None
 
         self.legend_opts = dict(
             title=textwrap.fill(', '.join(opts.l), width=80), 
@@ -337,18 +340,35 @@ class PlotManager:
             num_sub = len(cgroups[base_gr])
             return get_color(base_idx, sub_idx, num_sub)
 
-        label_inds = tuple(self.group_df.fields.index(l) for l in self.opts.l)
+        legend_label_inds = tuple(self.group_df.fields.index(l) for l in self.opts.l)
+        tooltip_label_inds = tuple(self.group_df.fields.index(t) for t in self.opts.tip)
+        legend_labels = {} # label => glyph 
+
+        if self._cursor is not None:
+            self._cursor.remove()
 
         for glyph_id, data in self.group_df:
             if glyph_id not in plot_groups:
                 color = get_glyph_color(glyph_id)
-                label = tuple(glyph_id[l] for l in label_inds)
+                tooltip_label = ' '.join(glyph_id[l] for l in tooltip_label_inds)
                 self.glyphs[glyph_id], = self.ax.plot(
-                    0, 0, label=str(label), color=color, linewidth=1)
+                    0, 0, label=str(tooltip_label), color=color, linewidth=1)
             self.glyphs[glyph_id].set_data(data[self.opts.x], data[self.opts.y])
+            legend_label = tuple(glyph_id[l] for l in legend_label_inds)
+            legend_labels[legend_label] = self.glyphs[glyph_id]
 
-        by_label = { g.get_label(): g for g in self.glyphs.values() }
-        labels, glyphs = list(zip(*sorted(by_label.items())))
+        self._cursor = mplcursors.cursor(self.ax, hover=True)
+        
+        def on_add(sel):
+            label_text = sel.artist.get_label()
+            sel.annotation.set_text(label_text)
+
+        self._cursor.connect("add", on_add)
+
+        if len(legend_labels) == 0:
+            labels, glyphs = [], []
+        else:
+            labels, glyphs = list(zip(*sorted(legend_labels.items())))
 
         self.ax.legend(handles=glyphs, labels=labels, **self.legend_opts)
         self.ax.relim()
