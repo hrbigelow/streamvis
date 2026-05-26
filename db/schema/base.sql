@@ -10,24 +10,24 @@ CREATE OR REPLACE FUNCTION filter_by_tags(
 IMMUTABLE
 LANGUAGE sql
 AS $$
-	SELECT
-	p_tag_filter IS NULL 
-	OR (
-		(
-			cardinality((p_tag_filter).pos_tags) = 0 
-			OR CASE WHEN (p_tag_filter).pos_match_all
-				    	THEN p_run_tags	@> (p_tag_filter).pos_tags
-							ELSE p_run_tags && (p_tag_filter).pos_tags
-				 END
-		)
-		AND NOT (
-			cardinality((p_tag_filter).neg_tags) > 0
-			AND CASE WHEN (p_tag_filter).neg_match_all
-			         THEN p_run_tags @> (p_tag_filter).neg_tags
-							 ELSE p_run_tags && (p_tag_filter).neg_tags
-					END
-		)
-	)
+SELECT
+p_tag_filter IS NULL 
+OR (
+  (
+    cardinality((p_tag_filter).pos_tags) = 0 
+    OR CASE WHEN (p_tag_filter).pos_match_all
+    THEN p_run_tags	@> (p_tag_filter).pos_tags
+    ELSE p_run_tags && (p_tag_filter).pos_tags
+      END
+    )
+    AND NOT (
+      cardinality((p_tag_filter).neg_tags) > 0
+      AND CASE WHEN (p_tag_filter).neg_match_all
+      THEN p_run_tags @> (p_tag_filter).neg_tags
+      ELSE p_run_tags && (p_tag_filter).neg_tags
+        END
+      )
+    )
 $$;
 
 

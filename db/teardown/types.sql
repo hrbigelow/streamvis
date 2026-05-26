@@ -12,14 +12,8 @@ DROP TYPE IF EXISTS tag_filter_typ;
 \echo 'drop attribute_filter_typ'
 DROP TYPE IF EXISTS attribute_filter_typ;
 
-\echo 'drop field_value_typ'
-DROP TYPE IF EXISTS field_value_typ;
-
 \echo 'drop full_field_value_typ'
 DROP TYPE IF EXISTS full_field_value_typ;
-
-\echo 'drop enc_typ'
-DROP TYPE IF EXISTS enc_typ;
 
 \echo 'drop field_typ'
 DROP TYPE IF EXISTS field_typ;
@@ -29,8 +23,5 @@ DROP TYPE IF EXISTS series_typ;
 
 \echo 'drop coord_typ'
 DROP TYPE IF EXISTS coord_typ;
-
-\echo 'drop field_data_typ'
-DROP TYPE IF EXISTS field_data_typ;
 
 \set QUIET 0

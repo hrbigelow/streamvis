@@ -9,6 +9,9 @@ CREATE TABLE series (
   name TEXT NOT NULL UNIQUE
 );
 
+\echo 'create field_data_typ'
+CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'string', 'bool');
+
 /*
 Holds the notion of a "field" which will provide basic type enforcement 
 (int, float, string, bool) for the associated value.
@@ -48,6 +51,16 @@ CREATE TABLE run (
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- type used to store an attribute in the run_attr table
+\echo 'create field_value_typ'
+CREATE TYPE field_value_typ AS (
+  field_handle UUID,
+  int_val INT,
+  float_val FLOAT,
+  bool_val BOOLEAN,
+  string_val TEXT
+);
+
 /* Holds attribute values associated with runs
 */
 \echo 'create table run_attr'
@@ -72,6 +85,34 @@ CREATE TABLE chunk (
 );
 
 CREATE INDEX idx_chunk_series_run ON chunk(series_id, run_id);
+
+/*
+enc_typ represents an ordered 1D sequence of values, viewed
+as a flattened tensor of shape `shape`, and the following logic:
+
+Exactly one of int_spans, float_spans, bool_bcast, string_bcast will be non-null.
+
+spans[dim] == null:  dim has no broadcasting or regular-increment (range) pattern.
+spans[dim] != null (>= 0):  the values along dim are evenly spaced from orig[dim]
+  to orig[dim] + spans[dim].  A span value of zero represents broadcasting.
+
+bcast[dim]
+base:  the flattened values of orig such that if orig repeats along dimension dim, base is
+the zero-th slice of this dimension, otherwise, it is the full set of values.
+
+Here, orig means the original tensor which is encoded by this scheme.
+
+For detail, see client/streamvis/dbutil.py: encode_array, decode_array
+*/
+\echo 'create enc_typ'
+CREATE TYPE enc_typ AS (
+  base BYTEA,
+  shape INT[],
+  int_spans INT[],
+  float_spans REAL[],
+  bool_bcast BOOLEAN[],
+  string_bcast BOOLEAN[]
+);
 
 /* Holds one chunk of data for a given coordinate
  */
