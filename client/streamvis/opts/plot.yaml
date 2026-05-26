@@ -32,6 +32,8 @@ tip: []
 
 tags: []
 match_all: false
+neg_tags: []
+neg_match_all: false
 
 after: null
 until: null

@@ -124,8 +124,10 @@ def get_query_run_data_request(
         stub: ServiceStub,
         series: str,
         fields: list[str],
-        tags: list[str],
-        match_all_tags: bool,
+        pos_tags: list[str],
+        pos_match_all: bool,
+        neg_tags: list[str],
+        neg_match_all: bool,
         min_started_at: datetime|None, 
         max_started_at: datetime|None,
         ) -> tuple[pb.QueryRunDataRequest, QueryRunInfo]:
@@ -137,13 +139,9 @@ def get_query_run_data_request(
     req = pb.QueryRunDataRequest()
     req.coord_handles.extend((c.coord_handle for c in info.coords))
 
-    req.run_filter.tag_filter.tags.extend(tags)
-    req.run_filter.tag_filter.match_all = match_all_tags
-
-    if min_started_at is not None:
-        req.run_filter.min_started_at = min_started_at
-    if max_started_at is not None:
-        req.run_filter.max_started_at = max_started_at
+    req.run_filter.CopyFrom(get_run_filter(
+        pos_tags, pos_match_all, neg_tags, neg_match_all, min_started_at, max_started_at)
+    )
 
     return req, info
 

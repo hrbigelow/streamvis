@@ -153,7 +153,9 @@ class PlotOpts:
     tip: list[str] = field(default_factory=list) # tooltip field_names
 
     tags: list[str] = field(default_factory=list)
+    neg_tags: list[str] = field(default_factory=list)
     match_all: bool = False
+    neg_match_all: bool = False
 
     f1: AttrFilter = None
     f2: AttrFilter = None
@@ -233,7 +235,8 @@ class PlotManager:
     def prepare(self, stub: ServiceStub):
         o = self.opts
         req, info = rpc_client.get_query_run_data_request(
-            stub, o.series, o.field_names, o.tags, o.match_all, o.after, o.until)
+            stub, o.series, o.field_names, o.tags, o.match_all, o.neg_tags,
+            o.neg_match_all, o.after, o.until)
 
         for f in self.opts.filters:
             if f.name is None:
