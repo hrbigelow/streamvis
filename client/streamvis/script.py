@@ -110,11 +110,16 @@ def add_run_tag(
         tag: str,
         after: str|None = None,
         until: str|None = None,
-        req_tags: list[str]|None = None,
-        match_all_tags: bool = False,
+        pos_tags: list[str]|None = None,
+        pos_match_all_tags: bool = False,
+		neg_tags: list[str]|None = None,
+		neg_match_all_tags: bool = False,
         ):
-    if req_tags is None:
-        req_tags = []
+    if pos_tags is None:
+        pos_tags = []
+
+    if neg_tags is None:
+        neg_tags = []
 
     if until is not None:
         until = dateparser.parse(until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
@@ -126,7 +131,8 @@ def add_run_tag(
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
 
-    rf = rpc_client.get_run_filter(req_tags, match_all_tags, after, until)
+    rf = rpc_client.get_run_filter(
+		pos_tags, pos_match_all_tags, neg_tags, neg_match_all_tags, after, until)
     req = pb.AddRunTagRequest(run_filter=rf, tag=tag)
     resp = stub.AddRunTag(req)
 
@@ -148,6 +154,10 @@ def list_series():
 def list_runs(
         after: str|None = None,
         until: str|None = None,
+        pos_tags: list[str]|None = None,
+        pos_match_all_tags: bool = False,
+		neg_tags: list[str] = None,
+		neg_match_all_tags: bool = False,
     ):
 
     if until is not None:
@@ -156,10 +166,17 @@ def list_runs(
     if after is not None:
         after = dateparser.parse(after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
+    if pos_tags is None:
+        pos_tags = []
+
+    if neg_tags is None:
+        neg_tags = []
+
     global GRPC_URI
     chan = grpc.insecure_channel(GRPC_URI)
     stub = pb_grpc.ServiceStub(chan)
-    rf = rpc_client.get_run_filter([], False, after, until)
+    rf = rpc_client.get_run_filter(
+		pos_tags, pos_match_all_tags, neg_tags, neg_match_all_tags, after, until)
     req = pb.ListRunsRequest(run_filter=rf)
     for msg in stub.ListRuns(req):
         print(msg_to_json(msg))

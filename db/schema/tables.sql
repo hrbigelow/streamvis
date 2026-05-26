@@ -80,10 +80,8 @@ CREATE TABLE coord_data (
   coord_id INT NOT NULL REFERENCES coord(id) ON DELETE CASCADE,
   chunk_id BIGINT NOT NULL REFERENCES chunk(id) ON DELETE CASCADE,
   enc_vals enc_typ NOT NULL,
-  PRIMARY KEY (coord_id, chunk_id),
-  CONSTRAINT valid_data CHECK (valid_enc_typ(enc_vals)) 
+  PRIMARY KEY (coord_id, chunk_id)
 );
-
 
 /*
 Holds locks to prevent resource contention

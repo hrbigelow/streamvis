@@ -22,7 +22,6 @@ func MakeToProtobufFunc[A ToProtobuffer[B], B any]() func(A) (B, error) {
 }
 
 type EncTypValue struct {
-	FieldHandle uuid.UUID        `db:"field_handle"`
 	Base        []byte           `db:"base"`
 	Shape       []uint32         `db:"shape"`
 	IntSpans    *[]pgtype.Int4   `db:"int_spans"`
@@ -32,14 +31,9 @@ type EncTypValue struct {
 }
 
 func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
-	fieldHandle, err := uuid.Parse(pb.GetFieldHandle())
-	if err != nil {
-		return nil, err
-	}
 	v := &EncTypValue{
-		FieldHandle: fieldHandle,
-		Base:        pb.Base,
-		Shape:       pb.Shape,
+		Base:  pb.Base,
+		Shape: pb.Shape,
 	}
 
 	if pb.GetIntSpans() != nil {
@@ -79,9 +73,8 @@ func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
 
 func (ev *EncTypValue) toProtobuf() pb.EncTyp {
 	msg := pb.EncTyp{
-		FieldHandle: ev.FieldHandle.String(),
-		Base:        ev.Base,
-		Shape:       ev.Shape,
+		Base:  ev.Base,
+		Shape: ev.Shape,
 	}
 	if ev.IntSpans != nil {
 		ivals := make([]*pb.OptionalInt, len(*ev.IntSpans))
@@ -164,7 +157,16 @@ type FieldValue struct {
 	StringVal *string   `db:"string_val"`
 }
 
-func (fv FieldValue) toProtobuf() (pb.FieldValue, error) {
+type FullFieldValue struct {
+	Handle    uuid.UUID `db:"handle"`
+	Name      string    `db:"name"`
+	IntVal    *int32    `db:"int_val"`
+	FloatVal  *float32  `db:"float_val"`
+	BoolVal   *bool     `db:"bool_val"`
+	StringVal *string   `db:"string_val"`
+}
+
+func (fv FullFieldValue) toProtobuf() (pb.FieldValue, error) {
 	msg := pb.FieldValue{
 		Handle: fv.Handle.String(),
 	}
@@ -287,8 +289,8 @@ func (co Coord) toProtobuf() (pb.Coord, error) {
 }
 
 type Series struct {
-	Name   string    `db:"name"`
 	Handle uuid.UUID `db:"handle"`
+	Name   string    `db:"name"`
 	Coords []*Coord  `db:"coords"`
 }
 
@@ -309,11 +311,11 @@ func (sr Series) toProtobuf() (pb.Series, error) {
 }
 
 type Run struct {
-	Handle        uuid.UUID     `db:"handle"`
-	Tags          []string      `db:"tags"`
-	StartedAt     time.Time     `db:"started_at"`
-	Attrs         []*FieldValue `db:"attrs"`
-	SeriesHandles []uuid.UUID   `db:"series_handles"`
+	Handle    uuid.UUID         `db:"handle"`
+	Tags      []string          `db:"tags"`
+	StartedAt time.Time         `db:"started_at"`
+	Attrs     []*FullFieldValue `db:"attrs"`
+	Series    []*Series         `db:"series"`
 }
 
 func (rr Run) toProtobuf() (pb.Run, error) {
@@ -322,17 +324,21 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 		Tags:      rr.Tags,
 		StartedAt: timestamppb.New(rr.StartedAt),
 	}
-	msg.Attrs = make([]*pb.FieldValue, len(rr.Attrs))
-	for i, attr := range rr.Attrs {
+	msg.Attrs = make(map[string]*pb.FieldValue)
+	for _, attr := range rr.Attrs {
 		pbvalue, err := attr.toProtobuf()
 		if err != nil {
 			return pb.Run{}, err
 		}
-		msg.Attrs[i] = &pbvalue
+		msg.Attrs[attr.Name] = &pbvalue
 	}
-	msg.SeriesHandles = make([]string, len(rr.SeriesHandles))
-	for i, handle := range rr.SeriesHandles {
-		msg.SeriesHandles[i] = handle.String()
+	msg.Series = make(map[string]*pb.Series)
+	for _, series := range rr.Series {
+		pbvalue, err := series.toProtobuf()
+		if err != nil {
+			return pb.Run{}, err
+		}
+		msg.Series[series.Name] = &pbvalue
 	}
 
 	return msg, nil
@@ -372,21 +378,29 @@ func (tv TagValue) toProtobuf() (pb.TagValue, error) {
 }
 
 type TagFilterValue struct {
-	Tags     []string `db:"tags"`
-	MatchAll bool     `db:"match_all"`
+	PosTags     []string `db:"pos_tags"`
+	PosMatchAll bool     `db:"pos_match_all"`
+	NegTags     []string `db:"neg_tags"`
+	NegMatchAll bool     `db:"neg_match_all"`
 }
 
 func NewTagFilterValue(msg *pb.TagFilter) (TagFilterValue, error) {
 	if msg == nil {
 		return TagFilterValue{}, fmt.Errorf("Received nil tag_filter")
 	}
-	tags := make([]string, len(msg.Tags))
-	for i, tag := range msg.Tags {
-		tags[i] = tag
+	pos_tags := make([]string, len(msg.PosTags))
+	for i, tag := range msg.PosTags {
+		pos_tags[i] = tag
+	}
+	neg_tags := make([]string, len(msg.NegTags))
+	for i, tag := range msg.NegTags {
+		neg_tags[i] = tag
 	}
 	val := TagFilterValue{
-		Tags:     tags,
-		MatchAll: msg.MatchAll,
+		PosTags:     pos_tags,
+		PosMatchAll: msg.PosMatchAll,
+		NegTags:     neg_tags,
+		NegMatchAll: msg.NegMatchAll,
 	}
 	return val, nil
 }
@@ -439,8 +453,7 @@ func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
 	}
 
 	msg := pb.ChunkData{
-		RunHandle: cd.RunHandle.String(),
-		EncVals:   encVals,
+		EncVals: encVals,
 	}
 	return msg, nil
 }

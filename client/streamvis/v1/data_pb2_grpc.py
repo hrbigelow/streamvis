@@ -107,7 +107,7 @@ class ServiceStub(object):
         self.QueryRunData = channel.unary_stream(
                 '/streamvis.v1.Service/QueryRunData',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.QueryRunDataRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.ChunkData.FromString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.RunChunks.FromString,
                 _registered_method=True)
         self.ListCommonAttributes = channel.unary_stream(
                 '/streamvis.v1.Service/ListCommonAttributes',
@@ -335,7 +335,7 @@ def add_ServiceServicer_to_server(servicer, server):
             'QueryRunData': grpc.unary_stream_rpc_method_handler(
                     servicer.QueryRunData,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.QueryRunDataRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.ChunkData.SerializeToString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.RunChunks.SerializeToString,
             ),
             'ListCommonAttributes': grpc.unary_stream_rpc_method_handler(
                     servicer.ListCommonAttributes,
@@ -767,7 +767,7 @@ class Service(object):
             target,
             '/streamvis.v1.Service/QueryRunData',
             streamvis_dot_v1_dot_data__pb2.QueryRunDataRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.ChunkData.FromString,
+            streamvis_dot_v1_dot_data__pb2.RunChunks.FromString,
             options,
             channel_credentials,
             insecure,

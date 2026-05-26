@@ -254,12 +254,8 @@ func (s *Service) GetEndChunkId(
 func (s *Service) QueryRunData(
 	ctx context.Context,
 	req *pb.QueryRunDataRequest,
-	stream *connect.ServerStream[pb.ChunkData],
+	stream *connect.ServerStream[pb.RunChunks],
 ) error {
-	attrHandles, err := parseUUIDs(req.AttrHandles, "AttrHandle")
-	if err != nil {
-		return err
-	}
 	coordHandles, err := parseUUIDs(req.CoordHandles, "CoordHandle")
 	if err != nil {
 		return err
@@ -269,9 +265,9 @@ func (s *Service) QueryRunData(
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
 	dataCh, errCh := s.store.QueryRunData(
-		ctx, attrHandles, coordHandles, req.BeginChunkId, req.EndChunkId, runFilter,
+		ctx, coordHandles, req.BeginChunkId, req.EndChunkId, runFilter,
 	)
-	return streamRecords[pb.ChunkData](ctx, *stream, dataCh, errCh)
+	return streamRecords[pb.RunChunks](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) ListCommonAttributes(

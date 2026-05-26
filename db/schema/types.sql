@@ -21,6 +21,14 @@ CREATE TYPE coord_typ AS (
   description TEXT
 );
 
+\echo 'create series_typ'
+CREATE TYPE series_typ AS (
+	handle UUID,
+	name TEXT,
+	coords coord_typ[]
+);
+
+
 /*
 enc_typ represents an ordered 1D sequence of values, viewed
 as a flattened tensor of shape `shape`, and the following logic:
@@ -41,7 +49,6 @@ For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 */
 \echo 'create enc_typ'
 CREATE TYPE enc_typ AS (
-  field_handle UUID,
   base BYTEA,
   shape INT[],
   int_spans INT[],
@@ -49,6 +56,8 @@ CREATE TYPE enc_typ AS (
   bool_bcast BOOLEAN[],
   string_bcast BOOLEAN[]
 );
+
+
 
 -- type used to store an attribute in the run_attr table
 \echo 'create field_value_typ'
@@ -59,6 +68,18 @@ CREATE TYPE field_value_typ AS (
   bool_val BOOLEAN,
   string_val TEXT
 );
+
+
+\echo 'create full_field_value_typ'
+CREATE TYPE full_field_value_typ AS (
+  handle UUID,
+	name TEXT,
+  int_val INT,
+  float_val FLOAT,
+  bool_val BOOLEAN,
+  string_val TEXT
+);
+
 
 \echo 'create attribute_filter_typ'
 CREATE TYPE attribute_filter_typ AS (
@@ -73,68 +94,14 @@ CREATE TYPE attribute_filter_typ AS (
   string_vals TEXT[]
 );
 
+\echo 'create tag_filter_typ'
 CREATE TYPE tag_filter_typ AS (
-  tags TEXT[],
-  match_all BOOLEAN -- if true, a run must have all tags to pass filter
+	-- determines match as pos_match and not meg_match
+  pos_tags TEXT[],
+	pos_match_all BOOLEAN, -- if true, pos_match iff pos_tags <@ run tags
+	neg_tags TEXT[],
+	neg_match_all BOOLEAN -- if true, neg_match iff neg_tags <@ run tags
 );
-
-
-\echo 'create valid_enc_typ'
-CREATE FUNCTION valid_enc_typ(val enc_typ) 
-RETURNS BOOLEAN
-IMMUTABLE
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  v_data_type field_data_typ;
-BEGIN
-  SELECT f.data_type INTO v_data_type
-  FROM field f
-  WHERE f.handle = (val).field_handle;
-
-  IF NOT FOUND THEN
-    RETURN FALSE;
-  END IF;
-
-  RETURN 
-    CASE v_data_type 
-      WHEN 'int' THEN
-        (
-          (val).int_spans IS NOT NULL AND
-          (val).float_spans IS NULL AND
-          (val).bool_bcast IS NULL AND
-          (val).string_bcast IS NULL AND
-          array_length((val).shape, 1) = array_length((val).int_spans, 1)
-        )
-      WHEN 'float' THEN
-        (
-          (val).int_spans IS NULL AND
-          (val).float_spans IS NOT NULL AND
-          (val).bool_bcast IS NULL AND
-          (val).string_bcast IS NULL AND
-          array_length((val).shape, 1) = array_length((val).float_spans, 1)
-        )
-      WHEN 'bool' THEN
-        (
-          (val).int_spans IS NULL AND
-          (val).float_spans IS NULL AND
-          (val).bool_bcast IS NOT NULL AND
-          (val).string_bcast IS NULL AND
-          array_length((val).shape, 1) = array_length((val).bool_bcast, 1)
-        )
-      WHEN 'string' THEN
-        (
-          (val).int_spans IS NULL AND
-          (val).float_spans IS NULL AND
-          (val).bool_bcast IS NULL AND
-          (val).string_bcast IS NOT NULL AND
-          array_length((val).shape, 1) = array_length((val).string_bcast, 1)
-        )
-      ELSE
-        FALSE
-    END CASE;
-END;
-$$;
 
 
 \echo 'create valid_attr_value'

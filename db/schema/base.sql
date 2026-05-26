@@ -8,18 +8,61 @@ CREATE OR REPLACE FUNCTION filter_by_tags(
   p_tag_filter tag_filter_typ
 ) RETURNS BOOLEAN
 IMMUTABLE
-LANGUAGE plpgsql
+LANGUAGE sql
 AS $$
+	SELECT
+	p_tag_filter IS NULL 
+	OR (
+		(
+			cardinality((p_tag_filter).pos_tags) = 0 
+			OR CASE WHEN (p_tag_filter).pos_match_all
+				    	THEN p_run_tags	@> (p_tag_filter).pos_tags
+							ELSE p_run_tags && (p_tag_filter).pos_tags
+				 END
+		)
+		AND NOT (
+			cardinality((p_tag_filter).neg_tags) > 0
+			AND CASE WHEN (p_tag_filter).neg_match_all
+			         THEN p_run_tags @> (p_tag_filter).neg_tags
+							 ELSE p_run_tags && (p_tag_filter).neg_tags
+					END
+		)
+	)
+$$;
+
+
+/*
+DECLARE
+	v_pos_match BOOLEAN;
+	v_neg_match BOOLEAN;
 BEGIN
-  IF cardinality(p_tag_filter.tags) = 0 THEN
-    RETURN TRUE; 
-  ELSIF p_tag_filter.match_all THEN
-    RETURN (p_run_tags @> p_tag_filter.tags);
+	IF p_tag_filter IS NULL THEN
+		RETURN TRUE;
+	END IF;
+
+	-- v_neg_match
+	IF cardinality(p_tag_filter.neg_tags) = 0 THEN
+		v_neg_match := FALSE;
+	ELSIF p_tag_filter.neg_match_all THEN
+		v_neg_match := (p_run_tags @> p_tag_filter.neg_tags);
+	ELSE
+		v_neg_match := (p_run_tags && p_tag_filter.neg_tags);
+	END IF;
+
+	-- v_pos_match
+  IF cardinality(p_tag_filter.pos_tags) = 0 THEN
+		v_pos_match := TRUE;
+  ELSIF p_tag_filter.pos_match_all THEN
+    v_pos_match := (p_run_tags @> p_tag_filter.pos_tags);
   ELSE
-    RETURN (p_run_tags && p_tag_filter.tags);
+    v_pos_match := (p_run_tags && p_tag_filter.pos_tags);
   END IF;
+
+	RETURN v_pos_match AND NOT v_neg_match;
+
 END;
 $$;
+*/
 
 
 \echo 'create filter_by_attribute'

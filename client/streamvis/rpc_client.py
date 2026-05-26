@@ -1,11 +1,15 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 import grpc
 import os
 from .v1 import data_pb2 as pb
 from .v1 import data_pb2_grpc as pb_grpc
 from .v1.data_pb2_grpc import ServiceStub
+
+"""
+"""
 
 def get_service_stub() -> ServiceStub:
     uri = os.getenv('STREAMVIS_GRPC_URI')
@@ -36,6 +40,13 @@ def get_data(
         ) -> Iterable[pb.ChunkData]:
     return stub.QueryRunData(req)
 
+def get_oneof(pbmsg) -> Any:
+    field_name = pbmsg.WhichOneof('value')
+    if field_name is None:
+        return None
+    return getattr(pbmsg, field_name)
+
+
 @dataclass
 class QueryRunInfo:
     attrs: list[pb.Field]
@@ -43,7 +54,15 @@ class QueryRunInfo:
 
     @property
     def field_names(self):
-        return [a.name for a in self.attrs] + [c.name for c in self.coords]
+        return tuple(a.name for a in self.attrs) + tuple(c.name for c in self.coords)
+
+    @property
+    def attr_names(self):
+        return tuple(a.name for a in self.attrs)
+
+    @property
+    def coord_names(self):
+        return tuple(c.name for c in self.coords)
 
     @property
     def field_name_map(self):
@@ -55,7 +74,7 @@ def get_data_columns(
         field_names: list[str],
         ) -> QueryRunInfo:
     """
-    Find 
+    Resolve `field_names` into attrs or coords belonging to `series_name` 
     """
     attrs = []
     coords = []
@@ -84,8 +103,10 @@ def get_data_columns(
     return QueryRunInfo(attrs, coords)
 
 def get_run_filter(
-    tags: list[str],
-    match_all_tags: bool,
+    pos_tags: list[str],
+    pos_match_all_tags: bool,
+    neg_tags: list[str],
+    neg_match_all_tags: bool,
     min_started_at: datetime|None,
     max_started_at: datetime|None,
 ) -> pb.RunFilter:
@@ -93,8 +114,10 @@ def get_run_filter(
         min_started_at=min_started_at,
         max_started_at=max_started_at,
     )
-    msg.tag_filter.tags.extend(tags)
-    msg.tag_filter.match_all = match_all_tags
+    msg.tag_filter.pos_tags.extend(pos_tags)
+    msg.tag_filter.pos_match_all = pos_match_all_tags
+    msg.tag_filter.neg_tags.extend(neg_tags)
+    msg.tag_filter.neg_match_all = neg_match_all_tags
     return msg
 
 def get_query_run_data_request(
@@ -106,15 +129,13 @@ def get_query_run_data_request(
         min_started_at: datetime|None, 
         max_started_at: datetime|None,
         ) -> tuple[pb.QueryRunDataRequest, QueryRunInfo]:
-	"""
-	Resolves `fields` into handles for attrs and series coords, then
-	constructs the QueryRunDataRequest from that.
-	"""
-
+    """
+    Resolves `fields` into handles for attrs and series coords, then
+    constructs the QueryRunDataRequest from that.
+    """
     info = get_data_columns(stub, series, fields)
     req = pb.QueryRunDataRequest()
     req.coord_handles.extend((c.coord_handle for c in info.coords))
-    req.attr_handles.extend((a.handle for a in info.attrs))
 
     req.run_filter.tag_filter.tags.extend(tags)
     req.run_filter.tag_filter.match_all = match_all_tags

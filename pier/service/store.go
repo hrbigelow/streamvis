@@ -12,7 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
 )
+
+const MAX_WIRE_SIZE = 4194304
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -67,11 +71,16 @@ func registerCustomTypes(
 		"coord_typ[]",
 		"enc_typ",
 		"enc_typ[]",
+		"series_typ",
+		"series_typ[]",
 		"field_value_typ",
 		"field_value_typ[]",
+		"full_field_value_typ",
+		"full_field_value_typ[]",
 		"attribute_filter_typ",
 		"attribute_filter_typ[]",
 		"tag_filter_typ",
+		"tag_filter_typ[]",
 	}
 	for _, ty := range types {
 		dbType, err := conn.LoadType(ctx, ty)
@@ -175,10 +184,13 @@ func queryItemsInternal[Row, Item any](
 	rows, err := pool.Query(ctx, sql, args...)
 	if err != nil {
 		errCh <- err
+		close(errCh)
+		close(dataCh)
 		return dataCh, errCh
 	}
 
 	go func() {
+		defer close(errCh)
 		defer close(dataCh)
 		defer rows.Close()
 
@@ -203,6 +215,9 @@ func queryItemsInternal[Row, Item any](
 				return
 			case dataCh <- &item:
 			}
+		}
+		if err := rows.Err(); err != nil {
+			errCh <- err
 		}
 	}()
 	return dataCh, errCh
@@ -308,17 +323,14 @@ func (st *Store) GetEndChunkId(
 
 func (st *Store) QueryRunData(
 	ctx context.Context,
-	attrHandles []uuid.UUID,
 	coordHandles []uuid.UUID,
 	minChunkId *int64,
 	maxChunkId *int64,
 	runFilter RunFilter,
-) (<-chan *pb.ChunkData, <-chan error) {
-	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7, $8)`
-	convert := MakeToProtobufFunc[ChunkData, pb.ChunkData]()
-	return queryItemsConvert(
-		ctx, st.pool, sql, convert,
-		attrHandles,
+) (<-chan *pb.RunChunks, <-chan error) {
+	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
+	dataCh, queryErrCh := queryItems[ChunkData](
+		ctx, st.pool, sql,
 		coordHandles,
 		minChunkId,
 		maxChunkId,
@@ -327,6 +339,73 @@ func (st *Store) QueryRunData(
 		runFilter.MinStartedAt,
 		runFilter.MaxStartedAt,
 	)
+	chunkCh := make(chan *pb.RunChunks)
+	errCh := make(chan error, 1)
+
+	rcmap := make(map[uuid.UUID]*pb.RunChunks)
+	var rc *pb.RunChunks
+	var ok bool
+	sizes := make(map[uuid.UUID]int)
+	const chunksField = 2
+	var chunksTagSize = protowire.SizeTag(chunksField)
+
+	go func() {
+		defer close(chunkCh)
+		defer close(errCh)
+
+		for cd := range dataCh {
+			cdmsg, err := cd.toProtobuf()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			payload := proto.Size(&cdmsg)
+			addedSize := chunksTagSize + protowire.SizeBytes(payload)
+			rc, ok = rcmap[cd.RunHandle]
+			// add if not found
+			if !ok {
+				rc = &pb.RunChunks{
+					RunHandle: cd.RunHandle.String(),
+				}
+				rcmap[cd.RunHandle] = rc
+				sizes[cd.RunHandle] = proto.Size(rc)
+			}
+			// flush if next addition would be oversize
+			if sizes[cd.RunHandle]+addedSize > MAX_WIRE_SIZE {
+				select {
+				case <-ctx.Done():
+					errCh <- ctx.Err()
+					return
+				case chunkCh <- rc:
+				}
+				rc = &pb.RunChunks{
+					RunHandle: cd.RunHandle.String(),
+				}
+				rcmap[cd.RunHandle] = rc
+				sizes[cd.RunHandle] = proto.Size(rc)
+			}
+			// add
+			rc.Chunks = append(rc.Chunks, &cdmsg)
+			sizes[cd.RunHandle] += addedSize
+		}
+		for _, rc := range rcmap {
+			select {
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				return
+			case chunkCh <- rc:
+			}
+		}
+		for err := range queryErrCh {
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}
+	}()
+
+	return chunkCh, errCh
+
 }
 
 func (st *Store) ListCommonAttributes(

@@ -180,6 +180,28 @@ def decode_array(enc: pb.EncTyp) -> np.array:
 def decode_array_flat(enc: pb.EncTyp) -> np.array:
     return decode_array(enc).flatten()
 
+def decode_runchunk(rc: pb.RunChunks) -> tuple[np.array]:
+    chunks = [] # chunks[chunk][coord] = np.array
+    offsets = []
+    if len(rc.chunks) == 0:
+        return tuple()
+    first_chunk = rc.chunks[0]
+    offsets = [(0,) * len(first_chunk.enc_vals)]
+    for chunk in rc.chunks: 
+        arrays = tuple(decode_array_flat(enc) for enc in chunk.enc_vals)
+        chunks.append(arrays)
+        new_offsets = tuple(off + ary.size for off, ary in zip(offsets[-1], arrays))
+        offsets.append(new_offsets)
+
+    bufs = tuple(np.empty((sz,), ary.dtype) for sz, ary in zip(offsets[-1], chunks[-1]))
+    for ch, arrs in enumerate(chunks):
+        begs, ends = offsets[ch], offsets[ch+1]
+        for co, arr in enumerate(arrs):
+            beg, end = begs[co], ends[co] 
+            bufs[co][beg:end] = arr 
+    return bufs
+
+
 def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
     attr = pb.FieldValue(handle=field.handle)
     match field.data_type:

@@ -18,7 +18,6 @@ from matplotlib.figure import Figure
 from matplotlib.widgets import Slider, RangeSlider
 import pandas as pd
 from enum import Enum
-from datetime import datetime
 import hydra
 from hydra.utils import instantiate
 from hydra.core.config_store import ConfigStore
@@ -38,9 +37,9 @@ class DataFrameWrapper:
             case 0: 
                 self.df = df
             case 1: 
-                self.df = df.groupby(group_cols[0])
+                self.df = df.groupby(group_cols[0], dropna=False)
             case default: 
-                self.df = df.groupby(list(self.fields))
+                self.df = df.groupby(list(self.fields), dropna=False)
 
     def __iter__(self):
         if self.ncols == 0:
@@ -283,7 +282,7 @@ class PlotManager:
 
         self.df = self.df[~self.df[RUN_HANDLE].isin(stale_handles)]
 
-        new_dfs = to_dataframes(stub, self.data_req, self.data_info.field_names)
+        new_dfs = to_dataframes(stub, self.data_req, self.data_info)
         pre_chunk_id = self.data_req.begin_chunk_id
         self.data_req.begin_chunk_id = cur_chunk_id = rpc_client.get_end_chunk_id(stub) 
         
@@ -430,24 +429,27 @@ class PlotManager:
 def to_dataframes(
     stub: ServiceStub, 
     req: pb.QueryRunDataRequest,
-    field_names: list[str],
+    info: rpc_client.QueryRunInfo, 
 ) -> list[pd.DataFrame]:
     run_req = pb.ListRunsRequest(run_filter=req.run_filter)
     runs = { run.handle: run for run in stub.ListRuns(run_req) }
+    frames = []
 
-    def _gen():
-        for data in rpc_client.get_data(stub, req):
-            run = runs.get(data.run_handle)
-            if run is None:
-                raise RuntimeError(f"Couldn't get run metadata")
-            arrays = tuple(dbutil.decode_array_flat(enc) for enc in data.enc_vals)
-            d = dict(zip(field_names, arrays))
-            d[STARTED_AT] = run.started_at.seconds
-            d[RUN_HANDLE] = run.handle
-            df = pd.DataFrame(d)
-            yield df
+    for data in stub.QueryRunData(req):
+        run = runs.get(data.run_handle)
+        if run is None:
+            raise RuntimeError(f"Couldn't get run metadata")
 
-    return list(_gen())
+        arrays = dbutil.decode_runchunk(data)
+        d = dict(zip(info.coord_names, arrays))
+        attrs = { n: rpc_client.get_oneof(run.attrs[n]) for n in info.attr_names }
+        d[STARTED_AT] = run.started_at.seconds
+        d[RUN_HANDLE] = run.handle
+        d.update(attrs)
+        df = pd.DataFrame(d)
+        frames.append(df)
+
+    return frames
 
 def get_color(base_idx: int, sub_idx: int, num_sub: int) -> str:
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']

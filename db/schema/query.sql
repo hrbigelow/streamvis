@@ -83,17 +83,23 @@ CREATE OR REPLACE FUNCTION list_runs(
   handle UUID,
   tags TEXT[],
   started_at TIMESTAMPTZ,
-  attrs field_value_typ[],
-  series_handles UUID[]
+  attrs full_field_value_typ[],
+  series series_typ[]
 ) 
 LANGUAGE plpgsql
 AS $$
 BEGIN
-	IF p_tag_filter.tags IS NULL THEN
-		RAISE EXCEPTION 'p_tag_filter.tags cannot be NULL';
+	IF p_tag_filter.pos_tags IS NULL THEN
+		RAISE EXCEPTION 'p_tag_filter.pos_tags cannot be NULL';
 	END IF;
-	IF p_tag_filter.match_all IS NULL THEN
-		RAISE EXCEPTION 'p_tag_filter.match_all cannot be NULL';
+	IF p_tag_filter.pos_match_all IS NULL THEN
+		RAISE EXCEPTION 'p_tag_filter.pos_match_all cannot be NULL';
+	END IF;
+	IF p_tag_filter.neg_tags IS NULL THEN
+		RAISE EXCEPTION 'p_tag_filter.neg_tags cannot be NULL';
+	END IF;
+	IF p_tag_filter.neg_match_all IS NULL THEN
+		RAISE EXCEPTION 'p_tag_filter.neg_match_all cannot be NULL';
 	END IF;
 	IF p_attribute_filters IS NULL THEN
 		RAISE EXCEPTION 'p_attribute_filters cannot be NULL';
@@ -105,7 +111,7 @@ BEGIN
 		r.tags,
 		r.started_at,
 		attr_agg.attrs,
-		series_agg.handles
+		series_agg.series
 	FROM run r
 	JOIN list_runs_internal(
 		p_attribute_filters,
@@ -114,21 +120,100 @@ BEGIN
 		p_max_started_at
 	) ri ON ri.run_id = r.id
 	LEFT JOIN LATERAL (
-		SELECT array_agg(s.handle) FILTER (WHERE s.handle IS NOT NULL) handles
-		FROM (SELECT DISTINCT series_id FROM chunk WHERE run_id = r.id) c
-		JOIN series s ON s.id = c.series_id
+    SELECT array_agg(ROW(s.handle, s.name, iss.coords)::series_typ) series
+		FROM (
+      SELECT 
+        s.id,
+        array_agg(ROW(co.handle, f.handle, f.name, f.data_type, f.description)::coord_typ) coords
+      FROM
+      (SELECT DISTINCT series_id FROM chunk WHERE run_id = r.id) c
+      JOIN series s ON s.id = c.series_id
+      JOIN coord co ON co.series_id = s.id
+      JOIN field f ON f.id = co.field_id
+      GROUP BY s.id
+    ) iss 
+    LEFT JOIN series s ON s.id = iss.id
 	) series_agg ON true
 	LEFT JOIN LATERAL (
-		SELECT array_agg(attr_value) FILTER (WHERE attr_value IS DISTINCT FROM NULL) attrs
-		FROM run_attr ra WHERE ra.run_id = r.id
+    SELECT array_agg(ROW(
+        f.handle,
+        f.name, 
+        (ra.attr_value).int_val,
+        (ra.attr_value).float_val,
+        (ra.attr_value).bool_val,
+        (ra.attr_value).string_val)::full_field_value_typ)
+    FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs
+		FROM run_attr ra 
+    JOIN field f ON ra.field_id = f.id
+    WHERE ra.run_id = r.id
 	) attr_agg ON true
 	ORDER BY r.started_at;
 END;
 $$;
 
+/* Get data from runs identified by p_run_handles with chunk_id 
+ * in [p_begin_chunk_id, * p_end_chunk_id)
+ * and coords specified by p_coord_handles
+ */
+\echo 'create get_coord_data'
+CREATE FUNCTION get_coord_data(
+  p_run_ids INT[],
+  p_coord_handles UUID[],
+  p_begin_chunk_id BIGINT,
+  p_end_chunk_id BIGINT
+) RETURNS TABLE (
+  run_handle UUID,
+  enc_vals enc_typ[]
+) 
+LANGUAGE plpgsql 
+AS $$
+DECLARE
+  v_count INT;
+  v_series_id INT;
+BEGIN
+  
+  SELECT COUNT(DISTINCT series_id) INTO v_count
+  FROM coord
+  WHERE handle = ANY(p_coord_handles);
+
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'No series found for the provided p_coord_handles';
+  END IF;
+
+  IF v_count > 1 THEN
+    RAISE EXCEPTION 'p_coord_handles come from % different series', v_count;
+  END IF;
+
+  SELECT DISTINCT series_id INTO v_series_id
+  FROM coord
+  WHERE handle = ANY(p_coord_handles);
+
+  RETURN QUERY
+  WITH coords AS (
+    SELECT 
+      c.run_id, 
+      c.id chunk_id,
+      ch.ord field_order,
+      cd.enc_vals val
+    FROM coord_data cd
+    JOIN coord co ON co.id = cd.coord_id
+    JOIN chunk c ON c.id = cd.chunk_id
+    JOIN unnest(p_run_ids) AS rh(run_id) ON rh.run_id = c.run_id
+    JOIN unnest(p_coord_handles) WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
+    WHERE c.series_id = v_series_id
+    AND (p_begin_chunk_id IS NULL OR c.id >= p_begin_chunk_id)
+    AND (p_end_chunk_id IS NULL OR c.id < p_end_chunk_id)
+  )
+  SELECT r.handle, array_agg(val ORDER BY field_order)
+  FROM coords c
+  JOIN run r ON r.id = c.run_id
+  GROUP BY r.handle, c.run_id, c.chunk_id
+  ORDER BY c.chunk_id;
+END;
+$$;
 
 
-/* Get all data from runs identified by p_run_handles with chunk_id > p_begin_chunk_id
+/* Get all data from runs identified by p_run_handles with chunk_id >= p_begin_chunk_id
 Gets just the coordinates from p_coord_handles, and projects the attribute values in
 p_attr_handles into enc_typ.  The returned table packs the enc_vals into the order
 [...p_attr_handles, ...p_coord_handles], grouped by run_id and chunk
@@ -214,7 +299,6 @@ $$;
 
 
 CREATE OR REPLACE FUNCTION query_run_data(
-  IN p_attr_handles UUID[], -- field handles of attributes to be returned
   IN p_coord_handles UUID[], -- handles from coord table
   IN p_begin_chunk_id BIGINT,
   IN p_end_chunk_id BIGINT,
@@ -230,7 +314,7 @@ LANGUAGE sql
 STABLE
 AS $$
   SELECT gd.*
-  FROM get_data(
+  FROM get_coord_data(
     ARRAY(
       SELECT run_id 
       FROM list_runs_internal(
@@ -240,7 +324,6 @@ AS $$
         p_max_started_at
       )
     ),
-    p_attr_handles,
     p_coord_handles,
     p_begin_chunk_id,
     p_end_chunk_id

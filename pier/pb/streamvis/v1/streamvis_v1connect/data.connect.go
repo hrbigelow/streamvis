@@ -96,7 +96,7 @@ type ServiceClient interface {
 	ListFields(context.Context, *v1.ListFieldsRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListRuns(context.Context, *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.Run], error)
 	GetEndChunkId(context.Context, *v1.GetEndChunkIdRequest) (*v1.GetEndChunkIdResponse, error)
-	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error)
+	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.RunChunks], error)
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListStartedAt(context.Context, *v1.ListStartedAtRequest) (*connect.ServerStreamForClient[v1.RunStartTime], error)
@@ -199,7 +199,7 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("GetEndChunkId")),
 			connect.WithClientOptions(opts...),
 		),
-		queryRunData: connect.NewClient[v1.QueryRunDataRequest, v1.ChunkData](
+		queryRunData: connect.NewClient[v1.QueryRunDataRequest, v1.RunChunks](
 			httpClient,
 			baseURL+ServiceQueryRunDataProcedure,
 			connect.WithSchema(serviceMethods.ByName("QueryRunData")),
@@ -254,7 +254,7 @@ type serviceClient struct {
 	listFields           *connect.Client[v1.ListFieldsRequest, v1.Field]
 	listRuns             *connect.Client[v1.ListRunsRequest, v1.Run]
 	getEndChunkId        *connect.Client[v1.GetEndChunkIdRequest, v1.GetEndChunkIdResponse]
-	queryRunData         *connect.Client[v1.QueryRunDataRequest, v1.ChunkData]
+	queryRunData         *connect.Client[v1.QueryRunDataRequest, v1.RunChunks]
 	listCommonAttributes *connect.Client[v1.ListCommonAttributesRequest, v1.Field]
 	listCommonSeries     *connect.Client[v1.ListCommonSeriesRequest, v1.Series]
 	listStartedAt        *connect.Client[v1.ListStartedAtRequest, v1.RunStartTime]
@@ -377,7 +377,7 @@ func (c *serviceClient) GetEndChunkId(ctx context.Context, req *v1.GetEndChunkId
 }
 
 // QueryRunData calls streamvis.v1.Service.QueryRunData.
-func (c *serviceClient) QueryRunData(ctx context.Context, req *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.ChunkData], error) {
+func (c *serviceClient) QueryRunData(ctx context.Context, req *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.RunChunks], error) {
 	return c.queryRunData.CallServerStream(ctx, connect.NewRequest(req))
 }
 
@@ -422,7 +422,7 @@ type ServiceHandler interface {
 	ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error
 	ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error
 	GetEndChunkId(context.Context, *v1.GetEndChunkIdRequest) (*v1.GetEndChunkIdResponse, error)
-	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error
+	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.RunChunks]) error
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error
 	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListStartedAt(context.Context, *v1.ListStartedAtRequest, *connect.ServerStream[v1.RunStartTime]) error
@@ -664,7 +664,7 @@ func (UnimplementedServiceHandler) GetEndChunkId(context.Context, *v1.GetEndChun
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.GetEndChunkId is not implemented"))
 }
 
-func (UnimplementedServiceHandler) QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.ChunkData]) error {
+func (UnimplementedServiceHandler) QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.RunChunks]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.QueryRunData is not implemented"))
 }
 
