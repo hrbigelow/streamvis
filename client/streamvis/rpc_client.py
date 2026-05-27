@@ -7,15 +7,34 @@ import os
 from .v1 import data_pb2 as pb
 from .v1 import data_pb2_grpc as pb_grpc
 from .v1.data_pb2_grpc import ServiceStub
+from urllib.parse import urlparse
 
 """
 """
 
-def get_service_stub() -> ServiceStub:
+def get_channel() -> grpc.Channel:
     uri = os.getenv('STREAMVIS_GRPC_URI')
     if uri is None:
         raise RuntimeError("streamvis requires STREAMVIS_GRPC_URI variable set")
-    chan = grpc.insecure_channel(uri)
+    if not "://" in uri:
+        raise RuntimeError(f"Read STREAMVIS_GRPC_URI={uri}.  Should contain '://'")
+    parsed = urlparse(uri)
+    target = parsed.netloc
+    match parsed.scheme:
+        case 'https':
+            if not parsed.port:
+                target = f"{target}:443" 
+            chan = grpc.secure_channel(target, grpc.ssl_channel_credentials())
+        case 'http':
+            if not parsed.port:
+                target = f"{target}:80"
+            chan = grpc.insecure_channel(target)
+        case _:
+            raise RuntimeError(f"Got URI scheme '{parsed.scheme}'.  Must be 'https' or 'http'")
+    return chan
+
+def get_service_stub() -> ServiceStub:
+    chan = get_channel()
     return pb_grpc.ServiceStub(chan)
 
 def list_series(stub: ServiceStub) -> Iterable[pb.Series]:

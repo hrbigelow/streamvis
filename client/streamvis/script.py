@@ -54,38 +54,24 @@ def create_field(
         data_type: str,
         description: str
         ):
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.CreateFieldRequest(name=name, data_type=data_type, description=description)
     resp = stub.CreateField(req)
 
-def create_series(
-        series_name: str,
-        *field_names: list[str]
-        ):
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
-    req = pb.CreateSeriesRequest(
-            series_name=series_name,
-            field_names=field_names
-            )
+def create_series(series_name: str, *field_names: list[str]):
+    stub = rpc_client.get_service_stub()
+    req = pb.CreateSeriesRequest(series_name=series_name, field_names=field_names)
     resp = stub.CreateSeries(req)
 
 def create_run():
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.CreateRunRequest()
     resp = stub.CreateRun(req)
     print(msg_to_json(resp))
 
 
 def set_run_attributes(run_handle, /, attrs: dict[str, Any]):
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.ListFieldsRequest()
     fields = stub.ListFields(req)
     fields_map = { f.name: f for f in fields }
@@ -100,9 +86,7 @@ def set_run_attributes(run_handle, /, attrs: dict[str, Any]):
     stub.SetRunAttributes(req)
 
 def delete_empty_series(series_name: str):
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.DeleteEmptySeriesRequest(series_name=series_name)
     _ = stub.DeleteEmptySeries(req)
 
@@ -127,9 +111,7 @@ def add_run_tag(
     if after is not None:
         after = dateparser.parse(after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
 
     rf = rpc_client.get_run_filter(
 		tags, match_all_tags, neg_tags, neg_match_all_tags, after, until)
@@ -137,16 +119,12 @@ def add_run_tag(
     resp = stub.AddRunTag(req)
 
 def delete_run_tag(run_handle: str, tag: str):
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.DeleteRunTagRequest(run_handle=run_handle, tag=tag)
     _ = stub.DeleteRunTag(req)
 
 def list_series():
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.ListSeriesRequest()
     for msg in stub.ListSeries(req):
         print(msg_to_json(msg))
@@ -172,9 +150,7 @@ def list_runs(
     if neg_tags is None:
         neg_tags = []
 
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     rf = rpc_client.get_run_filter(
 		tags, match_all_tags, neg_tags, neg_match_all_tags, after, until)
     req = pb.ListRunsRequest(run_filter=rf)
@@ -182,33 +158,25 @@ def list_runs(
         print(msg_to_json(msg))
 
 def list_fields():
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.ListFieldsRequest()
     for msg in stub.ListFields(req):
         print(msg_to_json(msg))
 
 def list_attribute_values():
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.ListAttributeValuesRequest()
     for msg in stub.ListAttributeValues(req):
         print(msg_to_json(msg))
 
 def list_run_starts():
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.ListStartedAtRequest()
     for msg in stub.ListStartedAt(req):
         print(msg_to_json(msg))
 
 def list_tags():
-    global GRPC_URI
-    chan = grpc.insecure_channel(GRPC_URI)
-    stub = pb_grpc.ServiceStub(chan)
+    stub = rpc_client.get_service_stub()
     req = pb.ListTagsRequest()
     for msg in stub.ListTags(req):
         print(msg_to_json(msg))

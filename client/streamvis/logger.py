@@ -10,12 +10,12 @@ from .dbutil import SeriesValues
 
 from .v1 import data_pb2 as pb
 from .v1 import data_pb2_grpc as pb_grpc
+from . import rpc_client
 
 
 class BaseLogger:
     def __init__(
         self,
-        grpc_uri: str,
         max_chunk_size: int,
         flush_every: float,
         dry_run: bool,
@@ -23,7 +23,7 @@ class BaseLogger:
         self.dry_run = dry_run
         self.queues = {} # series_name => Queue
         self.array_types = {} # series_name => tuple(field_type, ...)
-        self.chan = grpc.insecure_channel(grpc_uri)
+        self.chan = rpc_client.get_channel()
         self.stub = pb_grpc.ServiceStub(self.chan)
         self.max_chunk_size = max_chunk_size
         self.flush_every = flush_every
