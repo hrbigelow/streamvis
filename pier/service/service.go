@@ -191,19 +191,16 @@ func (s *Service) DeleteEmptySeries(
 	return &pb.DeleteEmptySeriesResponse{}, err
 }
 
-func (s *Service) AddRunTag(
+func (s *Service) AddRunTags(
 	ctx context.Context,
-	req *pb.AddRunTagRequest,
-) (*pb.AddRunTagResponse, error) {
-	runFilter, err := NewRunFilter(req.GetRunFilter())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
-	}
+	req *pb.AddRunTagsRequest,
+) (*pb.AddRunTagsResponse, error) {
+	runHandle, err := uuid.Parse(req.GetRunHandle())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "runHandle invalid UUID: %v", err)
 	}
-	err = s.store.AddRunTag(ctx, runFilter, req.Tag)
-	return &pb.AddRunTagResponse{}, err
+	err = s.store.AddRunTags(ctx, runHandle, req.Tags)
+	return &pb.AddRunTagsResponse{}, err
 }
 
 func (s *Service) DeleteRunTag(

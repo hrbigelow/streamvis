@@ -51,8 +51,8 @@ const (
 	// ServiceDeleteEmptySeriesProcedure is the fully-qualified name of the Service's DeleteEmptySeries
 	// RPC.
 	ServiceDeleteEmptySeriesProcedure = "/streamvis.v1.Service/DeleteEmptySeries"
-	// ServiceAddRunTagProcedure is the fully-qualified name of the Service's AddRunTag RPC.
-	ServiceAddRunTagProcedure = "/streamvis.v1.Service/AddRunTag"
+	// ServiceAddRunTagsProcedure is the fully-qualified name of the Service's AddRunTags RPC.
+	ServiceAddRunTagsProcedure = "/streamvis.v1.Service/AddRunTags"
 	// ServiceDeleteRunTagProcedure is the fully-qualified name of the Service's DeleteRunTag RPC.
 	ServiceDeleteRunTagProcedure = "/streamvis.v1.Service/DeleteRunTag"
 	// ServiceListSeriesProcedure is the fully-qualified name of the Service's ListSeries RPC.
@@ -90,7 +90,7 @@ type ServiceClient interface {
 	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
 	SetRunAttributes(context.Context, *v1.SetRunAttributesRequest) (*v1.SetRunAttributesResponse, error)
 	DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error)
-	AddRunTag(context.Context, *v1.AddRunTagRequest) (*v1.AddRunTagResponse, error)
+	AddRunTags(context.Context, *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error)
 	DeleteRunTag(context.Context, *v1.DeleteRunTagRequest) (*v1.DeleteRunTagResponse, error)
 	ListSeries(context.Context, *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListFields(context.Context, *v1.ListFieldsRequest) (*connect.ServerStreamForClient[v1.Field], error)
@@ -163,10 +163,10 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("DeleteEmptySeries")),
 			connect.WithClientOptions(opts...),
 		),
-		addRunTag: connect.NewClient[v1.AddRunTagRequest, v1.AddRunTagResponse](
+		addRunTags: connect.NewClient[v1.AddRunTagsRequest, v1.AddRunTagsResponse](
 			httpClient,
-			baseURL+ServiceAddRunTagProcedure,
-			connect.WithSchema(serviceMethods.ByName("AddRunTag")),
+			baseURL+ServiceAddRunTagsProcedure,
+			connect.WithSchema(serviceMethods.ByName("AddRunTags")),
 			connect.WithClientOptions(opts...),
 		),
 		deleteRunTag: connect.NewClient[v1.DeleteRunTagRequest, v1.DeleteRunTagResponse](
@@ -248,7 +248,7 @@ type serviceClient struct {
 	deleteRun            *connect.Client[v1.DeleteRunRequest, v1.DeleteRunResponse]
 	setRunAttributes     *connect.Client[v1.SetRunAttributesRequest, v1.SetRunAttributesResponse]
 	deleteEmptySeries    *connect.Client[v1.DeleteEmptySeriesRequest, v1.DeleteEmptySeriesResponse]
-	addRunTag            *connect.Client[v1.AddRunTagRequest, v1.AddRunTagResponse]
+	addRunTags           *connect.Client[v1.AddRunTagsRequest, v1.AddRunTagsResponse]
 	deleteRunTag         *connect.Client[v1.DeleteRunTagRequest, v1.DeleteRunTagResponse]
 	listSeries           *connect.Client[v1.ListSeriesRequest, v1.Series]
 	listFields           *connect.Client[v1.ListFieldsRequest, v1.Field]
@@ -334,9 +334,9 @@ func (c *serviceClient) DeleteEmptySeries(ctx context.Context, req *v1.DeleteEmp
 	return nil, err
 }
 
-// AddRunTag calls streamvis.v1.Service.AddRunTag.
-func (c *serviceClient) AddRunTag(ctx context.Context, req *v1.AddRunTagRequest) (*v1.AddRunTagResponse, error) {
-	response, err := c.addRunTag.CallUnary(ctx, connect.NewRequest(req))
+// AddRunTags calls streamvis.v1.Service.AddRunTags.
+func (c *serviceClient) AddRunTags(ctx context.Context, req *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error) {
+	response, err := c.addRunTags.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -416,7 +416,7 @@ type ServiceHandler interface {
 	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
 	SetRunAttributes(context.Context, *v1.SetRunAttributesRequest) (*v1.SetRunAttributesResponse, error)
 	DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error)
-	AddRunTag(context.Context, *v1.AddRunTagRequest) (*v1.AddRunTagResponse, error)
+	AddRunTags(context.Context, *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error)
 	DeleteRunTag(context.Context, *v1.DeleteRunTagRequest) (*v1.DeleteRunTagResponse, error)
 	ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error
@@ -485,10 +485,10 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("DeleteEmptySeries")),
 		connect.WithHandlerOptions(opts...),
 	)
-	serviceAddRunTagHandler := connect.NewUnaryHandlerSimple(
-		ServiceAddRunTagProcedure,
-		svc.AddRunTag,
-		connect.WithSchema(serviceMethods.ByName("AddRunTag")),
+	serviceAddRunTagsHandler := connect.NewUnaryHandlerSimple(
+		ServiceAddRunTagsProcedure,
+		svc.AddRunTags,
+		connect.WithSchema(serviceMethods.ByName("AddRunTags")),
 		connect.WithHandlerOptions(opts...),
 	)
 	serviceDeleteRunTagHandler := connect.NewUnaryHandlerSimple(
@@ -575,8 +575,8 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceSetRunAttributesHandler.ServeHTTP(w, r)
 		case ServiceDeleteEmptySeriesProcedure:
 			serviceDeleteEmptySeriesHandler.ServeHTTP(w, r)
-		case ServiceAddRunTagProcedure:
-			serviceAddRunTagHandler.ServeHTTP(w, r)
+		case ServiceAddRunTagsProcedure:
+			serviceAddRunTagsHandler.ServeHTTP(w, r)
 		case ServiceDeleteRunTagProcedure:
 			serviceDeleteRunTagHandler.ServeHTTP(w, r)
 		case ServiceListSeriesProcedure:
@@ -640,8 +640,8 @@ func (UnimplementedServiceHandler) DeleteEmptySeries(context.Context, *v1.Delete
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.DeleteEmptySeries is not implemented"))
 }
 
-func (UnimplementedServiceHandler) AddRunTag(context.Context, *v1.AddRunTagRequest) (*v1.AddRunTagResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AddRunTag is not implemented"))
+func (UnimplementedServiceHandler) AddRunTags(context.Context, *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AddRunTags is not implemented"))
 }
 
 func (UnimplementedServiceHandler) DeleteRunTag(context.Context, *v1.DeleteRunTagRequest) (*v1.DeleteRunTagResponse, error) {

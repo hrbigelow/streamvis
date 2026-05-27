@@ -90,17 +90,17 @@ def delete_empty_series(series_name: str):
     req = pb.DeleteEmptySeriesRequest(series_name=series_name)
     _ = stub.DeleteEmptySeries(req)
 
-def add_run_tag(
-        tag: str,
-        after: str|None = None,
-        until: str|None = None,
-        tags: list[str]|None = None,
-        match_all_tags: bool = False,
-		neg_tags: list[str]|None = None,
-		neg_match_all_tags: bool = False,
-        ):
-    if tags is None:
-        tags = []
+def _resolve_run_filter_args(
+    after: str|None,
+    until: str|None,
+    pos_tags: list[str]|None,
+    pos_match_all_tags: bool,
+    neg_tags: list[str]|None,
+    neg_match_all_tags: bool,
+) -> pb.RunFilter:
+
+    if pos_tags is None:
+        pos_tags = []
 
     if neg_tags is None:
         neg_tags = []
@@ -111,17 +111,47 @@ def add_run_tag(
     if after is not None:
         after = dateparser.parse(after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
-    stub = rpc_client.get_service_stub()
+    return rpc_client.get_run_filter(
+		pos_tags, pos_match_all_tags, neg_tags, neg_match_all_tags, after, until)
 
-    rf = rpc_client.get_run_filter(
-		tags, match_all_tags, neg_tags, neg_match_all_tags, after, until)
-    req = pb.AddRunTagRequest(run_filter=rf, tag=tag)
-    resp = stub.AddRunTag(req)
 
-def delete_run_tag(run_handle: str, tag: str):
+def add_run_tag(
+        tag_to_add: str,
+        after: str|None = None,
+        until: str|None = None,
+        pos_tags: list[str]|None = None,
+        pos_match_all_tags: bool = False,
+		neg_tags: list[str]|None = None,
+		neg_match_all_tags: bool = False,
+):
     stub = rpc_client.get_service_stub()
-    req = pb.DeleteRunTagRequest(run_handle=run_handle, tag=tag)
-    _ = stub.DeleteRunTag(req)
+    rf = _resolve_run_filter_args(
+        after, until, pos_tags, pos_match_all_tags, neg_tags, neg_match_all_tags)
+
+    req = pb.ListRunsRequest(run_filter=rf)
+    handles = tuple(r.handle for r in stub.ListRuns(req))
+    for handle in handles:
+        rtreq = pb.AddRunTagRequest(handle, tags=[tag])
+        _ = stub.AddRunTags(rtreq)
+
+def delete_run_tag(
+        tag_to_del: str,
+        after: str|None = None,
+        until: str|None = None,
+        pos_tags: list[str]|None = None,
+        pos_match_all_tags: bool = False,
+		neg_tags: list[str]|None = None,
+		neg_match_all_tags: bool = False,
+):
+    stub = rpc_client.get_service_stub()
+    rf = _resolve_run_filter_args(
+        after, until, pos_tags, pos_match_all_tags, neg_tags, neg_match_all_tags)
+    req = pb.ListRunsRequest(run_filter=rf)
+    handles = tuple(r.handle for r in stub.ListRuns(req))
+
+    for handle in handles:
+        req = pb.DeleteRunTagRequest(run_handle=run_handle, tag=tag_to_del)
+        _ = stub.DeleteRunTag(req)
 
 def list_series():
     stub = rpc_client.get_service_stub()
@@ -132,30 +162,17 @@ def list_series():
 def list_runs(
     after: str|None = None,
     until: str|None = None,
-    tags: list[str]|None = None,
-    match_all_tags: bool = False,
+    pos_tags: list[str]|None = None,
+    pos_match_all_tags: bool = False,
     neg_tags: list[str] = None,
     neg_match_all_tags: bool = False,
 ):
-
-    if until is not None:
-        until = dateparser.parse(until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
-
-    if after is not None:
-        after = dateparser.parse(after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
-
-    if tags is None:
-        tags = []
-
-    if neg_tags is None:
-        neg_tags = []
-
     stub = rpc_client.get_service_stub()
-    rf = rpc_client.get_run_filter(
-		tags, match_all_tags, neg_tags, neg_match_all_tags, after, until)
+    rf = _resolve_run_filter_args(
+        after, until, pos_tags, pos_match_all_tags, neg_tags, neg_match_all_tags)
     req = pb.ListRunsRequest(run_filter=rf)
-    for msg in stub.ListRuns(req):
-        print(msg_to_json(msg))
+    for run in stub.ListRuns(req):
+        print(msg_to_json(run))
 
 def list_fields():
     stub = rpc_client.get_service_stub()

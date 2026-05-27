@@ -37,6 +37,11 @@ message EncTyp {
   }
 }
 
+message FullEncTyp {
+  string field_handle = 1;
+  EncTyp enc = 2;
+}
+
 message IntArray {
   repeated int32 values = 1;
 }
@@ -73,7 +78,7 @@ message StringArray {
 message AppendToSeriesRequest {
   string series_handle = 1;
   string run_handle = 2;
-  repeated EncTyp field_vals = 4;
+  repeated FullEncTyp field_vals = 3;
 }
 
 message AppendToSeriesResponse {
@@ -132,12 +137,12 @@ message DeleteEmptySeriesRequest {
 message DeleteEmptySeriesResponse {
 }
 
-message AddRunTagRequest {
-  RunFilter run_filter = 1;
-  string tag = 2;
+message AddRunTagsRequest {
+  string run_handle = 1;
+  repeated string tags = 2;
 }
 
-message AddRunTagResponse {}
+message AddRunTagsResponse {}
 
 message DeleteRunTagRequest {
   string run_handle = 1;
@@ -307,7 +312,7 @@ service Service {
   rpc DeleteRun (DeleteRunRequest) returns (DeleteRunResponse);
   rpc SetRunAttributes (SetRunAttributesRequest) returns (SetRunAttributesResponse);
   rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
-  rpc AddRunTag (AddRunTagRequest) returns (AddRunTagResponse);
+  rpc AddRunTags (AddRunTagsRequest) returns (AddRunTagsResponse);
   rpc DeleteRunTag (DeleteRunTagRequest) returns (DeleteRunTagResponse);
   rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);

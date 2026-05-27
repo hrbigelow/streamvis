@@ -132,24 +132,32 @@ Append data to an existing series
 CREATE OR REPLACE PROCEDURE append_to_series(
   IN p_series_handle UUID,
   IN p_run_handle UUID,
+  IN p_field_handles UUID[],
   IN p_field_vals enc_typ[]
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  rec RECORD;
+  v_field_handle UUID;
   v_field_val enc_typ;
+  v_data_type field_data_typ; 
   v_series_id INT;
   v_run_id INT;
-  v_chunk_id INT;
+  v_chunk_id BIGINT;
   v_series_field_handles UUID[];
 BEGIN
+  IF cardinality(p_field_handles) IS DISTINCT FROM cardinality(p_field_vals) THEN
+    RAISE EXCEPTION 'append_to_series: field_handles (%) and field_vals (%) length mismatch',
+    cardinality(p_field_handles), cardinality(p_field_vals);
+  END IF;
 
   SELECT id INTO v_series_id
   FROM series
   WHERE handle = p_series_handle;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Series with handle %s not found', p_series_handle;
+    RAISE EXCEPTION 'Series with handle % not found', p_series_handle;
   END IF;
 
   SELECT id INTO v_run_id
@@ -157,7 +165,7 @@ BEGIN
   WHERE handle = p_run_handle;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Run with handle %s not found', p_run_handle;
+    RAISE EXCEPTION 'Run with handle % not found', p_run_handle;
   END IF;
 
   SELECT array_agg(f.handle) INTO v_series_field_handles
@@ -165,35 +173,39 @@ BEGIN
   JOIN coord c ON c.field_id = f.id
   WHERE c.series_id = v_series_id; 
 
-  FOREACH v_field_val IN ARRAY p_field_vals LOOP
-    IF NOT valid_enc_typ(v_field_val) THEN
-      RAISE EXCEPTION 'enc_typ invalid: %', (
-        (v_field_val).field_handle,
-        (v_field_val).shape,
-        (v_field_val).int_spans,
-        (v_field_val).float_spans,
-        (v_field_val).bool_bcast,
-        (v_field_val).string_bcast
-      );
-    ELSIF (v_field_val).field_handle <> ALL(v_series_field_handles) THEN
+  IF cardinality(p_field_handles) IS DISTINCT FROM cardinality(v_series_field_handles) THEN
+    RAISE EXCEPTION 'append_to_series: field_handles (%) and series fields (%) length mismatch',
+    cardinality(p_field_handles), cardinality(v_series_field_handles);
+  END IF;
+
+  FOR rec IN
+    SELECT h.fh AS field_handle, p_field_vals[h.i] AS field_val, f.data_type
+    FROM unnest(p_field_handles) WITH ORDINALITY AS h(fh, i)
+    JOIN field f ON f.handle = h.fh
+  LOOP
+    IF NOT valid_enc_typ(rec.field_val, rec.data_type) THEN
+      RAISE EXCEPTION 'enc_typ invalid: % for data_type %', (
+        (rec.field_val).base,
+        (rec.field_val).shape,
+        (rec.field_val).int_spans,
+        (rec.field_val).float_spans,
+        (rec.field_val).bool_bcast,
+        (rec.field_val).string_bcast
+      ), rec.data_type;
+    ELSIF rec.field_handle <> ALL(v_series_field_handles) THEN
       RAISE EXCEPTION 'Field %s not found in series %s', 
-        (v_field_val).field_handle, 
-        p_series_handle;
+        rec.field_handle, p_series_handle;
     END IF;
   END LOOP;
-
-  IF array_length(p_field_vals, 1) != array_length(v_series_field_handles, 1) THEN
-    RAISE EXCEPTION 'Received incorrect number of field_vals';
-  END IF;
 
   INSERT INTO chunk (series_id, run_id, num_points)
   VALUES (v_series_id, v_run_id, array_product(p_field_vals[1].shape))
   RETURNING id INTO v_chunk_id;
 
   INSERT INTO coord_data (coord_id, chunk_id, enc_vals)
-  SELECT c.id, v_chunk_id, fv
-  FROM unnest(p_field_vals) AS fv
-  JOIN field f ON f.handle = (fv).field_handle
+  SELECT c.id, v_chunk_id, p_field_vals[h.i] 
+  FROM unnest(p_field_handles) WITH ORDINALITY AS h(fh, i)
+  JOIN field f ON f.handle = h.fh 
   JOIN coord c ON c.field_id = f.id
   WHERE c.series_id = v_series_id;
 
@@ -303,26 +315,20 @@ BEGIN
 END;
 $$;
 
-\echo 'add_run_tag'
-CREATE OR REPLACE PROCEDURE add_run_tag(
-  IN p_attribute_filters attribute_filter_typ[],
-  IN p_tag_filter tag_filter_typ,
-  IN p_min_started_at TIMESTAMPTZ,
-  IN p_max_started_at TIMESTAMPTZ,
-  IN p_tag TEXT
+\echo 'add_run_tags'
+CREATE OR REPLACE PROCEDURE add_run_tags(
+  IN p_run_handle UUID,
+  IN p_tags TEXT[]
 )
 LANGUAGE sql 
 AS $$
   UPDATE run
-  SET tags = array_append(tags, p_tag)
-	FROM list_runs_internal(
-		p_attribute_filters,
-		p_tag_filter,
-		p_min_started_at,
-		p_max_started_at
-	) as r
-	WHERE run.id = r.run_id
-  AND NOT p_tag = ANY(tags);
+  SET tags = tags || ARRAY(
+    SELECT DISTINCT e
+    FROM unnest(p_tags) AS e
+    WHERE e <> ALL(tags)
+  )
+  WHERE run.handle = p_run_handle;
 $$;
 
 \echo 'delete_run_tag'

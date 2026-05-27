@@ -60,6 +60,34 @@ CREATE TYPE tag_filter_typ AS (
 	neg_match_all BOOLEAN -- if true, neg_match iff neg_tags <@ run tags
 );
 
+\echo 'create valid_enc_typ'
+CREATE FUNCTION valid_enc_typ(e enc_typ, d field_data_typ) 
+RETURNS BOOLEAN
+IMMUTABLE
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+		((e.int_spans IS NOT NULL)::int
+			+ (e.float_spans IS NOT NULL)::int
+			+ (e.bool_bcast IS NOT NULL)::int
+			+ (e.string_bcast IS NOT NULL)::int) = 1
+		AND
+		cardinality(e.shape) = COALESCE(
+			cardinality(e.int_spans),
+			cardinality(e.float_spans),
+			cardinality(e.bool_bcast),
+			cardinality(e.string_bcast)
+		)
+		AND CASE d
+			WHEN 'int'    THEN e.int_spans IS NOT NULL
+			WHEN 'float'  THEN e.float_spans IS NOT NULL
+			WHEN 'bool'   THEN e.bool_bcast IS NOT NULL
+			WHEN 'string' THEN e.string_bcast IS NOT NULL
+		END,
+		FALSE
+	);
+$$;
+
 
 \echo 'create valid_attr_value'
 CREATE OR REPLACE FUNCTION valid_attr_value(

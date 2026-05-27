@@ -86,6 +86,18 @@ class BaseLogger:
 
         _ = self.stub.SetRunAttributes(req)
 
+    def add_run_tags(self, *tags: list[str]):
+        """Add tags to this run  
+        """
+        if self.dry_run:
+            return
+
+        if self.run_handle is None:
+            raise RuntimeError(f"Cannot call set_run_attributes until run started")
+
+        req = pb.AddRunTagsRequest(run_handle=self.run_handle, tags=tags)
+        _ = self.stub.AddRunTags(req)
+
     def write(self, series_name: str, /, **field_values):
         """
         Append data to a series.

@@ -119,18 +119,24 @@ func (st *Store) AppendToSeries(
 	ctx context.Context,
 	seriesHandle uuid.UUID,
 	runHandle uuid.UUID,
-	fieldVals []*pb.EncTyp,
+	fieldVals []*pb.FullEncTyp,
 ) error {
 	var err error
-	wrapped := make([]*EncTypValue, len(fieldVals))
+	encs := make([]*EncTypValue, len(fieldVals))
+	handles := make([]uuid.UUID, len(fieldVals))
+
 	for i, et := range fieldVals {
-		wrapped[i], err = NewEncTypValue(et)
+		handles[i], err = uuid.Parse(et.FieldHandle)
+		if err != nil {
+			return err
+		}
+		encs[i], err = NewEncTypValue(et.Enc)
 		if err != nil {
 			return err
 		}
 	}
-	sql := `CALL append_to_series($1, $2, $3)`
-	_, err = st.pool.Exec(ctx, sql, seriesHandle, runHandle, wrapped)
+	sql := `CALL append_to_series($1, $2, $3, $4)`
+	_, err = st.pool.Exec(ctx, sql, seriesHandle, runHandle, handles, encs)
 	return err
 }
 
@@ -260,19 +266,13 @@ func (st *Store) DeleteEmptySeries(
 	return err
 }
 
-func (st *Store) AddRunTag(
+func (st *Store) AddRunTags(
 	ctx context.Context,
-	runFilter RunFilter,
-	tag string,
+	runHandle uuid.UUID,
+	tags []string,
 ) error {
-	sql := `CALL add_run_tag($1, $2, $3, $4, $5)`
-	_, err := st.pool.Exec(
-		ctx, sql,
-		runFilter.AttributeFilters,
-		runFilter.TagFilter,
-		runFilter.MinStartedAt,
-		runFilter.MaxStartedAt,
-		tag)
+	sql := `CALL add_run_tags($1, $2)`
+	_, err := st.pool.Exec(ctx, sql, runHandle, tags)
 	return err
 }
 
