@@ -246,13 +246,12 @@ class AsyncDataLogger(BaseLogger):
 
     def __init__(
         self, 
-        grpc_uri: str,
         *,
         max_chunk_size: int=100000,
         flush_every: float=2.0,
         dry_run: bool=False,
     ):
-        super().__init__(grpc_uri, max_chunk_size, flush_every, dry_run)
+        super().__init__(max_chunk_size, flush_every, dry_run)
         self.exiting = False
 
     async def flush_buffer(self):
@@ -316,13 +315,12 @@ class DataLogger(BaseLogger):
 
     def __init__(
         self, 
-        grpc_uri: str,
         *,
         max_chunk_size: int=100000,
         flush_every: float=2.0,
         dry_run: bool=False,
     ):
-        super().__init__(grpc_uri, max_chunk_size, flush_every, dry_run)
+        super().__init__(max_chunk_size, flush_every, dry_run)
         self.exiting = False
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
 
