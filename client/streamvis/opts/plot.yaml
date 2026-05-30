@@ -22,13 +22,13 @@ ty: scatter
 series: null
 x: null
 y: null
-cm: []
-cs: []
-g: []
-o: []
-s: []
-l: []
-tip: []
+color_main: []
+color_sub: []
+add_group: []
+order: []
+slider: []
+label: []
+tooltip: []
 
 tags: []
 match_all: false

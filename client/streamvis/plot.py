@@ -27,6 +27,125 @@ from .v1.data_pb2_grpc import ServiceStub
 from . import rpc_client
 from . import dbutil
 
+class PlotType(Enum):
+    SCATTER = 'scatter'
+    LINE = 'line'
+
+@dataclass
+class AttrFilter:
+    name: str|None = None
+    inc_missing: bool = False
+    lo: float|int|None = None
+    hi: float|int|None = None
+    vals: list[float|int|bool|str] = field(default_factory=list)
+
+@dataclass
+class ColumnFilter:
+    name: str|None = None
+    lo: float|int|None = None
+    hi: float|int|None = None
+    vals: list[float|int|bool|str] = field(default_factory=list)
+
+    @property
+    def is_range_filter(self):
+        return self.lo is not None or self.hi is not None
+
+    @property
+    def is_value_filter(self):
+        return len(self.vals) > 0
+
+
+@dataclass
+class PlotOpts:
+    """
+    Specifies how series data (a set of points of with the same structure) is to be
+    plotted.  This process consists of:
+    1.  Partitioning the points into distinct glyphs (lines, for now)
+    2.  Ordering the points within a glyph (neighbor points connected by line segment)
+    3.  Assigning the main and secondary shade of color
+    4.  
+    """
+    ty: PlotType 
+    series: str
+
+    fig_width: int
+    fig_height: int
+    dpi: int
+    legend_at: str
+
+    x: str # x-axis field name
+    y: str # y-axis field name
+
+    # fields to assign the main color group
+    color_main: list[str] = field(default_factory=list) 
+
+    # fields for the sub-color group (shades of the main color)
+    color_sub: list[str] = field(default_factory=list)
+
+    # fields for determining the ordering of points within a glyph.
+    # if empty, defaults to the x field
+    order: list[str] = field(default_factory=list)
+
+    label: list[str] = field(default_factory=list) # label field_name
+
+    # additional fields besides color_main, color_sub, label for grouping
+    # points into glyphs
+    add_group: list[str] = field(default_factory=list) 
+
+    slider: list[str] = field(default_factory=list) # slider field_name
+    tooltip: list[str] = field(default_factory=list) # tooltip field_names
+
+    tags: list[str] = field(default_factory=list)
+    neg_tags: list[str] = field(default_factory=list)
+    match_all: bool = False
+    neg_match_all: bool = False
+
+    f1: AttrFilter = None
+    f2: AttrFilter = None
+    f3: AttrFilter = None
+    f4: AttrFilter = None
+    f5: AttrFilter = None
+
+    after: Optional[str] = None
+    until: Optional[str] = None
+
+    c1: ColumnFilter = None
+    c2: ColumnFilter = None
+    c3: ColumnFilter = None
+    c4: ColumnFilter = None
+    c5: ColumnFilter = None
+
+    def __post_init__(self):
+        self.ty = PlotType(self.ty)
+        if self.after is not None:
+            self.after = dateparser.parse(self.after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+        if self.until is not None:
+            self.until = dateparser.parse(self.until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+
+        if len(self.order) == 0:
+            self.order = [self.x]
+
+    @property
+    def field_names(self):
+        s = set((self.x, self.y, *self.color_main, *self.color_sub, 
+                 *self.add_group, *self.label, *self.order, *self.slider))
+        s.discard(None)
+        return list(s)
+
+    @property
+    def glyph_fields(self):
+        return set((*self.add_group, *self.color_main, *self.color_sub, *self.label))
+
+    @property
+    def filters(self):
+        s = (self.f1, self.f2, self.f3, self.f4, self.f5)
+        return tuple(f for f in s if f is not None) 
+
+    @property
+    def cfilters(self):
+        s = (self.c1, self.c2, self.c3, self.c4, self.c5)
+        return tuple(c for c in s if c is not None)
+
 
 class DataFrameWrapper:
     def __init__(self, df: pd.DataFrame, *group_cols: str):
@@ -104,112 +223,6 @@ class CategoricalRangeSlider:
     pass
 
 
-class PlotType(Enum):
-    SCATTER = 'scatter'
-    LINE = 'line'
-
-@dataclass
-class AttrFilter:
-    name: str|None = None
-    inc_missing: bool = False
-    lo: float|int|None = None
-    hi: float|int|None = None
-    vals: list[float|int|bool|str] = field(default_factory=list)
-
-@dataclass
-class ColumnFilter:
-    name: str|None = None
-    lo: float|int|None = None
-    hi: float|int|None = None
-    vals: list[float|int|bool|str] = field(default_factory=list)
-
-    @property
-    def is_range_filter(self):
-        return self.lo is not None or self.hi is not None
-
-    @property
-    def is_value_filter(self):
-        return len(self.vals) > 0
-
-
-@dataclass
-class PlotOpts:
-    ty: PlotType 
-    series: str
-
-    fig_width: int
-    fig_height: int
-    dpi: int
-    legend_at: str
-
-    x: str # x-axis field name
-    y: str # y-axis field name
-    cm: list[str] = field(default_factory=list) # color main field_name
-    cs: list[str] = field(default_factory=list) # color sub field_name
-    g: list[str] = field(default_factory=list) # group field_name
-    o: list[str] = field(default_factory=list) # order field_name
-    s: list[str] = field(default_factory=list) # slider field_name
-    l: list[str] = field(default_factory=list) # label field_name
-    tip: list[str] = field(default_factory=list) # tooltip field_names
-
-    tags: list[str] = field(default_factory=list)
-    neg_tags: list[str] = field(default_factory=list)
-    match_all: bool = False
-    neg_match_all: bool = False
-
-    f1: AttrFilter = None
-    f2: AttrFilter = None
-    f3: AttrFilter = None
-    f4: AttrFilter = None
-    f5: AttrFilter = None
-
-    after: Optional[str] = None
-    until: Optional[str] = None
-
-    c1: ColumnFilter = None
-    c2: ColumnFilter = None
-    c3: ColumnFilter = None
-    c4: ColumnFilter = None
-    c5: ColumnFilter = None
-
-    def __post_init__(self):
-        self.ty = PlotType(self.ty)
-        if self.after is not None:
-            self.after = dateparser.parse(self.after, settings={"RETURN_AS_TIMEZONE_AWARE": True})
-        if self.until is not None:
-            self.until = dateparser.parse(self.until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
-
-        if any(l not in self.g for l in self.l):
-            raise RuntimeError(f"l must be a subset of g")
-        if any(c not in self.g for c in self.cm):
-            raise RuntimeError(f"cm must be a subset of g")
-        if any(c not in self.g for c in self.cs):
-            raise RuntimeError(f"cs must be a subset of g")
-
-    @property
-    def axis_to_fname(self):
-        m = { 
-             'x': self.x, 'y': self.y, 'cm': self.cm, 'cs': self.cs, 'g': self.g,
-             'o': self.o, 's': self.s, 'l': self.l 
-            }
-        return { k: v for k, v in m.items() if v is not None }
-
-    @property
-    def field_names(self):
-        s = set((self.x, self.y, *self.g, *self.o, *self.s))
-        s.discard(None)
-        return list(s)
-
-    @property
-    def filters(self):
-        s = (self.f1, self.f2, self.f3, self.f4, self.f5)
-        return tuple(f for f in s if f is not None) 
-
-    @property
-    def cfilters(self):
-        s = (self.c1, self.c2, self.c3, self.c4, self.c5)
-        return tuple(c for c in s if c is not None)
-
 STARTED_AT = '_run_started_at'
 RUN_HANDLE = '_run_handle'
 
@@ -227,10 +240,63 @@ class PlotManager:
         self._cursor = None
 
         self.legend_opts = dict(
-            title=textwrap.fill(', '.join(opts.l), width=80), 
+            title=textwrap.fill(', '.join(opts.label), width=80), 
             loc=self.opts.legend_at, 
             fontsize=8, 
             title_fontsize=6)
+
+    def new_dataframe(self, data=None):
+        pbmap = { 
+                   pb.FIELD_DATA_TYPE_INT: "Int64",
+                   pb.FIELD_DATA_TYPE_FLOAT: "Float64",
+                   pb.FIELD_DATA_TYPE_STRING: "string",
+                   pb.FIELD_DATA_TYPE_BOOL: "boolean" }
+
+        series_types = {
+                name: pbmap[f.data_type] for name, f in
+                self.data_info.field_name_map.items() }
+        series_types[STARTED_AT] = "Int64"
+        series_types[RUN_HANDLE] = "category"
+
+        if data is None:
+            data = {}
+
+        row_count = 0
+        for val in data.values():
+            match val:
+                case np.ndarray() | list():
+                    row_count = len(val)
+                    break
+        master_index = pd.RangeIndex(row_count)
+
+        cols = { 
+                name: pd.Series(data=data.get(name), index=master_index, dtype=stype)
+                for name, stype in series_types.items() }
+        return pd.DataFrame(cols)
+
+    def to_dataframes(
+        self,
+        stub: ServiceStub, 
+    ) -> list[pd.DataFrame]:
+        run_req = pb.ListRunsRequest(run_filter=self.data_req.run_filter)
+        runs = { run.handle: run for run in stub.ListRuns(run_req) }
+        frames = []
+
+        for data in stub.QueryRunData(self.data_req):
+            run = runs.get(data.run_handle)
+            if run is None:
+                raise RuntimeError(f"Couldn't get run metadata")
+
+            arrays = dbutil.decode_runchunk(data)
+            d = dict(zip(self.data_info.coord_names, arrays))
+            attrs = { n: rpc_client.get_oneof(run.attrs[n]) for n in self.data_info.attr_names }
+            d[STARTED_AT] = run.started_at.seconds
+            d[RUN_HANDLE] = run.handle
+            d.update(attrs)
+            df = self.new_dataframe(d)
+            frames.append(df)
+
+        return frames
 
     def prepare(self, stub: ServiceStub):
         o = self.opts
@@ -246,11 +312,10 @@ class PlotManager:
 
         self.data_req = req
         self.data_info = info 
-        self.df = pd.DataFrame(columns=(STARTED_AT, RUN_HANDLE, *self.data_info.field_names))
-        self.df[RUN_HANDLE] = self.df[RUN_HANDLE].astype('category')
+        self.df = self.new_dataframe()
 
-        xdesc = info.field_name_map[self.opts.x]
-        ydesc = info.field_name_map[self.opts.y]
+        xdesc = info.field_name_map[self.opts.x].description
+        ydesc = info.field_name_map[self.opts.y].description
 
         plt.ion()
         self.fig, self.ax = plt.subplots(
@@ -260,7 +325,7 @@ class PlotManager:
         self.ax.set_xlabel(xdesc, fontsize=10)
         self.ax.set_ylabel(ydesc, fontsize=10)
 
-        for s in self.opts.s:
+        for s in self.opts.slider:
             self.add_slider(s)
 
         # plt.tight_layout()
@@ -284,8 +349,7 @@ class PlotManager:
         ]
 
         self.df = self.df[~self.df[RUN_HANDLE].isin(stale_handles)]
-
-        new_dfs = to_dataframes(stub, self.data_req, self.data_info)
+        new_dfs = self.to_dataframes(stub)
         pre_chunk_id = self.data_req.begin_chunk_id
         self.data_req.begin_chunk_id = cur_chunk_id = rpc_client.get_end_chunk_id(stub) 
         
@@ -304,10 +368,10 @@ class PlotManager:
             else:
                 self.df = self.df[self.df[cf.name].isin(cf.vals)]
 
-        self.df.sort_values(by=[STARTED_AT, *self.opts.g, *self.opts.o],
+        self.df.sort_values(by=[STARTED_AT, *self.opts.glyph_fields, *self.opts.order],
                             ascending=True, inplace=True)
 
-        self.group_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.g)
+        self.group_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.glyph_fields)
 
         for field_name, w in self.filters.items():
             values = self.df[field_name].unique()
@@ -323,12 +387,12 @@ class PlotManager:
     def _refresh_glyphs(self):
         # update
         plot_groups = list(self.glyphs.keys())
-        color_df = DataFrameWrapper(self.df, *self.opts.cm, *self.opts.cs)
-        base_inds = tuple(self.group_df.fields.index(f) for f in self.opts.cm)
-        sub_inds = tuple(self.group_df.fields.index(f) for f in self.opts.cs)
+        color_df = DataFrameWrapper(self.df, *self.opts.color_main, *self.opts.color_sub)
+        base_inds = tuple(self.group_df.fields.index(f) for f in self.opts.color_main)
+        sub_inds = tuple(self.group_df.fields.index(f) for f in self.opts.color_sub)
 
         cgroups = {}
-        nbase = len(self.opts.cm)
+        nbase = len(self.opts.color_main)
         for cg in color_df.groups:
             base, sub = cg[:nbase], cg[nbase:]
             cgroups.setdefault(base, list()).append(sub)
@@ -342,8 +406,8 @@ class PlotManager:
             num_sub = len(cgroups[base_gr])
             return get_color(base_idx, sub_idx, num_sub)
 
-        legend_label_inds = tuple(self.group_df.fields.index(l) for l in self.opts.l)
-        tooltip_label_inds = tuple(self.group_df.fields.index(t) for t in self.opts.tip)
+        legend_label_inds = tuple(self.group_df.fields.index(l) for l in self.opts.label)
+        tooltip_label_inds = tuple(self.group_df.fields.index(t) for t in self.opts.tooltip)
         legend_labels = {} # label => glyph 
 
         if self._cursor is not None:
@@ -370,7 +434,10 @@ class PlotManager:
         if len(legend_labels) == 0:
             labels, glyphs = [], []
         else:
-            labels, glyphs = list(zip(*sorted(legend_labels.items())))
+            def sort_with_na(kv):
+                return tuple((isinstance(x, pd.api.typing.NAType), x) for x in kv[0])
+                    
+            labels, glyphs = list(zip(*sorted(legend_labels.items(), key=sort_with_na)))
 
         self.ax.legend(handles=glyphs, labels=labels, **self.legend_opts)
         self.ax.relim()
@@ -428,31 +495,6 @@ class PlotManager:
                 tg.create_task(self.refresh_glyph_visibility())
         except ExceptionGroup as eg:
             traceback.print_exception(eg)
-
-def to_dataframes(
-    stub: ServiceStub, 
-    req: pb.QueryRunDataRequest,
-    info: rpc_client.QueryRunInfo, 
-) -> list[pd.DataFrame]:
-    run_req = pb.ListRunsRequest(run_filter=req.run_filter)
-    runs = { run.handle: run for run in stub.ListRuns(run_req) }
-    frames = []
-
-    for data in stub.QueryRunData(req):
-        run = runs.get(data.run_handle)
-        if run is None:
-            raise RuntimeError(f"Couldn't get run metadata")
-
-        arrays = dbutil.decode_runchunk(data)
-        d = dict(zip(info.coord_names, arrays))
-        attrs = { n: rpc_client.get_oneof(run.attrs[n]) for n in info.attr_names }
-        d[STARTED_AT] = run.started_at.seconds
-        d[RUN_HANDLE] = run.handle
-        d.update(attrs)
-        df = pd.DataFrame(d)
-        frames.append(df)
-
-    return frames
 
 def get_color(base_idx: int, sub_idx: int, num_sub: int) -> str:
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']

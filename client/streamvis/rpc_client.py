@@ -85,7 +85,7 @@ class QueryRunInfo:
 
     @property
     def field_name_map(self):
-        return { f.name: f.description for f in (*self.attrs, *self.coords) }
+        return { f.name: f for f in (*self.attrs, *self.coords) }
 
 def get_data_columns(
         stub: ServiceStub,
