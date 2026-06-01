@@ -26,7 +26,6 @@ CREATE TYPE series_typ AS (
 );
 
 
-
 \echo 'create full_field_value_typ'
 CREATE TYPE full_field_value_typ AS (
   handle UUID,
@@ -95,24 +94,51 @@ AS $$
 		END
 $$;
 
-\echo 'create pack_float_enc'
-CREATE FUNCTION pack_float_enc(
-	vals NUMERIC[]
-) RETURNS enc_typ
+\echo 'create pack_int_enc'
+CREATE FUNCTION pack_int_enc(vals INT[])
+RETURNS enc_typ
 IMMUTABLE PARALLEL SAFE
 LANGUAGE sql
 AS $$
   SELECT ROW(
-		ARRAY[cardinality(vals)]::INT[],
-		NULL,
-		vals::REAL[],
-		NULL,
-		NULL,
-		NULL,
-		ARRAY[NULL]::REAL[],
-		NULL
+		ARRAY[cardinality(vals)]::INT[], vals, NULL, NULL, NULL, ARRAY[NULL]::INT[], NULL, NULL
 	)::enc_typ;
 $$;
+
+
+\echo 'create pack_float_enc'
+CREATE FUNCTION pack_float_enc(vals REAL[])
+RETURNS enc_typ
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql
+AS $$
+  SELECT ROW(
+		ARRAY[cardinality(vals)]::INT[], NULL, vals, NULL, NULL, NULL, ARRAY[NULL]::REAL[], NULL
+	)::enc_typ;
+$$;
+
+\echo 'create pack_bool_enc'
+CREATE FUNCTION pack_bool_enc(vals BOOLEAN[])
+RETURNS enc_typ
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql
+AS $$
+  SELECT ROW(
+		ARRAY[cardinality(vals)]::INT[], NULL, NULL, vals, NULL, NULL, NULL, ARRAY[NULL]::BOOLEAN[]
+	)::enc_typ;
+$$;
+
+\echo 'create pack_text_enc'
+CREATE FUNCTION pack_text_enc(vals TEXT[])
+RETURNS enc_typ
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql
+AS $$
+  SELECT ROW(
+		ARRAY[cardinality(vals)]::INT[], NULL, NULL, NULL, vals, NULL, NULL, ARRAY[NULL]::INT[]
+	)::enc_typ;
+$$;
+
 
 \echo 'create unpack_enc_int'
 CREATE FUNCTION unpack_enc_int(e enc_typ)
