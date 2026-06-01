@@ -90,10 +90,11 @@ CREATE INDEX idx_chunk_series_run ON chunk(series_id, run_id);
 enc_typ represents an ordered 1D sequence of values, viewed
 as a flattened tensor of shape `shape`, and the following logic:
 
-Exactly one of int_spans, float_spans, bool_bcast, string_bcast will be non-null.
+Exactly one of int_base, float_base, bool_base, or text_base will be non-null.
+Exactly one of int_spans, float_spans, or bcast will be non-null.
 
-spans[dim] == null:  dim has no broadcasting or regular-increment (range) pattern.
-spans[dim] != null (>= 0):  the values along dim are evenly spaced from orig[dim]
+*_spans[dim] == null:  dim has no broadcasting or regular-increment (range) pattern.
+*_spans[dim] != null (>= 0):  the values along dim are evenly spaced from orig[dim]
   to orig[dim] + spans[dim].  A span value of zero represents broadcasting.
 
 bcast[dim]
@@ -105,13 +106,16 @@ Here, orig means the original tensor which is encoded by this scheme.
 For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 */
 \echo 'create enc_typ'
+
 CREATE TYPE enc_typ AS (
-  base BYTEA,
-  shape INT[],
-  int_spans INT[],
-  float_spans REAL[],
-  bool_bcast BOOLEAN[],
-  string_bcast BOOLEAN[]
+	shape INT[],
+	int_base INT[],
+	float_base REAL[],
+	bool_base BOOLEAN[],
+	text_base TEXT[],
+	int_spans INT[],
+	float_spans REAL[],
+	bcast BOOLEAN[]
 );
 
 /* Holds one chunk of data for a given coordinate

@@ -22,22 +22,33 @@ func MakeToProtobufFunc[A ToProtobuffer[B], B any]() func(A) (B, error) {
 }
 
 type EncTypValue struct {
-	Base        []byte           `db:"base"`
-	Shape       []uint32         `db:"shape"`
-	IntSpans    *[]pgtype.Int4   `db:"int_spans"`
-	FloatSpans  *[]pgtype.Float4 `db:"float_spans"`
-	BoolBcast   *[]bool          `db:"bool_bcast"`
-	StringBcast *[]bool          `db:string_bcast"`
+	Shape      []uint32         `db:"shape"`
+	IntBase    *[]int32         `db:"int_base"`
+	FloatBase  *[]float32       `db:"float_base"`
+	BoolBase   *[]bool          `db:"bool_base"`
+	StringBase *[]string        `db:"text_base"`
+	IntSpans   *[]pgtype.Int4   `db:"int_spans"`
+	FloatSpans *[]pgtype.Float4 `db:"float_spans"`
+	Bcast      *[]bool          `db:"bcast"`
 }
 
-func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
+func NewEncTypValue(msg *pb.EncTyp) (*EncTypValue, error) {
 	v := &EncTypValue{
-		Base:  pb.Base,
-		Shape: pb.Shape,
+		Shape: msg.Shape,
+	}
+	switch b := msg.Base.Value.(type) {
+	case *pb.AnyArray_Ints:
+		v.IntBase = &b.Ints.Values
+	case *pb.AnyArray_Floats:
+		v.FloatBase = &b.Floats.Values
+	case *pb.AnyArray_Strings:
+		v.StringBase = &b.Strings.Values
+	case *pb.AnyArray_Bools:
+		v.BoolBase = &b.Bools.Values
 	}
 
-	if pb.GetIntSpans() != nil {
-		vals := pb.GetIntSpans().GetValues()
+	if msg.GetIntSpans() != nil {
+		vals := msg.GetIntSpans().GetValues()
 		spans := make([]pgtype.Int4, len(vals))
 		v.IntSpans = &spans
 		for i, opt := range vals {
@@ -47,8 +58,8 @@ func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
 		}
 	}
 
-	if pb.GetFloatSpans() != nil {
-		vals := pb.GetFloatSpans().GetValues()
+	if msg.GetFloatSpans() != nil {
+		vals := msg.GetFloatSpans().GetValues()
 		spans := make([]pgtype.Float4, len(vals))
 		v.FloatSpans = &spans
 		for i, opt := range vals {
@@ -58,14 +69,9 @@ func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
 		}
 	}
 
-	if pb.GetBoolBcast() != nil {
-		bcast := pb.GetBoolBcast().GetValues()
-		v.BoolBcast = &bcast
-	}
-
-	if pb.GetStringBcast() != nil {
-		bcast := pb.GetStringBcast().GetValues()
-		v.StringBcast = &bcast
+	if msg.GetBcast() != nil {
+		bcast := msg.GetBcast().GetValues()
+		v.Bcast = &bcast
 	}
 
 	return v, nil
@@ -73,9 +79,21 @@ func NewEncTypValue(pb *pb.EncTyp) (*EncTypValue, error) {
 
 func (ev *EncTypValue) toProtobuf() pb.EncTyp {
 	msg := pb.EncTyp{
-		Base:  ev.Base,
 		Shape: ev.Shape,
 	}
+	if ev.IntBase != nil {
+		msg.Base.Value = &pb.AnyArray_Ints{Ints: &pb.IntArray{Values: *ev.IntBase}}
+	}
+	if ev.FloatBase != nil {
+		msg.Base.Value = &pb.AnyArray_Floats{Floats: &pb.FloatArray{Values: *ev.FloatBase}}
+	}
+	if ev.BoolBase != nil {
+		msg.Base.Value = &pb.AnyArray_Bools{Bools: &pb.BoolArray{Values: *ev.BoolBase}}
+	}
+	if ev.StringBase != nil {
+		msg.Base.Value = &pb.AnyArray_Strings{Strings: &pb.StringArray{Values: *ev.StringBase}}
+	}
+
 	if ev.IntSpans != nil {
 		ivals := make([]*pb.OptionalInt, len(*ev.IntSpans))
 		for i, i4 := range *ev.IntSpans {
@@ -97,11 +115,8 @@ func (ev *EncTypValue) toProtobuf() pb.EncTyp {
 		}
 		msg.Spans = &pb.EncTyp_FloatSpans{FloatSpans: &pb.FloatValues{Values: fvals}}
 	}
-	if ev.BoolBcast != nil {
-		msg.Spans = &pb.EncTyp_BoolBcast{BoolBcast: &pb.BoolArray{Values: *ev.BoolBcast}}
-	}
-	if ev.StringBcast != nil {
-		msg.Spans = &pb.EncTyp_StringBcast{StringBcast: &pb.BoolArray{Values: *ev.StringBcast}}
+	if ev.Bcast != nil {
+		msg.Spans = &pb.EncTyp_Bcast{Bcast: &pb.BoolArray{Values: *ev.Bcast}}
 	}
 	return msg
 }

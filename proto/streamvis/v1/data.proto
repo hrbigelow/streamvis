@@ -27,13 +27,12 @@ message CreateSeriesResponse {
 
 message EncTyp {
   string field_handle = 1;
-  bytes base = 2;
-  repeated uint32 shape = 3;
+  repeated uint32 shape = 2;
+  AnyArray base = 3;
   oneof spans {
     IntValues int_spans = 4;
     FloatValues float_spans = 5;
-    BoolArray bool_bcast = 6;
-    BoolArray string_bcast = 7;
+    BoolArray bcast = 6;
   }
 }
 

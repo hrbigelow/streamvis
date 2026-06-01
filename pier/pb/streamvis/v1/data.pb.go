@@ -264,14 +264,13 @@ func (*CreateSeriesResponse) Descriptor() ([]byte, []int) {
 type EncTyp struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	FieldHandle string                 `protobuf:"bytes,1,opt,name=field_handle,json=fieldHandle,proto3" json:"field_handle,omitempty"`
-	Base        []byte                 `protobuf:"bytes,2,opt,name=base,proto3" json:"base,omitempty"`
-	Shape       []uint32               `protobuf:"varint,3,rep,packed,name=shape,proto3" json:"shape,omitempty"`
+	Shape       []uint32               `protobuf:"varint,2,rep,packed,name=shape,proto3" json:"shape,omitempty"`
+	Base        *AnyArray              `protobuf:"bytes,3,opt,name=base,proto3" json:"base,omitempty"`
 	// Types that are valid to be assigned to Spans:
 	//
 	//	*EncTyp_IntSpans
 	//	*EncTyp_FloatSpans
-	//	*EncTyp_BoolBcast
-	//	*EncTyp_StringBcast
+	//	*EncTyp_Bcast
 	Spans         isEncTyp_Spans `protobuf_oneof:"spans"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -314,16 +313,16 @@ func (x *EncTyp) GetFieldHandle() string {
 	return ""
 }
 
-func (x *EncTyp) GetBase() []byte {
+func (x *EncTyp) GetShape() []uint32 {
 	if x != nil {
-		return x.Base
+		return x.Shape
 	}
 	return nil
 }
 
-func (x *EncTyp) GetShape() []uint32 {
+func (x *EncTyp) GetBase() *AnyArray {
 	if x != nil {
-		return x.Shape
+		return x.Base
 	}
 	return nil
 }
@@ -353,19 +352,10 @@ func (x *EncTyp) GetFloatSpans() *FloatValues {
 	return nil
 }
 
-func (x *EncTyp) GetBoolBcast() *BoolArray {
+func (x *EncTyp) GetBcast() *BoolArray {
 	if x != nil {
-		if x, ok := x.Spans.(*EncTyp_BoolBcast); ok {
-			return x.BoolBcast
-		}
-	}
-	return nil
-}
-
-func (x *EncTyp) GetStringBcast() *BoolArray {
-	if x != nil {
-		if x, ok := x.Spans.(*EncTyp_StringBcast); ok {
-			return x.StringBcast
+		if x, ok := x.Spans.(*EncTyp_Bcast); ok {
+			return x.Bcast
 		}
 	}
 	return nil
@@ -383,21 +373,15 @@ type EncTyp_FloatSpans struct {
 	FloatSpans *FloatValues `protobuf:"bytes,5,opt,name=float_spans,json=floatSpans,proto3,oneof"`
 }
 
-type EncTyp_BoolBcast struct {
-	BoolBcast *BoolArray `protobuf:"bytes,6,opt,name=bool_bcast,json=boolBcast,proto3,oneof"`
-}
-
-type EncTyp_StringBcast struct {
-	StringBcast *BoolArray `protobuf:"bytes,7,opt,name=string_bcast,json=stringBcast,proto3,oneof"`
+type EncTyp_Bcast struct {
+	Bcast *BoolArray `protobuf:"bytes,6,opt,name=bcast,proto3,oneof"`
 }
 
 func (*EncTyp_IntSpans) isEncTyp_Spans() {}
 
 func (*EncTyp_FloatSpans) isEncTyp_Spans() {}
 
-func (*EncTyp_BoolBcast) isEncTyp_Spans() {}
-
-func (*EncTyp_StringBcast) isEncTyp_Spans() {}
+func (*EncTyp_Bcast) isEncTyp_Spans() {}
 
 type FullEncTyp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -3275,17 +3259,15 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"seriesName\x12\x1f\n" +
 	"\vfield_names\x18\x02 \x03(\tR\n" +
 	"fieldNames\"\x16\n" +
-	"\x14CreateSeriesResponse\"\xcc\x02\n" +
+	"\x14CreateSeriesResponse\"\x9d\x02\n" +
 	"\x06EncTyp\x12!\n" +
-	"\ffield_handle\x18\x01 \x01(\tR\vfieldHandle\x12\x12\n" +
-	"\x04base\x18\x02 \x01(\fR\x04base\x12\x14\n" +
-	"\x05shape\x18\x03 \x03(\rR\x05shape\x126\n" +
+	"\ffield_handle\x18\x01 \x01(\tR\vfieldHandle\x12\x14\n" +
+	"\x05shape\x18\x02 \x03(\rR\x05shape\x12*\n" +
+	"\x04base\x18\x03 \x01(\v2\x16.streamvis.v1.AnyArrayR\x04base\x126\n" +
 	"\tint_spans\x18\x04 \x01(\v2\x17.streamvis.v1.IntValuesH\x00R\bintSpans\x12<\n" +
 	"\vfloat_spans\x18\x05 \x01(\v2\x19.streamvis.v1.FloatValuesH\x00R\n" +
-	"floatSpans\x128\n" +
-	"\n" +
-	"bool_bcast\x18\x06 \x01(\v2\x17.streamvis.v1.BoolArrayH\x00R\tboolBcast\x12<\n" +
-	"\fstring_bcast\x18\a \x01(\v2\x17.streamvis.v1.BoolArrayH\x00R\vstringBcastB\a\n" +
+	"floatSpans\x12/\n" +
+	"\x05bcast\x18\x06 \x01(\v2\x17.streamvis.v1.BoolArrayH\x00R\x05bcastB\a\n" +
 	"\x05spans\"W\n" +
 	"\n" +
 	"FullEncTyp\x12!\n" +
@@ -3588,10 +3570,10 @@ var file_streamvis_v1_data_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),       // 64: google.protobuf.Timestamp
 }
 var file_streamvis_v1_data_proto_depIdxs = []int32{
-	8,  // 0: streamvis.v1.EncTyp.int_spans:type_name -> streamvis.v1.IntValues
-	11, // 1: streamvis.v1.EncTyp.float_spans:type_name -> streamvis.v1.FloatValues
-	13, // 2: streamvis.v1.EncTyp.bool_bcast:type_name -> streamvis.v1.BoolArray
-	13, // 3: streamvis.v1.EncTyp.string_bcast:type_name -> streamvis.v1.BoolArray
+	35, // 0: streamvis.v1.EncTyp.base:type_name -> streamvis.v1.AnyArray
+	8,  // 1: streamvis.v1.EncTyp.int_spans:type_name -> streamvis.v1.IntValues
+	11, // 2: streamvis.v1.EncTyp.float_spans:type_name -> streamvis.v1.FloatValues
+	13, // 3: streamvis.v1.EncTyp.bcast:type_name -> streamvis.v1.BoolArray
 	5,  // 4: streamvis.v1.FullEncTyp.enc:type_name -> streamvis.v1.EncTyp
 	9,  // 5: streamvis.v1.IntValues.values:type_name -> streamvis.v1.OptionalInt
 	12, // 6: streamvis.v1.FloatValues.values:type_name -> streamvis.v1.OptionalFloat
@@ -3682,8 +3664,7 @@ func file_streamvis_v1_data_proto_init() {
 	file_streamvis_v1_data_proto_msgTypes[4].OneofWrappers = []any{
 		(*EncTyp_IntSpans)(nil),
 		(*EncTyp_FloatSpans)(nil),
-		(*EncTyp_BoolBcast)(nil),
-		(*EncTyp_StringBcast)(nil),
+		(*EncTyp_Bcast)(nil),
 	}
 	file_streamvis_v1_data_proto_msgTypes[8].OneofWrappers = []any{}
 	file_streamvis_v1_data_proto_msgTypes[11].OneofWrappers = []any{}

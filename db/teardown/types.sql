@@ -1,10 +1,22 @@
 \set QUIET 1
 
-\echo 'drop project_field_value'
-DROP FUNCTION IF EXISTS project_field_value;
-
 \echo 'drop valid_attr_value'
 DROP FUNCTION IF EXISTS valid_attr_value;
+
+\echo 'drop decode_enc_typ'
+DROP FUNCTION IF EXISTS decode_enc_typ;
+
+\echo 'drop unpack_enc_int'
+DROP FUNCTION IF EXISTS unpack_enc_int;
+
+\echo 'drop unpack_enc_float'
+DROP FUNCTION IF EXISTS unpack_enc_float;
+
+\echo 'drop unpack_enc_bool'
+DROP FUNCTION IF EXISTS unpack_enc_bool;
+
+\echo 'drop unpack_enc_text'
+DROP FUNCTION IF EXISTS unpack_enc_text;
 
 \echo 'drop valid_enc_typ'
 DROP FUNCTION IF EXISTS valid_enc_typ;

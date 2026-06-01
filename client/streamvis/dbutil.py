@@ -39,65 +39,47 @@ def encode_numeric_array(
             range_spans[d] = span 
 
     indices = tuple(slice(None) if s is None else 0 for s in range_spans)
-    slice_data = ary[indices]
+    slice_data = ary[indices].ravel().tolist()
 
-    enc = pb.EncTyp(base=slice_data.tobytes(), shape=shape)
     if ary.dtype == np.dtype('int32'):
+        base = pb.AnyArray(ints=pb.IntArray(values=slice_data))
+        enc = pb.EncTyp(base=base, shape=shape)
         range_spans = tuple(pb.OptionalInt(value=sp) for sp in range_spans)
         enc.int_spans.values.extend(range_spans)
     else:
+        base = pb.AnyArray(floats=pb.FloatArray(values=slice_data))
+        enc = pb.EncTyp(base=base, shape=shape)
         range_spans = tuple(pb.OptionalFloat(value=sp) for sp in range_spans)
         enc.float_spans.values.extend(range_spans)
     msg = pb.FullEncTyp(field_handle=field_handle, enc=enc)
     return msg
 
-def encode_bool_array(
+def encode_non_numeric_array(
     field_handle: str,
     ary: np.ndarray
 ) -> pb.FullEncTyp: 
-    if not np.issubdtype(ary.dtype, np.bool):
-        raise RuntimeError(f"Array has dtype {ary.dtype}, but expected 'bool'")
+    if not (np.issubdtype(ary.dtype, np.bool) or np.issubdtype(ary.dtype, np.str_)):
+        raise RuntimeError(f"Array has dtype {ary.dtype}, but expected 'bool' or 'str_'")
     bcast = [None] * ary.ndim
     for d in range(ary.ndim):
         slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
         bcast[d] = np.all(ary[slices] == ary).item()
     indices = tuple(0 if bc else slice(None) for bc in bcast)
-    slice_data = ary[indices]
-    enc = pb.EncTyp(base=slice_data.tobytes(), shape=ary.shape)
-    enc.bool_bcast.values.extend(bcast)
-    msg = pb.FullEncTyp(field_handle=field_handle, enc=enc)
-    return msg
-
-
-def encode_string_array(
-    field_handle: str,
-    ary: np.ndarray
-) -> pb.FullEncTyp: 
-    if not np.issubdtype(ary.dtype, np.str_):
-        raise RuntimeError(f"Array has dtype {ary.dtype}, but expected 'str_'")
-    bcast = [None] * ary.ndim
-    for d in range(ary.ndim):
-        slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
-        bcast[d] = np.all(ary[slices] == ary).item()
-    indices = tuple(0 if bc else slice(None) for bc in bcast)
-    slice_data = ary[indices].astype('S')
-    header = struct.pack('<i', slice_data.dtype.itemsize)
-    encoded = header + slice_data.tobytes()
-    enc = pb.EncTyp(base=encoded, shape=ary.shape)
-    if np.issubdtype(ary.dtype, np.str_):
-        enc.string_bcast.values.extend(bcast)
+    slice_data = ary[indices].ravel().tolist()
+    if ary.dtype == np.dtype('bool'):
+        base = pb.AnyArray(bools=pb.BoolArray(values=slice_data))
     else:
-        enc.bool_bcast.values.extend(bcast)
+        base = pb.AnyArray(strings=pb.StringArray(values=slice_data))
+    enc = pb.EncTyp(shape=ary.shape, base=base)
+    enc.bcast.values.extend(bcast)
     msg = pb.FullEncTyp(field_handle=field_handle, enc=enc)
     return msg
 
 def encode_array(field_handle: str, ary: np.ndarray) -> pb.FullEncTyp:
     if ary.dtype in (np.dtype('int32'), np.dtype('float32')):
         return encode_numeric_array(field_handle, ary)
-    elif ary.dtype == np.dtype('bool'):
-        return encode_bool_array(field_handle, ary)
-    elif np.issubdtype(ary.dtype, np.dtype('str_')):
-        return encode_string_array(field_handle, ary)
+    elif ary.dtype == np.dtype('bool') or np.issubdtype(ary.dtype, np.dtype('str_')):
+        return encode_non_numeric_array(field_handle, ary)
     else:
         raise RuntimeError(
                 f"ary must have a dtype of int32, float32, bool, or str_. Got {ary.dtype}")

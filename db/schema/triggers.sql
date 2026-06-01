@@ -3,52 +3,16 @@
 \echo 'create valid_coord_data'
 CREATE FUNCTION valid_coord_data(
 	p_coord_id INT,
-	val enc_typ
+	e enc_typ
 )
 RETURNS BOOLEAN
 STABLE
 LANGUAGE sql
 AS $$
-  SELECT 
-    CASE f.data_type
-      WHEN 'int' THEN
-        (
-          (val).int_spans IS NOT NULL AND
-          (val).float_spans IS NULL AND
-          (val).bool_bcast IS NULL AND
-          (val).string_bcast IS NULL AND
-          array_length((val).shape, 1) = array_length((val).int_spans, 1)
-        )
-      WHEN 'float' THEN
-        (
-          (val).int_spans IS NULL AND
-          (val).float_spans IS NOT NULL AND
-          (val).bool_bcast IS NULL AND
-          (val).string_bcast IS NULL AND
-          array_length((val).shape, 1) = array_length((val).float_spans, 1)
-        )
-      WHEN 'bool' THEN
-        (
-          (val).int_spans IS NULL AND
-          (val).float_spans IS NULL AND
-          (val).bool_bcast IS NOT NULL AND
-          (val).string_bcast IS NULL AND
-          array_length((val).shape, 1) = array_length((val).bool_bcast, 1)
-        )
-      WHEN 'string' THEN
-        (
-          (val).int_spans IS NULL AND
-          (val).float_spans IS NULL AND
-          (val).bool_bcast IS NULL AND
-          (val).string_bcast IS NOT NULL AND
-          array_length((val).shape, 1) = array_length((val).string_bcast, 1)
-        )
-      ELSE
-        FALSE
-    END CASE
-		FROM coord c
-		JOIN field f ON (f.id = c.field_id)
-		WHERE c.id = p_coord_id;
+  SELECT valid_enc_typ(e, f.data_type)
+  FROM coord c
+  JOIN field f ON f.id = c.field_id
+  WHERE c.id = p_coord_id;
 $$;
 
 \echo 'create coord_data_validate'

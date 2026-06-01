@@ -140,7 +140,6 @@ AS $$
 DECLARE
   rec RECORD;
   v_field_handle UUID;
-  v_field_val enc_typ;
   v_data_type field_data_typ; 
   v_series_id INT;
   v_run_id INT;
@@ -185,12 +184,14 @@ BEGIN
   LOOP
     IF NOT valid_enc_typ(rec.field_val, rec.data_type) THEN
       RAISE EXCEPTION 'enc_typ invalid: % for data_type %', (
-        (rec.field_val).base,
         (rec.field_val).shape,
+        (rec.field_val).int_base,
+        (rec.field_val).float_base,
+        (rec.field_val).bool_base,
+        (rec.field_val).text_base,
         (rec.field_val).int_spans,
         (rec.field_val).float_spans,
-        (rec.field_val).bool_bcast,
-        (rec.field_val).string_bcast
+        (rec.field_val).bcast
       ), rec.data_type;
     ELSIF rec.field_handle <> ALL(v_series_field_handles) THEN
       RAISE EXCEPTION 'Field %s not found in series %s', 

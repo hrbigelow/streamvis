@@ -152,7 +152,7 @@ END;
 $$;
 
 /* Get data from runs identified by p_run_handles with chunk_id 
- * in [p_begin_chunk_id, * p_end_chunk_id)
+ * in [p_begin_chunk_id, p_end_chunk_id)
  * and coords specified by p_coord_handles
  */
 \echo 'create get_coord_data'
@@ -212,29 +212,32 @@ BEGIN
 END;
 $$;
 
-
-/* Get all data from runs identified by p_run_handles with chunk_id >= p_begin_chunk_id
-Gets just the coordinates from p_coord_handles, and projects the attribute values in
-p_attr_handles into enc_typ.  The returned table packs the enc_vals into the order
-[...p_attr_handles, ...p_coord_handles], grouped by run_id and chunk
+/* Get data from runs identified by p_run_handles with chunk_id
+in [p_begin_chunk_id, p_end_chunk_id)
+and coords specified by p_coord_handles.
+Apply a windowing function of size window_size over the data,
+partitioned by p_group_coord_ids ordered by p_order_coord_ids
+and outputting p_stride value.
 */
-\echo 'create get_data'
-CREATE FUNCTION get_data(
+\echo 'create get_window_coord_data'
+CREATE FUNCTION get_window_coord_data(
   p_run_ids INT[],
-  p_attr_handles UUID[],   -- field handles of attributes to return
-  p_coord_handles UUID[],
+  p_coord_handles UUID[],       -- only int and float coords
+  p_group_coord_handles UUID[],
+  p_order_coord_handles UUID[], -- only int and float coords
   p_begin_chunk_id BIGINT,
-  p_end_chunk_id BIGINT
+  p_end_chunk_id BIGINT,
+  p_window_size INT,
+  p_stride INT
 ) RETURNS TABLE (
   run_handle UUID,
   enc_vals enc_typ[]
-) 
-LANGUAGE plpgsql 
+)
+LANGUAGE plpgsql
 AS $$
 DECLARE
   v_count INT;
   v_series_id INT;
-  v_attr_count INT := cardinality(p_attr_handles);
 BEGIN
   
   SELECT COUNT(DISTINCT series_id) INTO v_count
@@ -254,48 +257,71 @@ BEGIN
   WHERE handle = ANY(p_coord_handles);
 
   RETURN QUERY
-  WITH attrs AS (
+  WITH
+  AS decoded (
     SELECT 
-      ra.run_id, 
-      c.id chunk_id,
-      a.ord field_order, 
-      project_field_value(ra.attr_value, c.num_points) val
-    FROM run_attr ra
-    JOIN unnest(p_run_ids) AS rh(run_id) ON rh.run_id = ra.run_id
-    JOIN field f ON f.id = ra.field_id
-    JOIN chunk c ON c.run_id = rh.run_id
-    JOIN unnest(p_attr_handles) WITH ORDINALITY AS a(handle, ord) ON a.handle = f.handle
-    WHERE c.series_id = v_series_id
-    AND (p_begin_chunk_id IS NULL OR c.id >= p_begin_chunk_id)
-    AND (p_end_chunk_id IS NULL OR c.id < p_end_chunk_id)
-  ),
-  coords AS (
-    SELECT 
-      c.run_id, 
-      c.id chunk_id,
-      ch.ord + v_attr_count field_order,
-      cd.enc_vals val
+    cd.coord_id,
+    cd.chunk_id,
+    v.pos,
+    v.val
     FROM coord_data cd
     JOIN coord co ON co.id = cd.coord_id
-    JOIN chunk c ON c.id = cd.chunk_id
-    JOIN unnest(p_run_ids) AS rh(run_id) ON rh.run_id = c.run_id
-    JOIN unnest(p_coord_handles) WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
-    WHERE c.series_id = v_series_id
+    JOIN chunk ch ON ch.id = cd.chunk_id
+    JOIN field f ON f.id = co.field_id
+    WHERE c.run_id = ANY(p_run_ids)
+    AND c.handle = ANY(p_coord_handles)
+    AND c.series_id = v_series_id
     AND (p_begin_chunk_id IS NULL OR c.id >= p_begin_chunk_id)
     AND (p_end_chunk_id IS NULL OR c.id < p_end_chunk_id)
+    CROSS JOIN LATERAL unnest(
+      CASE s.data_type
+        WHEN 'int' THEN 
+          unpack_enc_int(s.enc_vals)::NUMERIC[]
+        WHEN 'float' THEN 
+          unpack_enc_float(s.enc_vals)::NUMERIC[]
+      END 
+    ) WITH ORDINALITY AS v(val, pos)
   ),
-  combined AS (
-    SELECT * FROM attrs
-    UNION ALL
-    SELECT * FROM coords
-  )
-  SELECT r.handle, array_agg(val ORDER BY field_order)
-  FROM combined c
-  JOIN run r ON r.id = c.run_id
-  GROUP BY r.handle, c.run_id, c.chunk_id
-  ORDER BY c.chunk_id;
-END;
+  --  
+  keys AS (
+    SELECT
+    coord_id,
+    chunk_id,
+    v.pos,
+    jsonb_agg(val ORDER BY coord_id) FILTER (WHERE c.handle = ANY(p_group_coord_handles)) AS group_key,
+    jsonb_agg(val ORDER BY coord_id) FILTER (WHERE c.handle = ANY(p_order_coord_handles)) AS order_key,
+    FROM coord_data cd
+    JOIN coord co ON co.id = cd.coord_id
+    JOIN chunk ch ON ch.id = cd.chunk_id
+    JOIN field f ON f.id = co.field_id
+    WHERE c.run_id = ANY(p_run_ids)
+    AND c.handle = ANY(p_group_coord_handles || p_order_coord_handles)
+    AND c.series_id = v_series_id
+    AND (p_begin_chunk_id IS NULL OR c.id >= p_begin_chunk_id)
+    AND (p_end_chunk_id IS NULL OR c.id < p_end_chunk_id)
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE s.data_type
+        WHEN 'int' THEN
+          to_jsonb(unpack_enc_int(s.enc_vals))
+        WHEN 'float' THEN
+          to_jsonb(unpack_enc_float(s.enc_vals))
+        WHEN 'bool' THEN
+          to_jsonb(unpack_enc_bool(s.enc_vals))
+        WHEN 'string' THEN
+          to_jsonb(unpack_enc_text(s.enc_vals))
+      END
+    ) WITH ORDINALITY AS v(val, pos)
+  ),
+  windowed AS (
+    SELECT coord_id, group_key
+    AVG(val) OVER w AS val_avg 
+
+
+
 $$;
+
+
+
 
 
 CREATE OR REPLACE FUNCTION query_run_data(

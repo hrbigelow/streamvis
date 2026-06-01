@@ -66,25 +66,175 @@ RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE sql
 AS $$
-  SELECT COALESCE(
+  SELECT
+		((e.int_base IS NOT NULL)::int
+			+ (e.float_base IS NOT NULL)::int
+			+ (e.bool_base IS NOT NULL)::int
+			+ (e.text_base IS NOT NULL)::int) = 1
+		AND
 		((e.int_spans IS NOT NULL)::int
 			+ (e.float_spans IS NOT NULL)::int
-			+ (e.bool_bcast IS NOT NULL)::int
-			+ (e.string_bcast IS NOT NULL)::int) = 1
-		AND
-		cardinality(e.shape) = COALESCE(
-			cardinality(e.int_spans),
-			cardinality(e.float_spans),
-			cardinality(e.bool_bcast),
-			cardinality(e.string_bcast)
-		)
+			+ (e.bcast IS NOT NULL)::int) = 1
 		AND CASE d
-			WHEN 'int'    THEN e.int_spans IS NOT NULL
-			WHEN 'float'  THEN e.float_spans IS NOT NULL
-			WHEN 'bool'   THEN e.bool_bcast IS NOT NULL
-			WHEN 'string' THEN e.string_bcast IS NOT NULL
-		END,
-		FALSE
+		WHEN 'int' THEN
+			e.int_spans IS NOT NULL 
+			AND e.int_base IS NOT NULL 
+			AND cardinality(e.shape) = cardinality(e.int_spans)
+		WHEN 'float' THEN
+			e.float_spans IS NOT NULL
+			AND e.float_base IS NOT NULL
+			AND cardinality(e.shape) = cardinality(e.float_spans)
+		WHEN 'bool' THEN
+			e.bcast IS NOT NULL
+			AND e.bool_base IS NOT NULL
+			AND cardinality(e.shape) = cardinality(e.bcast)
+		WHEN 'string' THEN
+			e.bcast IS NOT NULL
+			AND e.text_base IS NOT NULL
+			AND cardinality(e.shape) = cardinality(e.bcast)
+		END
+$$;
+
+\echo 'create unpack_enc_int'
+CREATE FUNCTION unpack_enc_int(e enc_typ)
+RETURNS INT[] 
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql 
+AS $$
+  WITH RECURSIVE unravel AS (
+		SELECT 
+			0 AS current_dim,
+			0 AS flat_idx,
+			0 As offset
+		UNION ALL
+		SELECT 
+			prev.current_dim + 1,
+			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1),
+			prev.offset + CASE
+			  WHEN e.int_spans[prev.current_dim + 1] IS NOT NULL
+					THEN (s.idx - 1) * e.int_spans[prev.current_dim + 1]
+					ELSE 0
+			  END
+		FROM unravel prev
+		JOIN LATERAL generate_series(1, 
+			CASE 
+				WHEN e.int_spans[prev.current_dim + 1] IS NULL THEN 1
+				ELSE e.shape[prev.current_dim + 1]
+			END
+		) AS s(idx) ON true
+		WHERE prev.current_dim < array_length(e.shape, 1)
+	)
+	SELECT ARRAY(
+		SELECT b.elem + u.offset
+		FROM unravel u
+		CROSS JOIN LATERAL unnest(e.int_base) WITH ORDINALITY AS b(elem, base_idx)
+		WHERE u.current_dim = array_length(e.shape, 1)
+		ORDER BY u.flat_idx, b.base_idx
+	);
+$$;
+
+
+\echo 'create unpack_enc_float'
+CREATE FUNCTION unpack_enc_float(e enc_typ)
+RETURNS FLOAT[] 
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql 
+AS $$
+  WITH RECURSIVE unravel AS (
+		SELECT 
+			0 AS current_dim,
+			0 AS flat_idx,
+			0.0::FLOAT AS offset
+		UNION ALL
+		SELECT 
+			prev.current_dim + 1,
+			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1),
+			prev.offset + CASE
+			  WHEN e.float_spans[prev.current_dim + 1] IS NOT NULL
+					THEN (s.idx - 1) * e.float_spans[prev.current_dim + 1]
+					ELSE 0.0
+			  END
+		FROM unravel prev
+		JOIN LATERAL generate_series(1, 
+			CASE 
+				WHEN e.float_spans[prev.current_dim + 1] IS NULL THEN 1
+				ELSE e.shape[prev.current_dim + 1]
+			END
+		) AS s(idx) ON true
+		WHERE prev.current_dim < array_length(e.shape, 1)
+	)
+	SELECT ARRAY(
+		SELECT b.elem + u.offset
+		FROM unravel u
+		CROSS JOIN LATERAL unnest(e.float_base) WITH ORDINALITY AS b(elem, base_idx)
+		WHERE u.current_dim = array_length(e.shape, 1)
+		ORDER BY u.flat_idx, b.base_idx
+	);
+$$;
+
+
+\echo 'create unpack_enc_bool'
+CREATE FUNCTION unpack_enc_bool(e enc_typ)
+RETURNS BOOLEAN[] 
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql 
+AS $$
+  WITH RECURSIVE unravel AS (
+		SELECT 
+			0 AS current_dim,
+			0 AS flat_idx
+		UNION ALL
+		SELECT 
+			prev.current_dim + 1,
+			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1)
+		FROM unravel prev
+		JOIN LATERAL generate_series(1, 
+			CASE 
+				WHEN e.bcast[prev.current_dim + 1] THEN e.shape[prev.current_dim + 1]
+				ELSE 1
+			END
+		) AS s(idx) ON true
+		WHERE prev.current_dim < array_length(e.shape, 1)
+	)
+	SELECT ARRAY(
+		SELECT b.elem
+		FROM unravel u
+		CROSS JOIN LATERAL unnest(e.bool_base) WITH ORDINALITY AS b(elem, base_idx)
+		WHERE u.current_dim = array_length(e.shape, 1)
+		ORDER BY u.flat_idx, b.base_idx
+	);
+$$;
+
+
+\echo 'create unpack_enc_text'
+CREATE FUNCTION unpack_enc_text(e enc_typ)
+RETURNS TEXT[] 
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql 
+AS $$
+  WITH RECURSIVE unravel AS (
+		SELECT 
+			0 AS current_dim,
+			0 AS flat_idx
+		UNION ALL
+		SELECT 
+			prev.current_dim + 1,
+			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1)
+		FROM unravel prev
+		JOIN LATERAL generate_series(1, 
+			CASE 
+				WHEN e.bcast[prev.current_dim + 1] THEN e.shape[prev.current_dim + 1]
+				ELSE 1
+			END
+		) AS s(idx) ON true
+		WHERE prev.current_dim < array_length(e.shape, 1)
+	)
+	SELECT ARRAY(
+		SELECT b.elem
+		FROM unravel u
+		CROSS JOIN LATERAL unnest(e.text_base) WITH ORDINALITY AS b(elem, base_idx)
+		WHERE u.current_dim = array_length(e.shape, 1)
+		ORDER BY u.flat_idx, b.base_idx
 	);
 $$;
 
@@ -137,52 +287,6 @@ BEGIN
     ELSE
       FALSE
   END CASE;
-END;
-$$;
-
-
-
-/* Convert a scalar field_value_typ into a broadcasted enc_typ.
-   Assume the field_val is valid.
-*/
-\echo 'create project_field_value'
-CREATE OR REPLACE FUNCTION project_field_value(
-  field_val field_value_typ,
-  num_points INT
-)
-RETURNS enc_typ 
-IMMUTABLE
-LANGUAGE plpgsql
-AS $$
-DECLARE v_enc_val enc_typ := ROW(
-  field_val.field_handle, 
-	NULL,
-  ARRAY[num_points],
-  NULL,
-  NULL,
-  NULL,
-  NULL)::enc_typ;
-BEGIN
-  CASE 
-    WHEN field_val.int_val IS NOT NULL THEN
-			v_enc_val.base := reverse(int4send(field_val.int_val));
-      v_enc_val.int_spans := ARRAY[0];
-    WHEN field_val.float_val IS NOT NULL THEN
-			v_enc_val.base := reverse(float4send(field_val.float_val::float4));
-      v_enc_val.float_spans := ARRAY[0.0];
-    WHEN field_val.bool_val IS NOT NULL THEN
-			v_enc_val.base := CASE WHEN field_val.bool_val THEN '\x01'::BYTEA ELSE '\x00'::BYTEA END;
-      v_enc_val.bool_bcast := ARRAY[TRUE];
-    WHEN field_val.string_val IS NOT NULL THEN
-			v_enc_val.base := 
-				reverse(int4send(length(field_val.string_val)))
-				|| convert_to(field_val.string_val, 'UTF8');
-      v_enc_val.string_bcast := ARRAY[TRUE];
-    ELSE
-      RAISE EXCEPTION 'field_val has no non-null fields';
-  END CASE;
-
-  RETURN v_enc_val;
 END;
 $$;
 
