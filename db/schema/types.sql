@@ -95,6 +95,25 @@ AS $$
 		END
 $$;
 
+\echo 'create pack_float_enc'
+CREATE FUNCTION pack_float_enc(
+	vals NUMERIC[]
+) RETURNS enc_typ
+IMMUTABLE PARALLEL SAFE
+LANGUAGE sql
+AS $$
+  SELECT ROW(
+		ARRAY[cardinality(vals)]::INT[],
+		NULL,
+		vals::REAL[],
+		NULL,
+		NULL,
+		NULL,
+		ARRAY[NULL]::REAL[],
+		NULL
+	)::enc_typ;
+$$;
+
 \echo 'create unpack_enc_int'
 CREATE FUNCTION unpack_enc_int(e enc_typ)
 RETURNS INT[] 

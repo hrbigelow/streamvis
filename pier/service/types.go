@@ -80,6 +80,7 @@ func NewEncTypValue(msg *pb.EncTyp) (*EncTypValue, error) {
 func (ev *EncTypValue) toProtobuf() pb.EncTyp {
 	msg := pb.EncTyp{
 		Shape: ev.Shape,
+		Base:  &pb.AnyArray{},
 	}
 	if ev.IntBase != nil {
 		msg.Base.Value = &pb.AnyArray_Ints{Ints: &pb.IntArray{Values: *ev.IntBase}}

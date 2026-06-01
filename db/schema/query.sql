@@ -212,19 +212,21 @@ BEGIN
 END;
 $$;
 
-/* Get data from runs identified by p_run_handles with chunk_id
-in [p_begin_chunk_id, p_end_chunk_id)
-and coords specified by p_coord_handles.
-Apply a windowing function of size window_size over the data,
-partitioned by p_group_coord_ids ordered by p_order_coord_ids
-and outputting p_stride value.
+/* Get data from runs identified by p_run_ids with chunk_id in [p_begin_chunk_id,
+ * p_end_chunk_id) and coords specified by p_coord_handles. Apply a windowing
+ * function of size p_window_size over the data, partitioned by
+ * p_group_coord_handles, with individual values ordered by the values in
+ * coordinate p_order_coord_handle.
+ * Return packaged enc_vals in order of p_coord_handles || p_group_coord_handles
 */
+
+/*
 \echo 'create get_window_coord_data'
 CREATE FUNCTION get_window_coord_data(
   p_run_ids INT[],
   p_coord_handles UUID[],       -- only int and float coords
   p_group_coord_handles UUID[],
-  p_order_coord_handles UUID[], -- only int and float coords
+  p_order_coord_handle UUID,
   p_begin_chunk_id BIGINT,
   p_end_chunk_id BIGINT,
   p_window_size INT,
@@ -242,7 +244,7 @@ BEGIN
   
   SELECT COUNT(DISTINCT series_id) INTO v_count
   FROM coord
-  WHERE handle = ANY(p_coord_handles);
+  WHERE handle = ANY(p_coord_handles || p_group_coord_handles || p_order_coord_handle);
 
   IF v_count = 0 THEN
     RAISE EXCEPTION 'No series found for the provided p_coord_handles';
@@ -258,70 +260,104 @@ BEGIN
 
   RETURN QUERY
   WITH
-  AS decoded (
-    SELECT 
-    cd.coord_id,
-    cd.chunk_id,
-    v.pos,
-    v.val
+  base AS (
+    SELECT
+    ch.run_id, cd.coord_id, cd.chunk_id, co.handle, f.data_type, cd.enc_vals,
+    co.handle = p_order_coord_handle AS is_ordering,
+    co.handle = ANY(p_group_coord_handles) AS is_group
     FROM coord_data cd
     JOIN coord co ON co.id = cd.coord_id
     JOIN chunk ch ON ch.id = cd.chunk_id
     JOIN field f ON f.id = co.field_id
     WHERE c.run_id = ANY(p_run_ids)
-    AND c.handle = ANY(p_coord_handles)
+    AND c.handle = ANY(p_coord_handles || p_group_coord_handles || p_order_coord_handle)
     AND c.series_id = v_series_id
     AND (p_begin_chunk_id IS NULL OR c.id >= p_begin_chunk_id)
     AND (p_end_chunk_id IS NULL OR c.id < p_end_chunk_id)
+  ),
+  vals AS (
+    SELECT b.run_id, b.coord_id, b.chunk_id, v.pos, v.val, b.is_ordering
+    FROM base b
     CROSS JOIN LATERAL unnest(
-      CASE s.data_type
-        WHEN 'int' THEN 
-          unpack_enc_int(s.enc_vals)::NUMERIC[]
-        WHEN 'float' THEN 
-          unpack_enc_float(s.enc_vals)::NUMERIC[]
+      CASE b.data_type
+        WHEN 'int' THEN unpack_enc_int(b.enc_vals)::NUMERIC[]
+        WHEN 'float' THEN unpack_enc_float(b.enc_vals)::NUMERIC[]
       END 
     ) WITH ORDINALITY AS v(val, pos)
+    WHERE NOT b.is_group
   ),
-  --  
   keys AS (
-    SELECT
-    coord_id,
-    chunk_id,
-    v.pos,
-    jsonb_agg(val ORDER BY coord_id) FILTER (WHERE c.handle = ANY(p_group_coord_handles)) AS group_key,
-    jsonb_agg(val ORDER BY coord_id) FILTER (WHERE c.handle = ANY(p_order_coord_handles)) AS order_key,
-    FROM coord_data cd
-    JOIN coord co ON co.id = cd.coord_id
-    JOIN chunk ch ON ch.id = cd.chunk_id
-    JOIN field f ON f.id = co.field_id
-    WHERE c.run_id = ANY(p_run_ids)
-    AND c.handle = ANY(p_group_coord_handles || p_order_coord_handles)
-    AND c.series_id = v_series_id
-    AND (p_begin_chunk_id IS NULL OR c.id >= p_begin_chunk_id)
-    AND (p_end_chunk_id IS NULL OR c.id < p_end_chunk_id)
+    SELECT b.run_id, b.chunk_id,
+    jsonb_agg(v.val ORDER BY coord_id) AS group_key
+    FROM base b
     CROSS JOIN LATERAL jsonb_array_elements(
       CASE s.data_type
-        WHEN 'int' THEN
-          to_jsonb(unpack_enc_int(s.enc_vals))
-        WHEN 'float' THEN
-          to_jsonb(unpack_enc_float(s.enc_vals))
-        WHEN 'bool' THEN
-          to_jsonb(unpack_enc_bool(s.enc_vals))
-        WHEN 'string' THEN
-          to_jsonb(unpack_enc_text(s.enc_vals))
+        WHEN 'int'    THEN to_jsonb(unpack_enc_int(s.enc_vals))
+        WHEN 'float'  THEN to_jsonb(unpack_enc_float(s.enc_vals))
+        WHEN 'bool'   THEN to_jsonb(unpack_enc_bool(s.enc_vals))
+        WHEN 'string' THEN to_jsonb(unpack_enc_text(s.enc_vals))
       END
     ) WITH ORDINALITY AS v(val, pos)
+    WHERE b.is_group
+    GROUP BY b.chunk_id, v.pos
   ),
   windowed AS (
-    SELECT coord_id, group_key
-    AVG(val) OVER w AS val_avg 
-
-
-
+    SELECT run_id, coord_id, k.group_key,
+    AVG(v.val) OVER w AS out_val,
+    ROW_NUMBER() OVER w AS rn
+    FROM vals v
+    JOIN vals o USING (chunk_id, pos)
+    JOIN keys k USING (chunk_id, pos) 
+    JOIN chunk ch ON ch.id = v.chunk_id
+    WHERE o.is_ordering_coord
+    WINDOW w AS (
+      PARTITION BY v.coord_id, k.group_key 
+      ORDER BY o.val
+      ROWS BETWEEN p_window_size PRECEDING AND CURRENT ROW 
+    )
+    GROUP BY run_id, coord_id, k.group_key
+  ),
+  sampled AS (
+    SELECT run_id, coord_id, out_val, rn
+    FROM windowed
+    WHERE rn % p_stride = 0
+  ),
+  numbered AS (
+    SELECT run_id, coord_id, group_key, out_val,
+    ROW_NUMBER() OVER w AS out_row
+    FROM sampled
+    WINDOW w AS (
+      PARTITION BY coord_id, group_key
+      ORDER BY rn
+    )
+  ),
+  chunked AS (
+    SELECT 
+    run_id, coord_id, group_key, out_val,
+    out_row / 1000 out_chunk,
+    out_row % 1000 out_pos
+    FROM numbered
+  ),
+  packed AS (
+    SELECT
+    run_id,
+    coord_id,
+    pack_float_enc(array_agg(out_val ORDER BY out_pos)) enc_val
+    FROM chunked
+    GROUP BY out_chunk
+  ),
+  coords AS (
+    SELECT
+    p.run_id,
+    ch.ord field_order,
+    p.enc_val
+    FROM packed p
+    JOIN coord co ON co.id = p.coord_id
+    JOIN unnest(p_coord_handles || p_group_coord_handles) 
+      WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
+  )
 $$;
-
-
-
+*/
 
 
 CREATE OR REPLACE FUNCTION query_run_data(

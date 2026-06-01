@@ -91,18 +91,25 @@ def decode_numeric_array(enc: pb.EncTyp) -> np.array:
 
     ary == decode_array(encode_array(ary))
     """
-    set_field = enc.WhichOneof('spans')
-    if set_field not in ('int_spans', 'float_spans'):
-        raise RuntimeError(
-            f"The active spans field is {set_field}, but expected"
-            f"'int_spans' or 'float_spans'")
+    span_field = enc.WhichOneof('spans')
+    match enc.base.WhichOneof('value'):
+        case 'ints':
+            base = np.array(enc.base.ints.values, dtype=np.int32)
+            if span_field != 'int_spans':
+                raise RuntimeError(
+                    f"enc.base was 'ints' but span_field was {span_field}")
+            range_spans = enc.int_spans.values
 
-    if set_field == 'int_spans':
-        range_spans = enc.int_spans.values
-        base = np.frombuffer(enc.base, dtype=np.int32)
-    else:
-        range_spans = enc.float_spans.values
-        base = np.frombuffer(enc.base, dtype=np.float32)
+        case 'floats':
+            base = np.array(enc.base.floats.values, dtype=np.float32)
+            if span_field != 'float_spans':
+                raise RuntimeError(
+                    f"enc.base was 'floats' but span_field was {span_field}")
+            range_spans = enc.float_spans.values
+
+        case other:
+            raise RuntimeError(
+                f"enc.base set field was '{other}' but must be one of 'ints', 'floats'")
 
     N = len(enc.shape)
     shape = tuple(1 if sp.HasField('value') else sz for sz, sp in zip(enc.shape, range_spans))
@@ -118,52 +125,42 @@ def decode_numeric_array(enc: pb.EncTyp) -> np.array:
     # print(tuple(r.shape for r in terms))
     return np.add.reduce(terms).astype(base.dtype)
 
-def decode_bool_array(enc: pb.EncTyp) -> np.array:
+def decode_non_numeric_array(enc: pb.EncTyp) -> np.array:
     """
     Converts the normalized data back into a plain np.array.
     """
     set_field = enc.WhichOneof('spans')
-    if set_field != 'bool_bcast':
+    if set_field != 'bcast':
         raise RuntimeError(
-            f"The active spans field is {set_field}, but expected bool_bcast")
-    bcast_flags = enc.bool_bcast.values
-    base = np.frombuffer(enc.base, dtype=np.bool)
+            f"The active spans field is {set_field}, but expected bcast")
+    bcast_flags = enc.bcast.values
+
+    match enc.base.WhichOneof('value'):
+        case 'strings':
+            base = np.array(enc.base.strings.values)
+        case 'bools':
+            base = np.array(enc.base.bools.values)
+        case other:
+            raise RuntimeError(
+                f"enc.base set field was '{other}' but must be one of 'strings', 'bools'")
 
     shape = tuple(1 if fl else sz for sz, fl in zip(enc.shape, bcast_flags))
     base = base.reshape(*shape)
     return np.broadcast_to(base, enc.shape)
 
-def decode_string_array(enc: pb.EncTyp) -> np.array:
-    """
-    Converts the normalized data back into a plain np.array.
-    """
-    set_field = enc.WhichOneof('spans')
-    if set_field != 'string_bcast':
-        raise RuntimeError(
-            f"The active spans field is {set_field}, but expected string_bcast")
-    bcast_flags = enc.string_bcast.values
-    itemsize = struct.unpack("<i", enc.base[:4])[0]
-    base = np.frombuffer(enc.base[4:], dtype=np.dtype(('S', itemsize)))
-
-    shape = tuple(1 if fl else sz for sz, fl in zip(enc.shape, bcast_flags))
-    base = base.reshape(*shape).astype('U')
-    return np.broadcast_to(base, enc.shape)
-
-
 def decode_array(enc: pb.EncTyp) -> np.array:
-    set_field = enc.WhichOneof('spans')
-    match set_field:
-        case 'int_spans' | 'float_spans':
+    match enc.base.WhichOneof('value'):
+        case 'ints' | 'floats':
             return decode_numeric_array(enc)
-        case 'bool_bcast':
-            return decode_bool_array(enc)
-        case 'string_bcast':
-            return decode_string_array(enc)
-        case default:
-            raise RuntimeError(f"Unknown span type: {set_field}")
+        case 'bools' | 'strings':
+            return decode_non_numeric_array(enc)
+        case other:
+            raise RuntimeError(
+                f"enc.base set field was '{other}' but must be one of 'ints', "
+                f"'floats', 'bools' or 'strings'")
 
 def decode_array_flat(enc: pb.EncTyp) -> np.array:
-    return decode_array(enc).flatten()
+    return decode_array(enc).ravel()
 
 def decode_runchunk(rc: pb.RunChunks) -> tuple[np.array]:
     chunks = [] # chunks[chunk][coord] = np.array
