@@ -139,6 +139,35 @@ def get_run_filter(
     msg.tag_filter.neg_match_all = neg_match_all_tags
     return msg
 
+def get_window_spec(
+    info: QueryRunInfo,
+    group_coords: list[str],
+    order_coord: str,
+    window_size: int,
+    stride: int,
+) -> pb.WindowSpec:
+    for gc in group_coords:
+        if gc not in info.coord_names:
+            raise RuntimeError(
+                f"`{gc}` given in group_coords is not a coord name. "
+                f"Valid coord names are {', '.join(info.coord_names)}")
+    if order_coord not in info.coord_names:
+        raise RuntimeError(
+            f"order_coord `{order_coord}` not a valid coord name. "
+            f"Valid names are {', '.join(info.coord_names)}")
+    if window_size == 0 or stride == 0:
+        raise RuntimeError(
+            f"window_size and stride must both be > 0. "
+            f"Got {window_size=}, {stride=}")
+    group_handles = tuple(info.field_name_map[gc].coord_handle for gc in group_coords)
+    order_handle = info.field_name_map[order_coord].coord_handle
+    return pb.WindowSpec(
+        group_coord_handles=group_handles,
+        order_coord_handle=order_handle,
+        size=window_size,
+        stride=stride
+    )
+
 def get_query_run_data_request(
         stub: ServiceStub,
         series: str,
@@ -161,7 +190,6 @@ def get_query_run_data_request(
     req.run_filter.CopyFrom(get_run_filter(
         pos_tags, pos_match_all, neg_tags, neg_match_all, min_started_at, max_started_at)
     )
-
     return req, info
 
 def get_attribute_filter(
@@ -213,11 +241,11 @@ def get_attribute_filter(
                         f"Got {vals=}")
             af.bool_list.vals.extend(vals)
 
-        case pb.FieldDataType.FIELD_DATA_TYPE_STRING:
+        case pb.FieldDataType.FIELD_DATA_TYPE_TEXT:
             if not isinstance(vals, list) or not all(isinstance(v, str) for v in vals):
                 raise RuntimeError(
-                        f"field {field.name} is a string field. "
-                        f"You must provide a string-valued vals argument. "
+                        f"field {field.name} is a text field. "
+                        f"You must provide a text-valued vals argument. "
                         f"Got {vals=}")
             af.string_list.vals.extend(vals)
 

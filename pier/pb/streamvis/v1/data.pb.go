@@ -28,7 +28,7 @@ const (
 	FieldDataType_FIELD_DATA_TYPE_UNSPECIFIED FieldDataType = 0
 	FieldDataType_FIELD_DATA_TYPE_INT         FieldDataType = 1
 	FieldDataType_FIELD_DATA_TYPE_FLOAT       FieldDataType = 2
-	FieldDataType_FIELD_DATA_TYPE_STRING      FieldDataType = 3
+	FieldDataType_FIELD_DATA_TYPE_TEXT        FieldDataType = 3
 	FieldDataType_FIELD_DATA_TYPE_BOOL        FieldDataType = 4
 )
 
@@ -38,14 +38,14 @@ var (
 		0: "FIELD_DATA_TYPE_UNSPECIFIED",
 		1: "FIELD_DATA_TYPE_INT",
 		2: "FIELD_DATA_TYPE_FLOAT",
-		3: "FIELD_DATA_TYPE_STRING",
+		3: "FIELD_DATA_TYPE_TEXT",
 		4: "FIELD_DATA_TYPE_BOOL",
 	}
 	FieldDataType_value = map[string]int32{
 		"FIELD_DATA_TYPE_UNSPECIFIED": 0,
 		"FIELD_DATA_TYPE_INT":         1,
 		"FIELD_DATA_TYPE_FLOAT":       2,
-		"FIELD_DATA_TYPE_STRING":      3,
+		"FIELD_DATA_TYPE_TEXT":        3,
 		"FIELD_DATA_TYPE_BOOL":        4,
 	}
 )
@@ -1130,7 +1130,7 @@ type FieldValue struct {
 	//
 	//	*FieldValue_IntVal
 	//	*FieldValue_FloatVal
-	//	*FieldValue_StringVal
+	//	*FieldValue_TextVal
 	//	*FieldValue_BoolVal
 	Value         isFieldValue_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
@@ -1199,10 +1199,10 @@ func (x *FieldValue) GetFloatVal() float32 {
 	return 0
 }
 
-func (x *FieldValue) GetStringVal() string {
+func (x *FieldValue) GetTextVal() string {
 	if x != nil {
-		if x, ok := x.Value.(*FieldValue_StringVal); ok {
-			return x.StringVal
+		if x, ok := x.Value.(*FieldValue_TextVal); ok {
+			return x.TextVal
 		}
 	}
 	return ""
@@ -1229,8 +1229,8 @@ type FieldValue_FloatVal struct {
 	FloatVal float32 `protobuf:"fixed32,3,opt,name=float_val,json=floatVal,proto3,oneof"`
 }
 
-type FieldValue_StringVal struct {
-	StringVal string `protobuf:"bytes,4,opt,name=string_val,json=stringVal,proto3,oneof"`
+type FieldValue_TextVal struct {
+	TextVal string `protobuf:"bytes,4,opt,name=text_val,json=textVal,proto3,oneof"`
 }
 
 type FieldValue_BoolVal struct {
@@ -1241,7 +1241,7 @@ func (*FieldValue_IntVal) isFieldValue_Value() {}
 
 func (*FieldValue_FloatVal) isFieldValue_Value() {}
 
-func (*FieldValue_StringVal) isFieldValue_Value() {}
+func (*FieldValue_TextVal) isFieldValue_Value() {}
 
 func (*FieldValue_BoolVal) isFieldValue_Value() {}
 
@@ -3094,6 +3094,7 @@ type QueryRunDataRequest struct {
 	BeginChunkId  *int64                 `protobuf:"varint,2,opt,name=begin_chunk_id,json=beginChunkId,proto3,oneof" json:"begin_chunk_id,omitempty"`
 	EndChunkId    *int64                 `protobuf:"varint,3,opt,name=end_chunk_id,json=endChunkId,proto3,oneof" json:"end_chunk_id,omitempty"`
 	RunFilter     *RunFilter             `protobuf:"bytes,4,opt,name=run_filter,json=runFilter,proto3" json:"run_filter,omitempty"`
+	WindowSpec    *WindowSpec            `protobuf:"bytes,5,opt,name=window_spec,json=windowSpec,proto3,oneof" json:"window_spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3156,6 +3157,81 @@ func (x *QueryRunDataRequest) GetRunFilter() *RunFilter {
 	return nil
 }
 
+func (x *QueryRunDataRequest) GetWindowSpec() *WindowSpec {
+	if x != nil {
+		return x.WindowSpec
+	}
+	return nil
+}
+
+type WindowSpec struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	GroupCoordHandles []string               `protobuf:"bytes,1,rep,name=group_coord_handles,json=groupCoordHandles,proto3" json:"group_coord_handles,omitempty"`
+	OrderCoordHandle  string                 `protobuf:"bytes,2,opt,name=order_coord_handle,json=orderCoordHandle,proto3" json:"order_coord_handle,omitempty"`
+	Size              uint32                 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
+	Stride            uint32                 `protobuf:"varint,4,opt,name=stride,proto3" json:"stride,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *WindowSpec) Reset() {
+	*x = WindowSpec{}
+	mi := &file_streamvis_v1_data_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WindowSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WindowSpec) ProtoMessage() {}
+
+func (x *WindowSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_streamvis_v1_data_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WindowSpec.ProtoReflect.Descriptor instead.
+func (*WindowSpec) Descriptor() ([]byte, []int) {
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *WindowSpec) GetGroupCoordHandles() []string {
+	if x != nil {
+		return x.GroupCoordHandles
+	}
+	return nil
+}
+
+func (x *WindowSpec) GetOrderCoordHandle() string {
+	if x != nil {
+		return x.OrderCoordHandle
+	}
+	return ""
+}
+
+func (x *WindowSpec) GetSize() uint32 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *WindowSpec) GetStride() uint32 {
+	if x != nil {
+		return x.Stride
+	}
+	return 0
+}
+
 type ListCommonAttributesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RunFilter     *RunFilter             `protobuf:"bytes,1,opt,name=run_filter,json=runFilter,proto3" json:"run_filter,omitempty"`
@@ -3165,7 +3241,7 @@ type ListCommonAttributesRequest struct {
 
 func (x *ListCommonAttributesRequest) Reset() {
 	*x = ListCommonAttributesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[59]
+	mi := &file_streamvis_v1_data_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3177,7 +3253,7 @@ func (x *ListCommonAttributesRequest) String() string {
 func (*ListCommonAttributesRequest) ProtoMessage() {}
 
 func (x *ListCommonAttributesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[59]
+	mi := &file_streamvis_v1_data_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3190,7 +3266,7 @@ func (x *ListCommonAttributesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommonAttributesRequest.ProtoReflect.Descriptor instead.
 func (*ListCommonAttributesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{59}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ListCommonAttributesRequest) GetRunFilter() *RunFilter {
@@ -3209,7 +3285,7 @@ type ListCommonSeriesRequest struct {
 
 func (x *ListCommonSeriesRequest) Reset() {
 	*x = ListCommonSeriesRequest{}
-	mi := &file_streamvis_v1_data_proto_msgTypes[60]
+	mi := &file_streamvis_v1_data_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3221,7 +3297,7 @@ func (x *ListCommonSeriesRequest) String() string {
 func (*ListCommonSeriesRequest) ProtoMessage() {}
 
 func (x *ListCommonSeriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_streamvis_v1_data_proto_msgTypes[60]
+	mi := &file_streamvis_v1_data_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3234,7 +3310,7 @@ func (x *ListCommonSeriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommonSeriesRequest.ProtoReflect.Descriptor instead.
 func (*ListCommonSeriesRequest) Descriptor() ([]byte, []int) {
-	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{60}
+	return file_streamvis_v1_data_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ListCommonSeriesRequest) GetRunFilter() *RunFilter {
@@ -3310,14 +3386,13 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"\x10DeleteRunRequest\x12\x1d\n" +
 	"\n" +
 	"run_handle\x18\x01 \x01(\tR\trunHandle\"\x13\n" +
-	"\x11DeleteRunResponse\"\xa5\x01\n" +
+	"\x11DeleteRunResponse\"\xa1\x01\n" +
 	"\n" +
 	"FieldValue\x12\x16\n" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x19\n" +
 	"\aint_val\x18\x02 \x01(\x05H\x00R\x06intVal\x12\x1d\n" +
-	"\tfloat_val\x18\x03 \x01(\x02H\x00R\bfloatVal\x12\x1f\n" +
-	"\n" +
-	"string_val\x18\x04 \x01(\tH\x00R\tstringVal\x12\x1b\n" +
+	"\tfloat_val\x18\x03 \x01(\x02H\x00R\bfloatVal\x12\x1b\n" +
+	"\btext_val\x18\x04 \x01(\tH\x00R\atextVal\x12\x1b\n" +
 	"\bbool_val\x18\x05 \x01(\bH\x00R\aboolValB\a\n" +
 	"\x05value\"h\n" +
 	"\x17SetRunAttributesRequest\x12\x1d\n" +
@@ -3440,27 +3515,36 @@ const file_streamvis_v1_data_proto_rawDesc = "" +
 	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"\x16\n" +
 	"\x14GetEndChunkIdRequest\"'\n" +
 	"\x15GetEndChunkIdResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\xe8\x01\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xb8\x02\n" +
 	"\x13QueryRunDataRequest\x12#\n" +
 	"\rcoord_handles\x18\x01 \x03(\tR\fcoordHandles\x12)\n" +
 	"\x0ebegin_chunk_id\x18\x02 \x01(\x03H\x00R\fbeginChunkId\x88\x01\x01\x12%\n" +
 	"\fend_chunk_id\x18\x03 \x01(\x03H\x01R\n" +
 	"endChunkId\x88\x01\x01\x126\n" +
 	"\n" +
-	"run_filter\x18\x04 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilterB\x11\n" +
+	"run_filter\x18\x04 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\x12>\n" +
+	"\vwindow_spec\x18\x05 \x01(\v2\x18.streamvis.v1.WindowSpecH\x02R\n" +
+	"windowSpec\x88\x01\x01B\x11\n" +
 	"\x0f_begin_chunk_idB\x0f\n" +
-	"\r_end_chunk_id\"U\n" +
+	"\r_end_chunk_idB\x0e\n" +
+	"\f_window_spec\"\x96\x01\n" +
+	"\n" +
+	"WindowSpec\x12.\n" +
+	"\x13group_coord_handles\x18\x01 \x03(\tR\x11groupCoordHandles\x12,\n" +
+	"\x12order_coord_handle\x18\x02 \x01(\tR\x10orderCoordHandle\x12\x12\n" +
+	"\x04size\x18\x03 \x01(\rR\x04size\x12\x16\n" +
+	"\x06stride\x18\x04 \x01(\rR\x06stride\"U\n" +
 	"\x1bListCommonAttributesRequest\x126\n" +
 	"\n" +
 	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter\"Q\n" +
 	"\x17ListCommonSeriesRequest\x126\n" +
 	"\n" +
-	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter*\x9a\x01\n" +
+	"run_filter\x18\x01 \x01(\v2\x17.streamvis.v1.RunFilterR\trunFilter*\x98\x01\n" +
 	"\rFieldDataType\x12\x1f\n" +
 	"\x1bFIELD_DATA_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13FIELD_DATA_TYPE_INT\x10\x01\x12\x19\n" +
-	"\x15FIELD_DATA_TYPE_FLOAT\x10\x02\x12\x1a\n" +
-	"\x16FIELD_DATA_TYPE_STRING\x10\x03\x12\x18\n" +
+	"\x15FIELD_DATA_TYPE_FLOAT\x10\x02\x12\x18\n" +
+	"\x14FIELD_DATA_TYPE_TEXT\x10\x03\x12\x18\n" +
 	"\x14FIELD_DATA_TYPE_BOOL\x10\x042\x8b\r\n" +
 	"\aService\x12R\n" +
 	"\vCreateField\x12 .streamvis.v1.CreateFieldRequest\x1a!.streamvis.v1.CreateFieldResponse\x12U\n" +
@@ -3501,7 +3585,7 @@ func file_streamvis_v1_data_proto_rawDescGZIP() []byte {
 }
 
 var file_streamvis_v1_data_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_streamvis_v1_data_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_streamvis_v1_data_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
 var file_streamvis_v1_data_proto_goTypes = []any{
 	(FieldDataType)(0),                  // 0: streamvis.v1.FieldDataType
 	(*CreateFieldRequest)(nil),          // 1: streamvis.v1.CreateFieldRequest
@@ -3563,11 +3647,12 @@ var file_streamvis_v1_data_proto_goTypes = []any{
 	(*GetEndChunkIdRequest)(nil),        // 57: streamvis.v1.GetEndChunkIdRequest
 	(*GetEndChunkIdResponse)(nil),       // 58: streamvis.v1.GetEndChunkIdResponse
 	(*QueryRunDataRequest)(nil),         // 59: streamvis.v1.QueryRunDataRequest
-	(*ListCommonAttributesRequest)(nil), // 60: streamvis.v1.ListCommonAttributesRequest
-	(*ListCommonSeriesRequest)(nil),     // 61: streamvis.v1.ListCommonSeriesRequest
-	nil,                                 // 62: streamvis.v1.Run.AttrsEntry
-	nil,                                 // 63: streamvis.v1.Run.SeriesEntry
-	(*timestamppb.Timestamp)(nil),       // 64: google.protobuf.Timestamp
+	(*WindowSpec)(nil),                  // 60: streamvis.v1.WindowSpec
+	(*ListCommonAttributesRequest)(nil), // 61: streamvis.v1.ListCommonAttributesRequest
+	(*ListCommonSeriesRequest)(nil),     // 62: streamvis.v1.ListCommonSeriesRequest
+	nil,                                 // 63: streamvis.v1.Run.AttrsEntry
+	nil,                                 // 64: streamvis.v1.Run.SeriesEntry
+	(*timestamppb.Timestamp)(nil),       // 65: google.protobuf.Timestamp
 }
 var file_streamvis_v1_data_proto_depIdxs = []int32{
 	35, // 0: streamvis.v1.EncTyp.base:type_name -> streamvis.v1.AnyArray
@@ -3590,12 +3675,12 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	33, // 17: streamvis.v1.Series.coords:type_name -> streamvis.v1.Coord
 	54, // 18: streamvis.v1.RunFilter.attribute_filters:type_name -> streamvis.v1.AttributeFilter
 	55, // 19: streamvis.v1.RunFilter.tag_filter:type_name -> streamvis.v1.TagFilter
-	64, // 20: streamvis.v1.RunFilter.min_started_at:type_name -> google.protobuf.Timestamp
-	64, // 21: streamvis.v1.RunFilter.max_started_at:type_name -> google.protobuf.Timestamp
-	64, // 22: streamvis.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	62, // 23: streamvis.v1.Run.attrs:type_name -> streamvis.v1.Run.AttrsEntry
-	63, // 24: streamvis.v1.Run.series:type_name -> streamvis.v1.Run.SeriesEntry
-	64, // 25: streamvis.v1.RunStartTime.started_at:type_name -> google.protobuf.Timestamp
+	65, // 20: streamvis.v1.RunFilter.min_started_at:type_name -> google.protobuf.Timestamp
+	65, // 21: streamvis.v1.RunFilter.max_started_at:type_name -> google.protobuf.Timestamp
+	65, // 22: streamvis.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	63, // 23: streamvis.v1.Run.attrs:type_name -> streamvis.v1.Run.AttrsEntry
+	64, // 24: streamvis.v1.Run.series:type_name -> streamvis.v1.Run.SeriesEntry
+	65, // 25: streamvis.v1.RunStartTime.started_at:type_name -> google.protobuf.Timestamp
 	5,  // 26: streamvis.v1.ChunkData.enc_vals:type_name -> streamvis.v1.EncTyp
 	47, // 27: streamvis.v1.RunChunks.chunks:type_name -> streamvis.v1.ChunkData
 	50, // 28: streamvis.v1.AttributeFilter.int_range:type_name -> streamvis.v1.IntRange
@@ -3605,55 +3690,56 @@ var file_streamvis_v1_data_proto_depIdxs = []int32{
 	53, // 32: streamvis.v1.AttributeFilter.string_list:type_name -> streamvis.v1.StringList
 	40, // 33: streamvis.v1.ListRunsRequest.run_filter:type_name -> streamvis.v1.RunFilter
 	40, // 34: streamvis.v1.QueryRunDataRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	40, // 35: streamvis.v1.ListCommonAttributesRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	40, // 36: streamvis.v1.ListCommonSeriesRequest.run_filter:type_name -> streamvis.v1.RunFilter
-	23, // 37: streamvis.v1.Run.AttrsEntry.value:type_name -> streamvis.v1.FieldValue
-	37, // 38: streamvis.v1.Run.SeriesEntry.value:type_name -> streamvis.v1.Series
-	1,  // 39: streamvis.v1.Service.CreateField:input_type -> streamvis.v1.CreateFieldRequest
-	3,  // 40: streamvis.v1.Service.CreateSeries:input_type -> streamvis.v1.CreateSeriesRequest
-	15, // 41: streamvis.v1.Service.AppendToSeries:input_type -> streamvis.v1.AppendToSeriesRequest
-	17, // 42: streamvis.v1.Service.CreateRun:input_type -> streamvis.v1.CreateRunRequest
-	19, // 43: streamvis.v1.Service.ReplaceRun:input_type -> streamvis.v1.ReplaceRunRequest
-	21, // 44: streamvis.v1.Service.DeleteRun:input_type -> streamvis.v1.DeleteRunRequest
-	24, // 45: streamvis.v1.Service.SetRunAttributes:input_type -> streamvis.v1.SetRunAttributesRequest
-	26, // 46: streamvis.v1.Service.DeleteEmptySeries:input_type -> streamvis.v1.DeleteEmptySeriesRequest
-	28, // 47: streamvis.v1.Service.AddRunTags:input_type -> streamvis.v1.AddRunTagsRequest
-	30, // 48: streamvis.v1.Service.DeleteRunTag:input_type -> streamvis.v1.DeleteRunTagRequest
-	38, // 49: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
-	39, // 50: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
-	56, // 51: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
-	57, // 52: streamvis.v1.Service.GetEndChunkId:input_type -> streamvis.v1.GetEndChunkIdRequest
-	59, // 53: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
-	60, // 54: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
-	61, // 55: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
-	43, // 56: streamvis.v1.Service.ListStartedAt:input_type -> streamvis.v1.ListStartedAtRequest
-	45, // 57: streamvis.v1.Service.ListTags:input_type -> streamvis.v1.ListTagsRequest
-	34, // 58: streamvis.v1.Service.ListAttributeValues:input_type -> streamvis.v1.ListAttributeValuesRequest
-	2,  // 59: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
-	4,  // 60: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
-	16, // 61: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
-	18, // 62: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
-	20, // 63: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
-	22, // 64: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
-	25, // 65: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
-	27, // 66: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
-	29, // 67: streamvis.v1.Service.AddRunTags:output_type -> streamvis.v1.AddRunTagsResponse
-	31, // 68: streamvis.v1.Service.DeleteRunTag:output_type -> streamvis.v1.DeleteRunTagResponse
-	37, // 69: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
-	32, // 70: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
-	41, // 71: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
-	58, // 72: streamvis.v1.Service.GetEndChunkId:output_type -> streamvis.v1.GetEndChunkIdResponse
-	48, // 73: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.RunChunks
-	32, // 74: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
-	37, // 75: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series
-	44, // 76: streamvis.v1.Service.ListStartedAt:output_type -> streamvis.v1.RunStartTime
-	46, // 77: streamvis.v1.Service.ListTags:output_type -> streamvis.v1.TagValue
-	36, // 78: streamvis.v1.Service.ListAttributeValues:output_type -> streamvis.v1.AttributeValues
-	59, // [59:79] is the sub-list for method output_type
-	39, // [39:59] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	60, // 35: streamvis.v1.QueryRunDataRequest.window_spec:type_name -> streamvis.v1.WindowSpec
+	40, // 36: streamvis.v1.ListCommonAttributesRequest.run_filter:type_name -> streamvis.v1.RunFilter
+	40, // 37: streamvis.v1.ListCommonSeriesRequest.run_filter:type_name -> streamvis.v1.RunFilter
+	23, // 38: streamvis.v1.Run.AttrsEntry.value:type_name -> streamvis.v1.FieldValue
+	37, // 39: streamvis.v1.Run.SeriesEntry.value:type_name -> streamvis.v1.Series
+	1,  // 40: streamvis.v1.Service.CreateField:input_type -> streamvis.v1.CreateFieldRequest
+	3,  // 41: streamvis.v1.Service.CreateSeries:input_type -> streamvis.v1.CreateSeriesRequest
+	15, // 42: streamvis.v1.Service.AppendToSeries:input_type -> streamvis.v1.AppendToSeriesRequest
+	17, // 43: streamvis.v1.Service.CreateRun:input_type -> streamvis.v1.CreateRunRequest
+	19, // 44: streamvis.v1.Service.ReplaceRun:input_type -> streamvis.v1.ReplaceRunRequest
+	21, // 45: streamvis.v1.Service.DeleteRun:input_type -> streamvis.v1.DeleteRunRequest
+	24, // 46: streamvis.v1.Service.SetRunAttributes:input_type -> streamvis.v1.SetRunAttributesRequest
+	26, // 47: streamvis.v1.Service.DeleteEmptySeries:input_type -> streamvis.v1.DeleteEmptySeriesRequest
+	28, // 48: streamvis.v1.Service.AddRunTags:input_type -> streamvis.v1.AddRunTagsRequest
+	30, // 49: streamvis.v1.Service.DeleteRunTag:input_type -> streamvis.v1.DeleteRunTagRequest
+	38, // 50: streamvis.v1.Service.ListSeries:input_type -> streamvis.v1.ListSeriesRequest
+	39, // 51: streamvis.v1.Service.ListFields:input_type -> streamvis.v1.ListFieldsRequest
+	56, // 52: streamvis.v1.Service.ListRuns:input_type -> streamvis.v1.ListRunsRequest
+	57, // 53: streamvis.v1.Service.GetEndChunkId:input_type -> streamvis.v1.GetEndChunkIdRequest
+	59, // 54: streamvis.v1.Service.QueryRunData:input_type -> streamvis.v1.QueryRunDataRequest
+	61, // 55: streamvis.v1.Service.ListCommonAttributes:input_type -> streamvis.v1.ListCommonAttributesRequest
+	62, // 56: streamvis.v1.Service.ListCommonSeries:input_type -> streamvis.v1.ListCommonSeriesRequest
+	43, // 57: streamvis.v1.Service.ListStartedAt:input_type -> streamvis.v1.ListStartedAtRequest
+	45, // 58: streamvis.v1.Service.ListTags:input_type -> streamvis.v1.ListTagsRequest
+	34, // 59: streamvis.v1.Service.ListAttributeValues:input_type -> streamvis.v1.ListAttributeValuesRequest
+	2,  // 60: streamvis.v1.Service.CreateField:output_type -> streamvis.v1.CreateFieldResponse
+	4,  // 61: streamvis.v1.Service.CreateSeries:output_type -> streamvis.v1.CreateSeriesResponse
+	16, // 62: streamvis.v1.Service.AppendToSeries:output_type -> streamvis.v1.AppendToSeriesResponse
+	18, // 63: streamvis.v1.Service.CreateRun:output_type -> streamvis.v1.CreateRunResponse
+	20, // 64: streamvis.v1.Service.ReplaceRun:output_type -> streamvis.v1.ReplaceRunResponse
+	22, // 65: streamvis.v1.Service.DeleteRun:output_type -> streamvis.v1.DeleteRunResponse
+	25, // 66: streamvis.v1.Service.SetRunAttributes:output_type -> streamvis.v1.SetRunAttributesResponse
+	27, // 67: streamvis.v1.Service.DeleteEmptySeries:output_type -> streamvis.v1.DeleteEmptySeriesResponse
+	29, // 68: streamvis.v1.Service.AddRunTags:output_type -> streamvis.v1.AddRunTagsResponse
+	31, // 69: streamvis.v1.Service.DeleteRunTag:output_type -> streamvis.v1.DeleteRunTagResponse
+	37, // 70: streamvis.v1.Service.ListSeries:output_type -> streamvis.v1.Series
+	32, // 71: streamvis.v1.Service.ListFields:output_type -> streamvis.v1.Field
+	41, // 72: streamvis.v1.Service.ListRuns:output_type -> streamvis.v1.Run
+	58, // 73: streamvis.v1.Service.GetEndChunkId:output_type -> streamvis.v1.GetEndChunkIdResponse
+	48, // 74: streamvis.v1.Service.QueryRunData:output_type -> streamvis.v1.RunChunks
+	32, // 75: streamvis.v1.Service.ListCommonAttributes:output_type -> streamvis.v1.Field
+	37, // 76: streamvis.v1.Service.ListCommonSeries:output_type -> streamvis.v1.Series
+	44, // 77: streamvis.v1.Service.ListStartedAt:output_type -> streamvis.v1.RunStartTime
+	46, // 78: streamvis.v1.Service.ListTags:output_type -> streamvis.v1.TagValue
+	36, // 79: streamvis.v1.Service.ListAttributeValues:output_type -> streamvis.v1.AttributeValues
+	60, // [60:80] is the sub-list for method output_type
+	40, // [40:60] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_streamvis_v1_data_proto_init() }
@@ -3671,7 +3757,7 @@ func file_streamvis_v1_data_proto_init() {
 	file_streamvis_v1_data_proto_msgTypes[22].OneofWrappers = []any{
 		(*FieldValue_IntVal)(nil),
 		(*FieldValue_FloatVal)(nil),
-		(*FieldValue_StringVal)(nil),
+		(*FieldValue_TextVal)(nil),
 		(*FieldValue_BoolVal)(nil),
 	}
 	file_streamvis_v1_data_proto_msgTypes[34].OneofWrappers = []any{
@@ -3696,7 +3782,7 @@ func file_streamvis_v1_data_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_streamvis_v1_data_proto_rawDesc), len(file_streamvis_v1_data_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   63,
+			NumMessages:   64,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

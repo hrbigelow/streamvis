@@ -107,7 +107,7 @@ enum FieldDataType {
   FIELD_DATA_TYPE_UNSPECIFIED = 0;
   FIELD_DATA_TYPE_INT = 1;
   FIELD_DATA_TYPE_FLOAT = 2;
-  FIELD_DATA_TYPE_STRING = 3;
+  FIELD_DATA_TYPE_TEXT = 3;
   FIELD_DATA_TYPE_BOOL = 4;
 }
 
@@ -116,7 +116,7 @@ message FieldValue {
   oneof value {
     int32 int_val = 2;
     float float_val = 3;
-    string string_val = 4;
+    string text_val = 4;
     bool bool_val = 5;
   }
 }
@@ -291,7 +291,16 @@ message QueryRunDataRequest {
   optional int64 begin_chunk_id = 2;
   optional int64 end_chunk_id = 3;
   RunFilter run_filter = 4;
+  optional WindowSpec window_spec = 5;
 }
+
+message WindowSpec {
+  repeated string group_coord_handles = 1;
+  string order_coord_handle = 2;
+  uint32 size = 3;
+  uint32 stride = 4;
+}
+
 
 message ListCommonAttributesRequest {
   RunFilter run_filter = 1;

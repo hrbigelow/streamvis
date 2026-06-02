@@ -131,7 +131,7 @@ type AttributeFilterValue struct {
 	FloatMin       float32   `db:"float_min"`
 	FloatMax       float32   `db:"float_max"`
 	BoolVals       []bool    `db:"bool_vals"`
-	StringVals     []string  `db:"string_vals"`
+	StringVals     []string  `db:"text_vals"`
 }
 
 func NewAttributeFilterValue(pb *pb.AttributeFilter) (AttributeFilterValue, error) {
@@ -166,20 +166,20 @@ func NewAttributeFilterValue(pb *pb.AttributeFilter) (AttributeFilterValue, erro
 }
 
 type FieldValue struct {
-	Handle    uuid.UUID `db:"field_handle"`
-	IntVal    *int32    `db:"int_val"`
-	FloatVal  *float32  `db:"float_val"`
-	BoolVal   *bool     `db:"bool_val"`
-	StringVal *string   `db:"string_val"`
+	Handle   uuid.UUID `db:"field_handle"`
+	IntVal   *int32    `db:"int_val"`
+	FloatVal *float32  `db:"float_val"`
+	BoolVal  *bool     `db:"bool_val"`
+	TextVal  *string   `db:"text_val"`
 }
 
 type FullFieldValue struct {
-	Handle    uuid.UUID `db:"handle"`
-	Name      string    `db:"name"`
-	IntVal    *int32    `db:"int_val"`
-	FloatVal  *float32  `db:"float_val"`
-	BoolVal   *bool     `db:"bool_val"`
-	StringVal *string   `db:"string_val"`
+	Handle   uuid.UUID `db:"handle"`
+	Name     string    `db:"name"`
+	IntVal   *int32    `db:"int_val"`
+	FloatVal *float32  `db:"float_val"`
+	BoolVal  *bool     `db:"bool_val"`
+	TextVal  *string   `db:"text_val"`
 }
 
 func (fv FullFieldValue) toProtobuf() (pb.FieldValue, error) {
@@ -196,7 +196,7 @@ func (fv FullFieldValue) toProtobuf() (pb.FieldValue, error) {
 	if fv.BoolVal != nil {
 		valuesSet++
 	}
-	if fv.StringVal != nil {
+	if fv.TextVal != nil {
 		valuesSet++
 	}
 
@@ -213,8 +213,8 @@ func (fv FullFieldValue) toProtobuf() (pb.FieldValue, error) {
 	if fv.BoolVal != nil {
 		msg.Value = &pb.FieldValue_BoolVal{BoolVal: *fv.BoolVal}
 	}
-	if fv.StringVal != nil {
-		msg.Value = &pb.FieldValue_StringVal{StringVal: *fv.StringVal}
+	if fv.TextVal != nil {
+		msg.Value = &pb.FieldValue_TextVal{TextVal: *fv.TextVal}
 	}
 	return msg, nil
 }
@@ -234,8 +234,8 @@ func NewFieldValue(msg *pb.FieldValue) (FieldValue, error) {
 		ret.FloatVal = &v.FloatVal
 	case *pb.FieldValue_BoolVal:
 		ret.BoolVal = &v.BoolVal
-	case *pb.FieldValue_StringVal:
-		ret.StringVal = &v.StringVal
+	case *pb.FieldValue_TextVal:
+		ret.TextVal = &v.TextVal
 	}
 	return ret, nil
 }
@@ -246,14 +246,14 @@ func dataTypeToProtobuf(data_type string) (pb.FieldDataType, error) {
 		return pb.FieldDataType_FIELD_DATA_TYPE_INT, nil
 	case "float":
 		return pb.FieldDataType_FIELD_DATA_TYPE_FLOAT, nil
-	case "string":
-		return pb.FieldDataType_FIELD_DATA_TYPE_STRING, nil
+	case "text":
+		return pb.FieldDataType_FIELD_DATA_TYPE_TEXT, nil
 	case "bool":
 		return pb.FieldDataType_FIELD_DATA_TYPE_BOOL, nil
 	default:
 		dt := pb.FieldDataType_FIELD_DATA_TYPE_UNSPECIFIED
 		err := fmt.Errorf(
-			"received data type %s.  Must be one of (int, float, string, bool)", data_type)
+			"received data type %s.  Must be one of (int, float, text, bool)", data_type)
 		return dt, err
 	}
 }
@@ -428,9 +428,9 @@ type RunFilter struct {
 	MaxStartedAt     *time.Time
 }
 
-func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
+func NewRunFilter(msg *pb.RunFilter) (*RunFilter, error) {
 	if msg == nil {
-		return RunFilter{}, fmt.Errorf("Received nil pb.RunFilter")
+		return nil, fmt.Errorf("Received nil pb.RunFilter")
 	}
 	rf := RunFilter{}
 	rf.AttributeFilters = make([]AttributeFilterValue, len(msg.AttributeFilters))
@@ -438,12 +438,12 @@ func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
 	for i, filter := range msg.GetAttributeFilters() {
 		rf.AttributeFilters[i], err = NewAttributeFilterValue(filter)
 		if err != nil {
-			return RunFilter{}, err
+			return nil, err
 		}
 	}
 	rf.TagFilter, err = NewTagFilterValue(msg.GetTagFilter())
 	if err != nil {
-		return RunFilter{}, err
+		return nil, err
 	}
 	if msg.MinStartedAt != nil {
 		t := msg.MinStartedAt.AsTime()
@@ -453,7 +453,38 @@ func NewRunFilter(msg *pb.RunFilter) (RunFilter, error) {
 		t := msg.MaxStartedAt.AsTime()
 		rf.MaxStartedAt = &t
 	}
-	return rf, nil
+	return &rf, nil
+}
+
+type WindowSpec struct {
+	GroupCoordHandles []uuid.UUID
+	OrderCoordHandle  uuid.UUID
+	Size              uint32
+	Stride            uint32
+}
+
+func NewWindowSpec(msg *pb.WindowSpec) (*WindowSpec, error) {
+	if msg == nil {
+		return nil, nil
+	}
+	groupCoordHandles, err := parseUUIDs(msg.GroupCoordHandles, "GroupCoordHandles")
+	if err != nil {
+		return nil, fmt.Errorf("Invalid UUIDs: %v", err)
+	}
+	orderCoordHandle, err := uuid.Parse(msg.OrderCoordHandle)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid orderCoordHandle: %v", err)
+	}
+	if msg.Size == 0 || msg.Stride == 0 {
+		return nil, fmt.Errorf("Size (=%d) and Stride (=%d) must be > 0", msg.Size, msg.Stride)
+	}
+	ws := WindowSpec{
+		GroupCoordHandles: groupCoordHandles,
+		OrderCoordHandle:  orderCoordHandle,
+		Size:              msg.Size,
+		Stride:            msg.Stride,
+	}
+	return &ws, nil
 }
 
 type ChunkData struct {

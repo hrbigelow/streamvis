@@ -291,7 +291,7 @@ BEGIN
         format('int_val: %L\n', (v_attribute).int_val) ||
         format('float_val: %L\n', (v_attribute).float_val) ||
         format('bool_val: %L\n', (v_attribute).bool_val) ||
-        format('string_val: %L\n', (v_attribute).string_val)
+        format('text_val: %L\n', (v_attribute).text_val)
       );
     END IF;
     IF NOT EXISTS (

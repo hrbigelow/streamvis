@@ -82,9 +82,9 @@ class PlotOpts:
     # fields for the sub-color group (shades of the main color)
     color_sub: list[str] = field(default_factory=list)
 
-    # fields for determining the ordering of points within a glyph.
-    # if empty, defaults to the x field
-    order: list[str] = field(default_factory=list)
+    # field for determining the ordering of points within a glyph.
+    # if None, defaults to the x field
+    order: str = None
 
     label: list[str] = field(default_factory=list) # label field_name
 
@@ -99,6 +99,12 @@ class PlotOpts:
     neg_tags: list[str] = field(default_factory=list)
     match_all: bool = False
     neg_match_all: bool = False
+
+    # used for a window-averaged query
+    use_win_query: bool = False
+    win_size: int = None
+    stride: int = None
+    win_groups: list[str] = field(default_factory=list)
 
     f1: AttrFilter = None
     f2: AttrFilter = None
@@ -122,13 +128,13 @@ class PlotOpts:
         if self.until is not None:
             self.until = dateparser.parse(self.until, settings={"RETURN_AS_TIMEZONE_AWARE": True})
 
-        if len(self.order) == 0:
-            self.order = [self.x]
+        if self.order is None:
+            self.order = self.x
 
     @property
     def field_names(self):
         s = set((self.x, self.y, *self.color_main, *self.color_sub, 
-                 *self.add_group, *self.label, *self.order, *self.slider))
+                 *self.add_group, *self.label, self.order, *self.slider))
         s.discard(None)
         return list(s)
 
@@ -249,7 +255,7 @@ class PlotManager:
         pbmap = { 
                    pb.FIELD_DATA_TYPE_INT: "Int64",
                    pb.FIELD_DATA_TYPE_FLOAT: "Float64",
-                   pb.FIELD_DATA_TYPE_STRING: "string",
+                   pb.FIELD_DATA_TYPE_TEXT: "string",
                    pb.FIELD_DATA_TYPE_BOOL: "boolean" }
 
         series_types = {
@@ -303,6 +309,10 @@ class PlotManager:
         req, info = rpc_client.get_query_run_data_request(
             stub, o.series, o.field_names, o.tags, o.match_all, o.neg_tags,
             o.neg_match_all, o.after, o.until)
+        if o.use_win_query:
+            win_spec = rpc_client.get_window_spec(
+                info, o.win_groups, o.order, o.win_size, o.stride)
+            req.window_spec.CopyFrom(win_spec)
 
         for f in self.opts.filters:
             if f.name is None:
@@ -368,7 +378,7 @@ class PlotManager:
             else:
                 self.df = self.df[self.df[cf.name].isin(cf.vals)]
 
-        self.df.sort_values(by=[STARTED_AT, *self.opts.glyph_fields, *self.opts.order],
+        self.df.sort_values(by=[STARTED_AT, *self.opts.glyph_fields, self.opts.order],
                             ascending=True, inplace=True)
 
         self.group_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.glyph_fields)

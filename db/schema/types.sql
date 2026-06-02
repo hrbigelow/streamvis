@@ -33,7 +33,7 @@ CREATE TYPE full_field_value_typ AS (
   int_val INT,
   float_val FLOAT,
   bool_val BOOLEAN,
-  string_val TEXT
+  text_val TEXT
 );
 
 
@@ -47,7 +47,7 @@ CREATE TYPE attribute_filter_typ AS (
   float_min REAL,
   float_max REAL,
   bool_vals BOOLEAN[],
-  string_vals TEXT[]
+  text_vals TEXT[]
 );
 
 \echo 'create tag_filter_typ'
@@ -87,7 +87,7 @@ AS $$
 			e.bcast IS NOT NULL
 			AND e.bool_base IS NOT NULL
 			AND cardinality(e.shape) = cardinality(e.bcast)
-		WHEN 'string' THEN
+		WHEN 'text' THEN
 			e.bcast IS NOT NULL
 			AND e.text_base IS NOT NULL
 			AND cardinality(e.shape) = cardinality(e.bcast)
@@ -309,25 +309,25 @@ BEGIN
       ((val).int_val IS NOT NULL AND
         (val).float_val IS NULL AND
         (val).bool_val IS NULL AND
-        (val).string_val IS NULL
+        (val).text_val IS NULL
       )
     WHEN 'float' THEN
       ((val).int_val IS NULL AND
         (val).float_val IS NOT NULL AND
         (val).bool_val IS NULL AND
-        (val).string_val IS NULL
+        (val).text_val IS NULL
       )
     WHEN 'bool' THEN
       ((val).int_val IS NULL AND
         (val).float_val IS NULL AND
         (val).bool_val IS NOT NULL AND
-        (val).string_val IS NULL
+        (val).text_val IS NULL
       )
-    WHEN 'string' THEN
+    WHEN 'text' THEN
       ((val).int_val IS NULL AND
         (val).float_val IS NULL AND
         (val).bool_val IS NULL AND
-        (val).string_val IS NOT NULL
+        (val).text_val IS NOT NULL
       )
     ELSE
       FALSE

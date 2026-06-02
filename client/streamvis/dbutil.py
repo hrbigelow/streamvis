@@ -197,11 +197,11 @@ def make_field_value(field: pb.Field, val: Any) -> pb.FieldValue:
                 raise RuntimeError(
                     f"value `{val}` given for field `{field.name}` was {type(val)} but expected float")
             attr.float_val = val
-        case pb.FIELD_DATA_TYPE_STRING:
+        case pb.FIELD_DATA_TYPE_TEXT:
             if not isinstance(val, str):
                 raise RuntimeError(
                     f"value `{val}` given for field `{field.name}` was {type(val)} but expected str")
-            attr.string_val = val
+            attr.text_val = val
         case pb.FIELD_DATA_TYPE_BOOL:
             if not isinstance(val, bool):
                 raise RuntimeError(
@@ -216,14 +216,14 @@ SIG_TO_DTYPE = {
     pb.FIELD_DATA_TYPE_INT: np.dtype('<i4'),
     pb.FIELD_DATA_TYPE_FLOAT: np.dtype('<f4'),
     pb.FIELD_DATA_TYPE_BOOL: np.dtype('bool'),
-    pb.FIELD_DATA_TYPE_STRING: np.dtype('str_')
+    pb.FIELD_DATA_TYPE_TEXT: np.dtype('str_')
 }
 
 DTYPE_TO_SIG = {
     np.dtype('<i4'): pb.FIELD_DATA_TYPE_INT,
     np.dtype('<f4'): pb.FIELD_DATA_TYPE_FLOAT,
     np.dtype('bool'): pb.FIELD_DATA_TYPE_BOOL,
-    np.dtype('str_'): pb.FIELD_DATA_TYPE_STRING
+    np.dtype('str_'): pb.FIELD_DATA_TYPE_TEXT
 }
 
 # Use strings so as not to import unnecessary frameworks
@@ -317,7 +317,7 @@ def get_element_type(ary) -> int:
         elif np.issubdtype(ary.dtype, np.bool):
             return pb.FIELD_DATA_TYPE_BOOL
         elif np.issubdtype(ary.dtype, np.str_):
-            return pb.FIELD_DATA_TYPE_STRING
+            return pb.FIELD_DATA_TYPE_TEXT
         else:
             raise ValueError("Invalid dtype for numpy array: {ary.dtype}")
 

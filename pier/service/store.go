@@ -321,24 +321,12 @@ func (st *Store) GetEndChunkId(
 	return endId, nil
 }
 
-func (st *Store) QueryRunData(
+func (st *Store) packRunChunks(
 	ctx context.Context,
-	coordHandles []uuid.UUID,
-	minChunkId *int64,
-	maxChunkId *int64,
-	runFilter RunFilter,
+	dataCh <-chan *ChunkData,
+	queryErrCh <-chan error,
 ) (<-chan *pb.RunChunks, <-chan error) {
-	sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
-	dataCh, queryErrCh := queryItems[ChunkData](
-		ctx, st.pool, sql,
-		coordHandles,
-		minChunkId,
-		maxChunkId,
-		runFilter.AttributeFilters,
-		runFilter.TagFilter,
-		runFilter.MinStartedAt,
-		runFilter.MaxStartedAt,
-	)
+
 	chunkCh := make(chan *pb.RunChunks)
 	errCh := make(chan error, 1)
 
@@ -403,9 +391,48 @@ func (st *Store) QueryRunData(
 			}
 		}
 	}()
-
 	return chunkCh, errCh
+}
 
+func (st *Store) QueryRunData(
+	ctx context.Context,
+	coordHandles []uuid.UUID,
+	minChunkId *int64,
+	maxChunkId *int64,
+	runFilter RunFilter,
+	windowSpec *WindowSpec,
+) (<-chan *pb.RunChunks, <-chan error) {
+	if windowSpec == nil {
+		sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
+		dataCh, queryErrCh := queryItems[ChunkData](
+			ctx, st.pool, sql,
+			coordHandles,
+			minChunkId,
+			maxChunkId,
+			runFilter.AttributeFilters,
+			runFilter.TagFilter,
+			runFilter.MinStartedAt,
+			runFilter.MaxStartedAt,
+		)
+		return st.packRunChunks(ctx, dataCh, queryErrCh)
+	}
+
+	sql := `SELECT * from query_run_data_windowed($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+	dataCh, queryErrCh := queryItems[ChunkData](
+		ctx, st.pool, sql,
+		coordHandles,
+		windowSpec.GroupCoordHandles,
+		windowSpec.OrderCoordHandle,
+		windowSpec.Size,
+		windowSpec.Stride,
+		minChunkId,
+		maxChunkId,
+		runFilter.AttributeFilters,
+		runFilter.TagFilter,
+		runFilter.MinStartedAt,
+		runFilter.MaxStartedAt,
+	)
+	return st.packRunChunks(ctx, dataCh, queryErrCh)
 }
 
 func (st *Store) ListCommonAttributes(

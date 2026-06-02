@@ -49,7 +49,7 @@ WITH src AS (
   (attr_value).int_val i,
   (attr_value).float_val f,
   (attr_value).bool_val b,
-  (attr_value).string_val s
+  (attr_value).text_val s
   FROM run_attr
 ),
 agg AS (
@@ -141,7 +141,7 @@ BEGIN
         (ra.attr_value).int_val,
         (ra.attr_value).float_val,
         (ra.attr_value).bool_val,
-        (ra.attr_value).string_val)::full_field_value_typ)
+        (ra.attr_value).text_val)::full_field_value_typ)
     FILTER (WHERE ra.attr_value IS DISTINCT FROM NULL) attrs
 		FROM run_attr ra 
     JOIN field f ON ra.field_id = f.id
@@ -277,11 +277,10 @@ BEGIN
   unpacked (
     run_id, coord_id, chunk_id, data_type, is_group, is_ordering, 
     pos, int_val, float_val, bool_val, text_val, ordering_val
-  )
-    AS (
+  ) AS (
     SELECT
     b.run_id, b.coord_id, b.chunk_id, b.data_type, b.is_group, b.is_ordering, 
-    v.pos::INT, v.val, NULL, NULL, NULL,
+    v.pos::INT, v.val, NULL::REAL, NULL::BOOLEAN, NULL::TEXT,
     CASE WHEN b.is_ordering THEN v.val::NUMERIC ELSE NULL END
     FROM base b, LATERAL unnest(unpack_enc_int(b.enc_vals)) WITH ORDINALITY v(val, pos)
     WHERE b.data_type = 'int'
@@ -289,7 +288,7 @@ BEGIN
 
     SELECT
     b.run_id, b.coord_id, b.chunk_id, b.data_type, b.is_group, b.is_ordering,
-    v.pos, NULL, v.val, NULL, NULL,
+    v.pos::INT, NULL::INT, v.val, NULL::BOOLEAN, NULL::TEXT,
     CASE WHEN b.is_ordering THEN v.val::NUMERIC ELSE NULL END
     FROM base b, LATERAL unnest(unpack_enc_float(b.enc_vals)) WITH ORDINALITY v(val, pos)
     WHERE b.data_type = 'float'
@@ -297,16 +296,18 @@ BEGIN
 
     SELECT
     b.run_id, b.coord_id, b.chunk_id, b.data_type, b.is_group, b.is_ordering,
-    v.pos, NULL, NULL, v.val, NULL, NULL
+    v.pos::INT, NULL::INT, NULL::REAL, v.val, NULL::TEXT,
+    NULL::NUMERIC
     FROM base b, LATERAL unnest(unpack_enc_bool(b.enc_vals)) WITH ORDINALITY v(val, pos)
     WHERE b.data_type = 'bool'
     UNION ALL
 
     SELECT
     b.run_id, b.coord_id, b.chunk_id, b.data_type, b.is_group, b.is_ordering,
-    v.pos, NULL, NULL, NULL, v.val, NULL
+    v.pos::INT, NULL::INT, NULL::REAL, NULL::BOOLEAN, v.val,
+    NULL::NUMERIC
     FROM base b, LATERAL unnest(unpack_enc_text(b.enc_vals)) WITH ORDINALITY v(val, pos)
-    WHERE b.data_type = 'string'
+    WHERE b.data_type = 'text'
   ),
   keys AS (
     SELECT
@@ -321,18 +322,18 @@ BEGIN
   ),
   windowed AS (
     SELECT u.run_id, u.coord_id, u.data_type,
-    AVG(u.int_val) OVER w AS out_int_val,
-    AVG(u.float_val) OVER w AS out_float_val,
+    CAST(AVG(u.int_val) OVER w AS REAL) AS out_int_val,
+    CAST(AVG(u.float_val) OVER w AS REAL) AS out_float_val,
     FIRST_VALUE(u.bool_val) OVER w AS out_bool_val,
     FIRST_VALUE(u.text_val) OVER w AS out_text_val,
     -- k.k_int, k.k_float, k.k_bool, k.k_text,
     ROW_NUMBER() OVER w AS input_pos
     FROM unpacked u
-    JOIN unpacked o USING (run_id, chunk_id, pos)
+    JOIN unpacked o ON o.run_id = u.run_id AND o.chunk_id = u.chunk_id AND o.pos = u.pos
     JOIN keys k ON k.run_id = o.run_id AND k.chunk_id = o.chunk_id AND k.pos = o.pos
     WHERE o.is_ordering
     WINDOW w AS (
-      PARTITION BY run_id, coord_id, k.k_int, k.k_float, k.k_bool, k.k_text
+      PARTITION BY u.run_id, u.coord_id, k.k_int, k.k_float, k.k_bool, k.k_text
       ORDER BY o.ordering_val
       ROWS BETWEEN p_window_size PRECEDING AND CURRENT ROW 
     )
@@ -364,13 +365,13 @@ BEGIN
     run_id,
     coord_id,
     CASE data_type
-      WHEN 'int' THEN pack_int_enc(array_agg(out_int_val ORDER BY chunk_pos))
-      WHEN 'float' THEN pack_int_enc(array_agg(out_float_val ORDER BY chunk_pos))
-      WHEN 'bool' THEN pack_int_enc(array_agg(out_bool_val ORDER BY chunk_pos))
-      WHEN 'text' THEN pack_int_enc(array_agg(out_text_val ORDER BY chunk_pos))
+      WHEN 'int' THEN pack_float_enc(array_agg(out_int_val ORDER BY chunk_pos))
+      WHEN 'float' THEN pack_float_enc(array_agg(out_float_val ORDER BY chunk_pos))
+      WHEN 'bool' THEN pack_bool_enc(array_agg(out_bool_val ORDER BY chunk_pos))
+      WHEN 'text' THEN pack_text_enc(array_agg(out_text_val ORDER BY chunk_pos))
     END enc_vals
     FROM chunked
-    GROUP BY run_id, coord_id, chunk_num 
+    GROUP BY run_id, coord_id, data_type, chunk_num 
   )
   SELECT
   r.handle,
@@ -380,7 +381,7 @@ BEGIN
   JOIN run r ON r.id = p.run_id 
   JOIN unnest(p_coord_handles || p_group_coord_handles) 
     WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
-  GROUP BY p.run_id;
+  GROUP BY r.handle;
 END;
 $$;
 

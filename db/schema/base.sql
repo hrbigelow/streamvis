@@ -109,8 +109,8 @@ BEGIN
       );
     WHEN 'bool' THEN
       RETURN p_value.bool_val = ANY(p_attr_filter.bool_vals);
-    WHEN 'string' THEN
-      RETURN p_value.string_val = ANY(p_attr_filter.string_vals);
+    WHEN 'text' THEN
+      RETURN p_value.text_val = ANY(p_attr_filter.text_vals);
   END CASE;
 END;
 $$;

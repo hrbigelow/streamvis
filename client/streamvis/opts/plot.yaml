@@ -25,7 +25,7 @@ y: null
 color_main: []
 color_sub: []
 add_group: []
-order: []
+order: null
 slider: []
 label: []
 tooltip: []
@@ -34,6 +34,11 @@ tags: []
 match_all: false
 neg_tags: []
 neg_match_all: false
+
+use_win_query: true
+win_size: 10
+stride: 100
+win_groups: []
 
 after: null
 until: null

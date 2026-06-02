@@ -10,7 +10,7 @@ CREATE TABLE series (
 );
 
 \echo 'create field_data_typ'
-CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'string', 'bool');
+CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'text', 'bool');
 
 /*
 Holds the notion of a "field" which will provide basic type enforcement 
@@ -58,7 +58,7 @@ CREATE TYPE field_value_typ AS (
   int_val INT,
   float_val FLOAT,
   bool_val BOOLEAN,
-  string_val TEXT
+  text_val TEXT
 );
 
 /* Holds attribute values associated with runs

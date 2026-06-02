@@ -233,7 +233,10 @@ func (s *Service) ListRuns(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	dataCh, errCh := s.store.ListRuns(ctx, runFilter)
+	if runFilter == nil {
+		return status.Errorf(codes.InvalidArgument, "RunFilter is required")
+	}
+	dataCh, errCh := s.store.ListRuns(ctx, *runFilter)
 	return streamRecords[pb.Run](ctx, *stream, dataCh, errCh)
 }
 
@@ -253,16 +256,23 @@ func (s *Service) QueryRunData(
 	req *pb.QueryRunDataRequest,
 	stream *connect.ServerStream[pb.RunChunks],
 ) error {
-	coordHandles, err := parseUUIDs(req.CoordHandles, "CoordHandle")
+	coordHandles, err := parseUUIDs(req.CoordHandles, "CoordHandles")
 	if err != nil {
-		return err
+		return status.Errorf(codes.InvalidArgument, "CoordHandles invalid: %v", err)
+	}
+	windowSpec, err := NewWindowSpec(req.GetWindowSpec())
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "WindowSpec invalid: %v", err)
 	}
 	runFilter, err := NewRunFilter(req.GetRunFilter())
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
+	if runFilter == nil {
+		return status.Errorf(codes.InvalidArgument, "RunFilter is required")
+	}
 	dataCh, errCh := s.store.QueryRunData(
-		ctx, coordHandles, req.BeginChunkId, req.EndChunkId, runFilter,
+		ctx, coordHandles, req.BeginChunkId, req.EndChunkId, *runFilter, windowSpec,
 	)
 	return streamRecords[pb.RunChunks](ctx, *stream, dataCh, errCh)
 }
@@ -276,7 +286,10 @@ func (s *Service) ListCommonAttributes(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	dataCh, errCh := s.store.ListCommonAttributes(ctx, runFilter)
+	if runFilter == nil {
+		return status.Errorf(codes.InvalidArgument, "RunFilter is required")
+	}
+	dataCh, errCh := s.store.ListCommonAttributes(ctx, *runFilter)
 	return streamRecords[pb.Field](ctx, *stream, dataCh, errCh)
 }
 
@@ -289,7 +302,10 @@ func (s *Service) ListCommonSeries(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
 	}
-	dataCh, errCh := s.store.ListCommonSeries(ctx, runFilter)
+	if runFilter == nil {
+		return status.Errorf(codes.InvalidArgument, "RunFilter is required")
+	}
+	dataCh, errCh := s.store.ListCommonSeries(ctx, *runFilter)
 	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
 }
 
