@@ -2,6 +2,14 @@
 
 BEGIN;
 
+	-- Functions that existed before this migration but are renamed or removed
+	-- in the new schema. They are not listed in the teardown files (which only
+	-- know about the *current* schema), so they linger and would block the
+	-- DROP TYPE enc_typ at the end of this patch via pg_depend. Drop them
+	-- explicitly here.
+	DROP FUNCTION IF EXISTS get_data(integer[], uuid[], uuid[], bigint, bigint);
+	DROP FUNCTION IF EXISTS project_field_value(field_value_typ, integer);
+
 	\ir ../teardown/procs.sql
 	\ir ../teardown/query.sql
 	\ir ../teardown/base.sql
