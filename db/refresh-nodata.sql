@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP 1
+
 \ir teardown/procs.sql
 \ir teardown/query.sql
 \ir teardown/base.sql

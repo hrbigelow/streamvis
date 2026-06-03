@@ -151,6 +151,19 @@ BEGIN
 END;
 $$;
 
+
+\echo 'create window_avg'
+CREATE OR REPLACE FUNCTION window_avg(
+  p_window_size INT,
+  p_stride INT,
+  vals FLOAT4[]
+)
+RETURNS FLOAT4[]
+LANGUAGE C STRICT
+AS 'window_avg', 'window_avg';
+
+
+
 /* Get data from runs identified by p_run_handles with chunk_id 
  * in [p_begin_chunk_id, p_end_chunk_id)
  * and coords specified by p_coord_handles
@@ -213,34 +226,17 @@ END;
 $$;
 
 
-/* Get data from runs identified by p_run_ids with chunk_id in [p_begin_chunk_id,
- * p_end_chunk_id) and coords specified by p_coord_handles. Apply a windowing
- * function of size p_window_size over the data, partitioned by
- * p_group_coord_handles, with individual values ordered by the values in
- * coordinate p_order_coord_handle.
- * Return packaged enc_vals in order of p_coord_handles || p_group_coord_handles
-*/
-\echo 'create get_coord_data_windowed'
-CREATE FUNCTION get_coord_data_windowed(
-  p_run_ids INT[],
+CREATE OR REPLACE FUNCTION validate_coord_data_args(
   p_coord_handles UUID[],       -- only int and float coords
   p_group_coord_handles UUID[],
-  p_order_coord_handle UUID,
-  p_window_size INT,
-  p_stride INT,
-  p_begin_chunk_id BIGINT,
-  p_end_chunk_id BIGINT
-) RETURNS TABLE (
-  run_handle UUID,
-  enc_vals enc_typ[]
+  p_order_coord_handle UUID
 )
+RETURNS void
 LANGUAGE plpgsql
 AS $$
 DECLARE
   v_count INT;
-  v_series_id INT;
 BEGIN
-  
   SELECT COUNT(DISTINCT series_id) INTO v_count
   FROM coord
   WHERE handle = ANY(p_coord_handles || p_group_coord_handles || p_order_coord_handle);
@@ -252,12 +248,64 @@ BEGIN
   IF v_count > 1 THEN
     RAISE EXCEPTION 'p_coord_handles come from % different series', v_count;
   END IF;
+END;
+$$;
 
-  SELECT DISTINCT series_id INTO v_series_id
-  FROM coord
-  WHERE handle = ANY(p_coord_handles);
 
-  RETURN QUERY
+
+CREATE OR REPLACE FUNCTION query_run_data(
+  IN p_coord_handles UUID[], -- handles from coord table
+  IN p_begin_chunk_id BIGINT,
+  IN p_end_chunk_id BIGINT,
+  IN p_attribute_filters attribute_filter_typ[],
+  IN p_tag_filter tag_filter_typ,
+  IN p_min_started_at TIMESTAMPTZ,
+  IN p_max_started_at TIMESTAMPTZ
+) RETURNS TABLE (
+  run_handle UUID,
+  enc_vals enc_typ[]
+) 
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT gd.*
+  FROM get_coord_data(
+    ARRAY(
+      SELECT run_id 
+      FROM list_runs_internal(
+        p_attribute_filters,
+        p_tag_filter,
+        p_min_started_at,
+        p_max_started_at
+      )
+    ),
+    p_coord_handles,
+    p_begin_chunk_id,
+    p_end_chunk_id
+  ) AS gd;
+$$;
+
+
+
+\echo 'create get_coord_data_windowed_impl'
+CREATE function get_coord_data_windowed_impl(
+  p_run_ids INT[],
+	p_series_id INT,
+  p_coord_handles UUID[],       -- only int and float coords
+  p_group_coord_handles UUID[],
+  p_order_coord_handle UUID,
+  p_window_size INT,
+  p_stride INT,
+  p_begin_chunk_id BIGINT,
+  p_end_chunk_id BIGINT
+) RETURNS TABLE (
+  run_handle UUID,
+  enc_vals enc_typ[]
+)
+LANGUAGE sql
+STABLE
+PARALLEL SAFE
+AS $$
   WITH
   base AS (
     SELECT
@@ -270,7 +318,7 @@ BEGIN
     JOIN field f ON f.id = co.field_id
     WHERE ch.run_id = ANY(p_run_ids)
     AND co.handle = ANY(p_coord_handles || p_group_coord_handles || p_order_coord_handle)
-    AND ch.series_id = v_series_id
+    AND ch.series_id = p_series_id
     AND (p_begin_chunk_id IS NULL OR ch.id >= p_begin_chunk_id)
     AND (p_end_chunk_id IS NULL OR ch.id < p_end_chunk_id)
   ),
@@ -382,41 +430,61 @@ BEGIN
   JOIN unnest(p_coord_handles || p_group_coord_handles) 
     WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
   GROUP BY r.handle;
-END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION query_run_data(
-  IN p_coord_handles UUID[], -- handles from coord table
-  IN p_begin_chunk_id BIGINT,
-  IN p_end_chunk_id BIGINT,
-  IN p_attribute_filters attribute_filter_typ[],
-  IN p_tag_filter tag_filter_typ,
-  IN p_min_started_at TIMESTAMPTZ,
-  IN p_max_started_at TIMESTAMPTZ
+/* Get data from runs identified by p_run_ids with chunk_id in [p_begin_chunk_id,
+ * p_end_chunk_id) and coords specified by p_coord_handles. Apply a windowing
+ * function of size p_window_size over the data, partitioned by
+ * p_group_coord_handles, with individual values ordered by the values in
+ * coordinate p_order_coord_handle.
+ * Return packaged enc_vals in order of p_coord_handles || p_group_coord_handles
+*/
+\echo 'create get_coord_data_windowed'
+CREATE FUNCTION get_coord_data_windowed(
+  p_run_ids INT[],
+  p_coord_handles UUID[],       -- only int and float coords
+  p_group_coord_handles UUID[],
+  p_order_coord_handle UUID,
+  p_window_size INT,
+  p_stride INT,
+  p_begin_chunk_id BIGINT,
+  p_end_chunk_id BIGINT
 ) RETURNS TABLE (
   run_handle UUID,
   enc_vals enc_typ[]
-) 
-LANGUAGE sql
-STABLE
+)
+LANGUAGE plpgsql
 AS $$
-  SELECT gd.*
-  FROM get_coord_data(
-    ARRAY(
-      SELECT run_id 
-      FROM list_runs_internal(
-        p_attribute_filters,
-        p_tag_filter,
-        p_min_started_at,
-        p_max_started_at
-      )
-    ),
-    p_coord_handles,
-    p_begin_chunk_id,
-    p_end_chunk_id
-  ) AS gd;
+DECLARE
+  v_series_id INT;
+BEGIN
+
+	PERFORM validate_coord_data_args(
+		p_coord_handles,
+		p_group_coord_handles,
+		p_order_coord_handle
+	);
+
+  SELECT DISTINCT series_id INTO v_series_id
+  FROM coord
+  WHERE handle = ANY(p_coord_handles);
+
+  RETURN QUERY 
+	SELECT * FROM get_coord_data_windowed_impl(
+		p_run_ids,
+		v_series_id,
+		p_coord_handles,
+		p_group_coord_handles,
+		p_order_coord_handle,
+		p_window_size,
+		p_stride,
+		p_begin_chunk_id,
+		p_end_chunk_id
+	);
+END;
 $$;
+
 
 \echo 'create query_run_data_windowed'
 CREATE OR REPLACE FUNCTION query_run_data_windowed(
@@ -458,7 +526,6 @@ AS $$
     p_end_chunk_id
   ) AS gd;
 $$;
-
 
 
 \echo 'create function list_common_attributes'

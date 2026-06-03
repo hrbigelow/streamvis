@@ -11,6 +11,12 @@ DROP FUNCTION IF EXISTS get_coord_data;
 \echo 'drop get_coord_data_windowed'
 DROP FUNCTION IF EXISTS get_coord_data_windowed;
 
+\echo 'drop get_coord_data_windowed_impl'
+DROP FUNCTION IF EXISTS get_coord_data_windowed_impl;
+
+\echo 'drop validate_coord_data_args'
+DROP FUNCTION IF EXISTS validate_coord_data_args;
+
 \echo 'drop field_vw'
 DROP VIEW IF EXISTS field_vw;
 
@@ -28,6 +34,9 @@ DROP VIEW IF EXISTS tag_vw;
 
 \echo 'drop run_vw'
 DROP VIEW IF EXISTS run_vw;
+
+\echo 'drop window_avg'
+DROP FUNCTION IF EXISTS window_avg;
 
 \echo 'drop list_runs'
 DROP FUNCTION IF EXISTS list_runs;

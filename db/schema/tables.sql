@@ -128,6 +128,8 @@ CREATE TABLE coord_data (
   PRIMARY KEY (coord_id, chunk_id)
 );
 
+CREATE INDEX idx_coord_data__chunk ON coord_data(chunk_id); 
+
 /*
 Holds locks to prevent resource contention
 */

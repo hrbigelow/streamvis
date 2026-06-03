@@ -10,4 +10,8 @@ data-server/__debug*
 pier/pier
 pier/__debug*
 web-client/node_modules
+*.o
+*.bc
+*.so
+
 

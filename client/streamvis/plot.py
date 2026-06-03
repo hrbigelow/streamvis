@@ -287,6 +287,8 @@ class PlotManager:
         run_req = pb.ListRunsRequest(run_filter=self.data_req.run_filter)
         runs = { run.handle: run for run in stub.ListRuns(run_req) }
         frames = []
+        import pdb
+        pdb.set_trace()
 
         for data in stub.QueryRunData(self.data_req):
             run = runs.get(data.run_handle)

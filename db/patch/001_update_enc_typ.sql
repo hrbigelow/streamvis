@@ -106,6 +106,10 @@ BEGIN;
     ALTER COLUMN enc_vals TYPE enc_typ_new
     USING migrate_enc_val(enc_vals);
 
+END;
+
+BEGIN;
+
   DROP FUNCTION migrate_enc_val;
   DROP FUNCTION bytea_to_float4_array_le;
   DROP FUNCTION bytea_to_int_array_le;
