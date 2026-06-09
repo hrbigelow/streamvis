@@ -1,0 +1,5 @@
+comment = 'Custom UDFs for encoding / decoding enc_typ, and data analytics'
+default_version = '1.0'
+module_pathname = '$libdir/streamvis_udfs'
+relocatable = true
+

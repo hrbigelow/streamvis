@@ -105,8 +105,9 @@ Here, orig means the original tensor which is encoded by this scheme.
 
 For detail, see client/streamvis/dbutil.py: encode_array, decode_array
 */
-\echo 'create enc_typ'
 
+/*
+\echo 'create enc_typ'
 CREATE TYPE enc_typ AS (
 	shape INT[],
 	int_base INT[],
@@ -117,6 +118,37 @@ CREATE TYPE enc_typ AS (
 	float_spans REAL[],
 	bcast BOOLEAN[]
 );
+*/
+
+/* enc_typ encodes an array of values of one type - either FLOAT, INT, BOOLEAN, or
+ * TEXT, with the following index decoding:
+
+def decode(base, diff, size):
+    ary = np.empty(self.size, dtype=np.int32)
+    ary[0] = base
+    for i in range(1, size):
+        ary[i] = ary[i-1] + diff[(i-1) % len(diff)]
+    return ary
+
+ FLOAT array:   floats
+ INT array:     decode(base, diff, size)
+ BOOLEAN array:
+    if bools is NULL:  decode(base, diff, size) == 1
+    else: bools
+ TEXT array:    texts[decode(base, diff, size)]
+*/
+
+\echo 'create enc_typ'
+CREATE TYPE enc_typ AS (
+  data_type field_data_typ,
+  floats REAL[],
+  bools BOOLEAN[],
+  texts TEXT[],
+  base INT,
+  diff INT[],
+  size INT
+);
+
 
 /* Holds one chunk of data for a given coordinate
  */

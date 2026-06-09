@@ -1,5 +1,8 @@
 \set QUIET 1
 
+\echo 'create extension streamvis_udfs'
+CREATE EXTENSION streamvis_udfs;
+
 \echo 'create series_vw'
 CREATE VIEW series_vw AS
 SELECT
@@ -150,18 +153,6 @@ BEGIN
 	ORDER BY r.started_at;
 END;
 $$;
-
-
-\echo 'create window_avg'
-CREATE OR REPLACE FUNCTION window_avg(
-  p_window_size INT,
-  p_stride INT,
-  vals FLOAT4[]
-)
-RETURNS FLOAT4[]
-LANGUAGE C STRICT
-AS 'window_avg', 'window_avg';
-
 
 
 /* Get data from runs identified by p_run_handles with chunk_id 

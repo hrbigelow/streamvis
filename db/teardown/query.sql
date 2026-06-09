@@ -47,5 +47,8 @@ DROP FUNCTION IF EXISTS list_common_attributes;
 \echo 'drop function list_common_series'
 DROP FUNCTION IF EXISTS list_common_series;
 
+\echo 'drop extension streamvis_udfs'
+DROP EXTENSION IF EXISTS streamvis_udfs;
+
 \set QUIET 0
 

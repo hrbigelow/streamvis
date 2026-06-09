@@ -1,8 +1,13 @@
 #include "postgres.h"
+#include "enc_typ_cache.h"
+#include "enc_typ_codecs.h"
 #include "fmgr.h"
 #include "utils/array.h"
 #include "utils/lsyscache.h"
+#include "utils/typcache.h"
 #include "catalog/pg_type.h"
+#include "access/htup_details.h"
+#include "khash.h"
 
 PG_MODULE_MAGIC;
 
@@ -13,29 +18,110 @@ typedef struct {
   int ring_head;
   int ring_count;
   uint64 global_idx;
+} RingState;
+
+// KHASH_INIT(grouphash)
+
+typedef struct {
+  // grouphash state;
+  TupleDesc enc_typ_tupdesc;
 } WindowState;
 
+
 static float4
-ring_mean(WindowState *s) {
+ring_mean(RingState *r) {
   float8 sum = 0.0;
-  for (int i = 0; i < s->window_size; i++)
-    sum += s->ring[(s->ring_head + i) % s->window_size];
-  return (float4)(sum / s->window_size);
+  for (int i = 0; i < r->window_size; i++)
+    sum += r->ring[(r->ring_head + i) % r->window_size];
+  return (float4)(sum / r->window_size);
 }
 
 static void
-ring_push(WindowState *s, float4 v) {
-  if (s->ring_count < s->window_size) {
-    s->ring[(s->ring_head + s->ring_count) % s->window_size] = v;
-    s->ring_count++;
+ring_push(RingState *r, float4 v) {
+  if (r->ring_count < r->window_size) {
+    r->ring[(r->ring_head + r->ring_count) % r->window_size] = v;
+    r->ring_count++;
   } else {
-    s->ring[s->ring_head] = v;
-    s->ring_head = (s->ring_head + 1) % s->window_size;
+    r->ring[r->ring_head] = v;
+    r->ring_head = (r->ring_head + 1) % r->window_size;
   }
+}
+
+PG_FUNCTION_INFO_V1(window_avg_sfunc);
+
+Datum
+window_avg_sfunc(PG_FUNCTION_ARGS) {
+  WindowState *ctx;
+  MemoryContext aggcontext;
+  Datum *groups, d_data_type;
+  Oid data_typoid;
+  bool *nulls, isnull;
+  int num_groups, out_size;
+
+  int window_size = PG_GETARG_INT32(1);
+  int stride = PG_GETARG_INT32(2);
+  HeapTupleHeader vals = PG_GETARG_HEAPTUPLEHEADER(3);
+  ArrayType *group_vals = PG_GETARG_ARRAYTYPE_P(4);
+
+  HeapTupleData vals_enc = wrap_header(vals); 
+  TupleDesc enc_desc = acquire_tupdesc(vals);
+
+  // fdt_cache_init();
+
+  if (!AggCheckCallContext(fcinfo, &aggcontext)) {
+    elog(ERROR, "window_avg_sfunc called in non-aggregate context");
+  }
+
+  if (PG_ARGISNULL(0)) {
+    Oid enc_typoid;
+    TupleDesc tmp_tupdesc;
+    MemoryContext oldctx;
+
+    ctx = (WindowState *) MemoryContextAllocZero(aggcontext, sizeof(WindowState));
+    enc_typoid = get_fn_expr_argtype(fcinfo->flinfo, 3);
+    if (!OidIsValid(enc_typoid))
+      elog(ERROR, "Couldn't determine type of argument 3");
+
+    tmp_tupdesc = lookup_rowtype_tupdesc(enc_typoid, -1);
+    oldctx = MemoryContextSwitchTo(aggcontext);
+    ctx->enc_typ_tupdesc = CreateTupleDescCopy(tmp_tupdesc);
+    MemoryContextSwitchTo(oldctx);
+    ReleaseTupleDesc(tmp_tupdesc);
+  } else {
+    ctx = (WindowState *) DatumGetPointer(PG_GETARG_DATUM(0));
+  }
+
+  if (PG_ARGISNULL(3)) {
+    PG_RETURN_POINTER(DatumGetPointer(PG_GETARG_DATUM(0)));
+  }
+
+  deconstruct_array(
+      group_vals, enc_desc->tdtypeid, -1, false, 'i', &groups, &nulls, &num_groups);
+
+  d_data_type = heap_getattr(&vals_enc, 1, enc_desc, &isnull);
+
+  if (!isnull) {
+    Oid t = DatumGetObjectId(d_data_type);
+    if (t == fdt_cache.label_oid[FDT_INT]) {
+        int *ints = decode_int_enc(&vals_enc, enc_desc, &out_size);
+    }
+    else if (t == fdt_cache.label_oid[FDT_FLOAT]) {
+    }
+    else if (t == fdt_cache.label_oid[FDT_TEXT]) {
+    }
+    else if (t == fdt_cache.label_oid[FDT_BOOL]) {
+    }
+    else {
+      elog(ERROR, "unrecognized field_data_typ oid %u", t);
+    }
+  }
+  ReleaseTupleDesc(enc_desc);
+  PG_RETURN_POINTER(ctx);
 }
 
 
 
+/*
 PG_FUNCTION_INFO_V1(window_avg);
 
 Datum
@@ -96,5 +182,7 @@ window_avg(PG_FUNCTION_ARGS) {
   PG_RETURN_ARRAYTYPE_P(arr);
 
 }
+*/
+
 
 
