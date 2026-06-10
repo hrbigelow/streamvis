@@ -130,7 +130,7 @@ encode_bool_enc(PG_FUNCTION_ARGS) {
   Datum enc_values[7];
   bool enc_nulls[7] = { true, true, true, true, true, true, true };
   ArrayType *ary;
-  bool *bvals;
+  bool *bvals, *dummy;
   int num_vals, *vals, num_diffs, *diff = NULL;
 
   fdt_cache_init();
@@ -145,7 +145,7 @@ encode_bool_enc(PG_FUNCTION_ARGS) {
   BlessTupleDesc(tupdesc);
 
   ary = PG_GETARG_ARRAYTYPE_P(0);
-  bvals = array_to_bools(ary, &num_vals);
+  bvals = array_to_bools(ary, &dummy, &num_vals);
   vals = (int *) palloc(num_vals * sizeof(int));
 
   for (int i = 0; i != num_vals; i++) {

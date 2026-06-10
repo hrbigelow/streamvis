@@ -161,7 +161,7 @@ decode_bool_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
 const char **
 decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
 
-  bool isnull;
+  bool isnull, *dummy;
   Datum d_texts;
   ArrayType *ary;
   const char **words, **base_words;
@@ -174,8 +174,7 @@ decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
     return NULL;
   }
   ary = DatumGetArrayTypeP(d_texts);
-
-  base_words = array_to_texts(ary, &num_words);
+  base_words = array_to_texts(ary, &dummy, &num_words);
 
   words = (const char **) palloc(*out_size * sizeof(char *));
   ints = expand_diff_array(enc, tupdesc, out_size);

@@ -16,22 +16,25 @@ ArrayType *
 ints_to_array(int *vals, int num_vals);
 
 ArrayType *
+floats_to_array(float *vals, int num_vals);
+
+ArrayType *
 texts_to_array(const char **words, int num_vals);
 
 ArrayType *
 bools_to_array(bool *bools, int num_vals);
 
 const char **
-array_to_texts(ArrayType *ary, int *n);
+array_to_texts(ArrayType *ary, bool **nulls, int *n);
 
 int *
-array_to_ints(ArrayType *ary, int *n);
+array_to_ints(ArrayType *ary, bool **nulls, int *n);
 
 bool *
-array_to_bools(ArrayType *ary, int *n);
+array_to_bools(ArrayType *ary, bool **nulls, int *n);
 
 float *
-array_to_floats(ArrayType *ary, int *n);
+array_to_floats(ArrayType *ary, bool **nulls, int *n);
 
 void
 check_full_array(ArrayType *ary, int *num_vals, const char *where);
