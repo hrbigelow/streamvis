@@ -233,7 +233,12 @@ class BaseLogger:
             series: pb.Series,
             ):
         req = pb.AppendToSeriesRequest(series_handle=series.handle, run_handle=self.run_handle)
+        print("before stack_series_values:")
+        for s in chunk:
+            print(s)
         chunk = dbutil.stack_series_values(chunk)
+        print("after stack_series_values:")
+        print(chunk)
         field_datas = chunk.to_exported()
 
         for coord, ary in zip(series.coords, field_datas):

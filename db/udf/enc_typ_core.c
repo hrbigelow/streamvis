@@ -1,6 +1,7 @@
 #include "postgres.h"
-#include "enc_typ_codecs.h"
+#include "enc_typ_core.h"
 #include "enc_typ_cache.h"
+#include "sv_utils.h"
 
 #include "fmgr.h"
 #include "funcapi.h"
@@ -27,16 +28,6 @@ CREATE TYPE enc_typ AS (
   size INT
 );
 */
-typedef enum {
-  ENC_TYP_FIELD_TYPE = 0,
-  ENC_TYP_FLOATS,
-  ENC_TYP_BOOLS,
-  ENC_TYP_TEXTS,
-  ENC_TYP_BASE,
-  ENC_TYP_DIFF,
-  ENC_TYP_SIZE,
-  ENC_TYP_NATTS
-} EncTypFields; 
 
 
 FdtCache fdt_cache = { .valid = false };
@@ -73,26 +64,6 @@ fdt_cache_init(void) {
   fdt_cache.label_oid[3] = get_enum_label_oid(fdt_typ_oid, "bool");
   fdt_cache.valid = true;
 }
-
-TupleDesc
-acquire_tupdesc(HeapTupleHeader rec) {
-  Oid tupType;
-  int32 tupTypmod;
-  tupType = HeapTupleHeaderGetTypeId(rec);
-  tupTypmod = HeapTupleHeaderGetTypMod(rec);
-  return lookup_rowtype_tupdesc(tupType, tupTypmod);
-}
-
-HeapTupleData
-wrap_header(HeapTupleHeader rec) {
-  HeapTupleData tuple;
-  tuple.t_len = HeapTupleHeaderGetDatumLength(rec);
-  ItemPointerSetInvalid(&(tuple.t_self));
-  tuple.t_tableOid = InvalidOid;
-  tuple.t_data = rec;
-  return tuple;
-}
-
 
 float *
 decode_float_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
@@ -187,13 +158,13 @@ decode_bool_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
   return bools;
 }
 
-char **
+const char **
 decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
 
-  bool isnull, *nulls;
-  Datum d_texts, *elements;
+  bool isnull;
+  Datum d_texts;
   ArrayType *ary;
-  char **words, **base_words;
+  const char **words, **base_words;
   int num_words, *ints;
 
   *out_size = 0;
@@ -204,17 +175,9 @@ decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
   }
   ary = DatumGetArrayTypeP(d_texts);
 
-  deconstruct_array(ary, TEXTOID, -1, false, 'i', &elements, &nulls, &num_words);
-  base_words = (char **) palloc(num_words * sizeof(char *));
-  for (int i=0; i != num_words; i++) {
-    if (!nulls[i]) {
-      base_words[i] = TextDatumGetCString(elements[i]);
-    } else {
-      base_words[i] = NULL;
-    }
-  }
+  base_words = array_to_texts(ary, &num_words);
 
-  words = (char **) palloc(*out_size * sizeof(char *));
+  words = (const char **) palloc(*out_size * sizeof(char *));
   ints = expand_diff_array(enc, tupdesc, out_size);
   if (ints == NULL) {
     return NULL;
@@ -235,18 +198,20 @@ decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
  * Uses KMP algorithm for finding smallest subsequence of diff which repeats
  * for the whole diff array.
  */
-static void
+void
 encode_diff_array(int *vals, int vals_size, int **diff_buf, int *diff_size) {
   int *diffs, *p, k;
   int tmp_diff_size = vals_size - 1;
 
   *diff_buf = (int *) palloc(tmp_diff_size * sizeof(int));
-  diffs = *diff_buf;
 
-  if (vals_size == 0) {
-    *diff_size = 0;
+  if (vals_size < 2) {
+    *diff_size = tmp_diff_size;
     return;
   }
+
+  diffs = *diff_buf;
+
   for (int i = 0; i != tmp_diff_size; i++) {
     diffs[i] = vals[i+1] - vals[i];
   }
@@ -263,67 +228,5 @@ encode_diff_array(int *vals, int vals_size, int **diff_buf, int *diff_size) {
   }
   *diff_size = tmp_diff_size - p[tmp_diff_size-1];
   *diff_buf = repalloc((*diff_buf), *diff_size * sizeof(int));
-
-}
-
-static Datum
-ints_to_datum(int *vals, int num_vals) {
-  Datum *d_ints;
-  ArrayType *ary;
-
-  d_ints = (Datum *) palloc(sizeof(Datum) * num_vals);
-  for (int i = 0; i != num_vals; i++) {
-    d_ints[i] = Int32GetDatum(vals[i]);
-  }
-  ary = construct_array(d_ints, num_vals, INT4OID, 4, true, 'i');
-  return PointerGetDatum(ary);
-}
-
-
-PG_FUNCTION_INFO_V1(encode_int_enc);
-
-Datum
-encode_int_enc(PG_FUNCTION_ARGS) {
-
-  TupleDesc tupdesc;
-  HeapTuple tuple;
-  Datum values[7];
-  bool nulls[7] = { false, true, true, true, false, false, false };
-  ArrayType *int_ary;
-  int num_vals, *vals, *diff, num_diffs;
-
-  fdt_cache_init();
-
-  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
-    ereport(ERROR,
-        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-         errmsg("function returning record call in context "
-           "that cannot accept a record type")));
-  }
-
-  BlessTupleDesc(tupdesc);
-
-  int_ary = PG_GETARG_ARRAYTYPE_P(0);
-  if (ARR_NDIM(int_ary) != 1)
-    ereport(ERROR,
-        (errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
-         errmsg("encode_int_enc: input must be 1-D array")));
-  if (ARR_HASNULL(int_ary))
-    ereport(ERROR,
-        (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-         errmsg("encode_int_enc: array must not contain any NULL elements")));
-
-  num_vals = ARR_DIMS(int_ary)[0];
-  vals = (int *) ARR_DATA_PTR(int_ary);
-  
-  encode_diff_array(vals, num_vals, &diff, &num_diffs);
-
-  values[0] = ObjectIdGetDatum(fdt_cache.label_oid[0]);
-  values[4] = Int32GetDatum(vals[0]);
-  values[5] = ints_to_datum(diff, num_diffs);
-  values[6] = Int32GetDatum(num_vals);
-
-  tuple = heap_form_tuple(tupdesc, values, nulls);
-  PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }
 

@@ -1,13 +1,14 @@
 #include "postgres.h"
 #include "enc_typ_cache.h"
-#include "enc_typ_codecs.h"
+#include "enc_typ_core.h"
+#include "sv_utils.h"
 #include "fmgr.h"
 #include "utils/array.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
 #include "catalog/pg_type.h"
 #include "access/htup_details.h"
-#include "khash.h"
+#include "pg_khash.h"
 
 PG_MODULE_MAGIC;
 

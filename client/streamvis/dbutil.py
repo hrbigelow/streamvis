@@ -375,6 +375,22 @@ class SeriesValues:
         ndim = len(self.broadcast_shape)
         self.fields = tuple(expand_to_ndim(f, ndim) for f in self.fields)
 
+    """
+    def __repr__(self):
+        fmts = []
+        for f in self.fields:
+            shape = ' '.join(str(dim) for dim in array_shape(f))
+            dtype = SIG_TO_DTYPE[get_element_type(f)]
+            fmt = f"{dtype}[{shape}]"
+            fmts.append(fmt)
+        return (
+                f"{' '.join(fmts)}, "
+                f"broadcast_shape: {' '.join(str(dim) for dim in self.broadcast_shape)}"
+                )
+    """
+    def __repr__(self):
+        return "\n".join(str(f) for f in self.fields)
+
 
 def stack_series_values(
     series_values_list: list[SeriesValues]

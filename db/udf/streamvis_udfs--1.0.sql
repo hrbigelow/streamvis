@@ -8,6 +8,42 @@ RETURNS enc_typ_new
 AS 'MODULE_PATHNAME', 'encode_int_enc'
 LANGUAGE C IMMUTABLE;
 
+\echo 'create encode_float_enc'
+CREATE OR REPLACE FUNCTION encode_float_enc(
+  p_vals FLOAT[]
+)
+RETURNS enc_typ_new
+LANGUAGE sql
+STABLE
+AS $$
+SELECT ROW('float'::field_data_typ, p_vals, NULL, NULL, NULL, NULL, NULL)::enc_typ_new;
+$$;
+
+\echo 'create encode_text_enc'
+CREATE OR REPLACE FUNCTION encode_text_enc(
+  p_vals TEXT[]
+)
+RETURNS enc_typ_new
+AS 'MODULE_PATHNAME', 'encode_text_enc'
+LANGUAGE C IMMUTABLE;
+
+\echo 'create encode_bool_enc'
+CREATE OR REPLACE FUNCTION encode_bool_enc(
+  p_vals BOOLEAN[]
+)
+RETURNS enc_typ_new
+AS 'MODULE_PATHNAME', 'encode_bool_enc'
+LANGUAGE C IMMUTABLE;
+
+\echo 'create decode_int_enc_v1'
+CREATE OR REPLACE FUNCTION decode_int_enc_v1(
+  vals enc_typ
+)
+RETURNS INT[]
+AS 'MODULE_NAME', 'decode_int_env_v1'
+LANGUAGE C IMMUTABLE;
+
+
 \echo 'create window_avg_sfunc'
 CREATE OR REPLACE FUNCTION window_avg_sfunc(
   internal, 
