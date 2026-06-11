@@ -17,18 +17,21 @@ typedef enum {
 } EncTypFields; 
 
 float *
-decode_float_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size);
+enc_typ_to_floats(HeapTuple enc, TupleDesc tupdesc, int *out_size);
 
 int *
-decode_int_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size);
+enc_typ_to_ints(HeapTuple enc, TupleDesc tupdesc, int *out_size);
 
 bool *
-decode_bool_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size);
+enc_typ_to_bools(HeapTuple enc, TupleDesc tupdesc, int *out_size);
 
 const char **
-decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size);
+enc_typ_to_texts(HeapTuple enc, TupleDesc tupdesc, int *out_size);
 
 void
 encode_diff_array(int *vals, int vals_size, int **diff_buf, int *diff_size);
+
+void
+decode_diff_array(int *diff, int diff_size, int base, int **vals, int vals_size);
 
 #endif // _ENC_TYP_CORE_H

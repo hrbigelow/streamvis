@@ -1,0 +1,6 @@
+\set ON_ERROR_STOP on
+
+BEGIN;
+  CREATE EXTENSION IF NOT EXISTS streamvis_udfs;
+COMMIT;
+

@@ -104,7 +104,7 @@ window_avg_sfunc(PG_FUNCTION_ARGS) {
   if (!isnull) {
     Oid t = DatumGetObjectId(d_data_type);
     if (t == fdt_cache.label_oid[FDT_INT]) {
-        int *ints = decode_int_enc(&vals_enc, enc_desc, &out_size);
+        int *ints = enc_typ_to_ints(&vals_enc, enc_desc, &out_size);
     }
     else if (t == fdt_cache.label_oid[FDT_FLOAT]) {
     }

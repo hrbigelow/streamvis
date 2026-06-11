@@ -5,6 +5,9 @@ DROP FUNCTION IF EXISTS query_run_data;
 \echo 'drop validate_coord_data_args'
 DROP FUNCTION IF EXISTS validate_coord_data_args;
 
+\echo 'drop get_coord_data'
+DROP FUNCTION IF EXISTS get_coord_data;
+
 \echo 'drop field_vw'
 DROP VIEW IF EXISTS field_vw;
 
@@ -34,9 +37,6 @@ DROP FUNCTION IF EXISTS list_common_attributes;
 
 \echo 'drop function list_common_series'
 DROP FUNCTION IF EXISTS list_common_series;
-
-\echo 'drop extension streamvis_udfs'
-DROP EXTENSION IF EXISTS streamvis_udfs;
 
 \set QUIET 0
 

@@ -1,8 +1,5 @@
 \set QUIET 1
 
-\echo 'create extension streamvis_udfs'
-CREATE EXTENSION streamvis_udfs;
-
 \echo 'create series_vw'
 CREATE VIEW series_vw AS
 SELECT

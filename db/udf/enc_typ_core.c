@@ -65,27 +65,6 @@ fdt_cache_init(void) {
   fdt_cache.valid = true;
 }
 
-float *
-decode_float_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
-  bool isnull;
-  Datum d_floats;
-  ArrayType *ary;
-
-  d_floats = heap_getattr(enc, 2, tupdesc, &isnull);
-
-  if (isnull) {
-    return NULL;
-  }
-
-  ary = DatumGetArrayTypeP(d_floats);
-  if (ARR_HASNULL(ary))
-    elog(ERROR, "REAL[] contains null elements, raw pointer extraction unsafe.");
-
-  *out_size = ArrayGetNItems(ARR_NDIM(ary), ARR_DIMS(ary));
-  return (float *) ARR_DATA_PTR(ary);
-}
-
-
 static int *
 expand_diff_array(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
   ArrayType *ary;
@@ -120,14 +99,33 @@ expand_diff_array(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
   return ints;
 }
 
+float *
+enc_typ_to_floats(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
+  bool isnull;
+  Datum d_floats;
+  ArrayType *ary;
+
+  d_floats = heap_getattr(enc, 2, tupdesc, &isnull);
+
+  if (isnull) {
+    return NULL;
+  }
+
+  ary = DatumGetArrayTypeP(d_floats);
+  if (ARR_HASNULL(ary))
+    elog(ERROR, "REAL[] contains null elements, raw pointer extraction unsafe.");
+
+  *out_size = ArrayGetNItems(ARR_NDIM(ary), ARR_DIMS(ary));
+  return (float *) ARR_DATA_PTR(ary);
+}
 
 int *
-decode_int_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
+enc_typ_to_ints(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
   return expand_diff_array(enc, tupdesc, out_size);
 }
 
 bool *
-decode_bool_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
+enc_typ_to_bools(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
   bool isnull, *bools;
   Datum d_bools;
   int *ints;
@@ -159,7 +157,7 @@ decode_bool_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
 }
 
 const char **
-decode_text_enc(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
+enc_typ_to_texts(HeapTuple enc, TupleDesc tupdesc, int *out_size) {
 
   bool isnull, *dummy;
   Datum d_texts;
@@ -228,4 +226,18 @@ encode_diff_array(int *vals, int vals_size, int **diff_buf, int *diff_size) {
   *diff_size = tmp_diff_size - p[tmp_diff_size-1];
   *diff_buf = repalloc((*diff_buf), *diff_size * sizeof(int));
 }
+
+/*
+ */
+void
+decode_diff_array(int *diff, int diff_size, int base, int **vals, int vals_size) {
+  *vals = (int *) palloc(vals_size * sizeof(int));
+  if (vals_size == 0) return;
+  (*vals)[0] = base;
+
+  for (int i = 1; i != vals_size; i++) {
+    (*vals)[i] = (*vals)[i-1] + diff[(i-1) % diff_size];
+  }
+}
+
 

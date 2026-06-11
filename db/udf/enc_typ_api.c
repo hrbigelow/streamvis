@@ -52,8 +52,44 @@ encode_int_enc(PG_FUNCTION_ARGS) {
   PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }
 
-PG_FUNCTION_INFO_V1(encode_text_enc);
+PG_FUNCTION_INFO_V1(decode_int_enc);
 
+static int * 
+parse_diff_array(HeapTuple enc, TupleDesc enc_desc, int *size) {
+  Datum d_base, d_diff, d_size;
+  bool is_null[3], *nulls;
+  int base, *diff, diff_size, *vals;
+
+  d_base = heap_getattr(enc, 5, enc_desc, &is_null[0]);
+  d_diff = heap_getattr(enc, 6, enc_desc, &is_null[1]);
+  d_size = heap_getattr(enc, 7, enc_desc, &is_null[2]);
+
+  if (is_null[0] || is_null[1] || is_null[2]) {
+    elog(ERROR, "enc_typ missing one of base, diff, or size attributes");
+  }
+
+  base = DatumGetInt32(d_base);
+  diff = array_to_ints(DatumGetArrayTypeP(d_diff), &nulls, &diff_size);
+  *size = DatumGetInt32(d_size);
+
+  decode_diff_array(diff, diff_size, base, &vals, *size);
+  return vals;
+}
+
+
+Datum
+decode_int_enc(PG_FUNCTION_ARGS) {
+
+  HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
+  HeapTupleData enc = wrap_header(rec);
+  TupleDesc enc_desc = acquire_tupdesc(rec);
+  int size, *vals;
+  vals = parse_diff_array(&enc, enc_desc, &size);
+  ReleaseTupleDesc(enc_desc);
+  PG_RETURN_ARRAYTYPE_P(ints_to_array(vals, size));
+}
+
+PG_FUNCTION_INFO_V1(encode_text_enc);
 
 Datum
 encode_text_enc(PG_FUNCTION_ARGS) {
@@ -119,6 +155,33 @@ encode_text_enc(PG_FUNCTION_ARGS) {
   tuple = heap_form_tuple(tupdesc, enc_values, enc_nulls);
   PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }
+
+PG_FUNCTION_INFO_V1(decode_text_enc);
+
+Datum
+decode_text_enc(PG_FUNCTION_ARGS) {
+
+  HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
+  HeapTupleData enc = wrap_header(rec);
+  TupleDesc enc_desc = acquire_tupdesc(rec);
+  int size, text_size;
+  bool is_null, *nulls;
+  int *vals = parse_diff_array(&enc, enc_desc, &size);
+  const char **out_texts, **texts;
+
+  Datum d_text = heap_getattr(&enc, 4, enc_desc, &is_null); 
+  texts = array_to_texts(DatumGetArrayTypeP(d_text), &nulls, &text_size);
+  out_texts = (const char **) palloc(size * sizeof(char *));
+
+  for (int i = 0; i != size; i++) {
+    out_texts[i] = texts[vals[i]];
+  }
+
+  ReleaseTupleDesc(enc_desc);
+  PG_RETURN_ARRAYTYPE_P(texts_to_array(out_texts, size));
+}
+
+
 
 PG_FUNCTION_INFO_V1(encode_bool_enc);
 

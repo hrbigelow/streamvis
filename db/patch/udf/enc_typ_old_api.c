@@ -1,7 +1,8 @@
 #include "postgres.h"
 #include "fmgr.h"
-
 #include "sv_utils.h"
+
+PG_MODULE_MAGIC;
 
 /*
 CREATE TYPE enc_typ AS (
