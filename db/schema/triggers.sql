@@ -9,7 +9,7 @@ RETURNS BOOLEAN
 STABLE
 LANGUAGE sql
 AS $$
-  SELECT valid_enc_typ(e, f.data_type)
+  SELECT valid_enc_typ(e)
   FROM coord c
   JOIN field f ON f.id = c.field_id
   WHERE c.id = p_coord_id;

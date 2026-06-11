@@ -60,227 +60,47 @@ CREATE TYPE tag_filter_typ AS (
 );
 
 \echo 'create valid_enc_typ'
-CREATE FUNCTION valid_enc_typ(e enc_typ, d field_data_typ) 
+CREATE FUNCTION valid_enc_typ(e enc_typ) 
 RETURNS BOOLEAN
 IMMUTABLE
 LANGUAGE sql
 AS $$
-  SELECT
-		((e.int_base IS NOT NULL)::int
-			+ (e.float_base IS NOT NULL)::int
-			+ (e.bool_base IS NOT NULL)::int
-			+ (e.text_base IS NOT NULL)::int) = 1
-		AND
-		((e.int_spans IS NOT NULL)::int
-			+ (e.float_spans IS NOT NULL)::int
-			+ (e.bcast IS NOT NULL)::int) = 1
-		AND CASE d
-		WHEN 'int' THEN
-			e.int_spans IS NOT NULL 
-			AND e.int_base IS NOT NULL 
-			AND cardinality(e.shape) = cardinality(e.int_spans)
-		WHEN 'float' THEN
-			e.float_spans IS NOT NULL
-			AND e.float_base IS NOT NULL
-			AND cardinality(e.shape) = cardinality(e.float_spans)
-		WHEN 'bool' THEN
-			e.bcast IS NOT NULL
-			AND e.bool_base IS NOT NULL
-			AND cardinality(e.shape) = cardinality(e.bcast)
-		WHEN 'text' THEN
-			e.bcast IS NOT NULL
-			AND e.text_base IS NOT NULL
-			AND cardinality(e.shape) = cardinality(e.bcast)
-		END
-$$;
-
-\echo 'create pack_int_enc'
-CREATE FUNCTION pack_int_enc(vals INT[])
-RETURNS enc_typ
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql
-AS $$
-  SELECT ROW(
-		ARRAY[cardinality(vals)]::INT[], vals, NULL, NULL, NULL, ARRAY[NULL]::INT[], NULL, NULL
-	)::enc_typ;
-$$;
-
-
-\echo 'create pack_float_enc'
-CREATE FUNCTION pack_float_enc(vals REAL[])
-RETURNS enc_typ
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql
-AS $$
-  SELECT ROW(
-		ARRAY[cardinality(vals)]::INT[], NULL, vals, NULL, NULL, NULL, ARRAY[NULL]::REAL[], NULL
-	)::enc_typ;
-$$;
-
-\echo 'create pack_bool_enc'
-CREATE FUNCTION pack_bool_enc(vals BOOLEAN[])
-RETURNS enc_typ
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql
-AS $$
-  SELECT ROW(
-		ARRAY[cardinality(vals)]::INT[], NULL, NULL, vals, NULL, NULL, NULL, ARRAY[NULL]::BOOLEAN[]
-	)::enc_typ;
-$$;
-
-\echo 'create pack_text_enc'
-CREATE FUNCTION pack_text_enc(vals TEXT[])
-RETURNS enc_typ
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql
-AS $$
-  SELECT ROW(
-		ARRAY[cardinality(vals)]::INT[], NULL, NULL, NULL, vals, NULL, NULL, ARRAY[NULL]::INT[]
-	)::enc_typ;
-$$;
-
-
-\echo 'create unpack_enc_int'
-CREATE FUNCTION unpack_enc_int(e enc_typ)
-RETURNS INT[] 
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql 
-AS $$
-  WITH RECURSIVE unravel AS (
-		SELECT 
-			0 AS current_dim,
-			0 AS flat_idx,
-			0 As offset
-		UNION ALL
-		SELECT 
-			prev.current_dim + 1,
-			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1),
-			prev.offset + CASE
-			  WHEN e.int_spans[prev.current_dim + 1] IS NOT NULL
-					THEN (s.idx - 1) * e.int_spans[prev.current_dim + 1]
-					ELSE 0
-			  END
-		FROM unravel prev
-		JOIN LATERAL generate_series(1, 
-			CASE 
-				WHEN e.int_spans[prev.current_dim + 1] IS NULL THEN 1
-				ELSE e.shape[prev.current_dim + 1]
-			END
-		) AS s(idx) ON true
-		WHERE prev.current_dim < array_length(e.shape, 1)
-	)
-	SELECT ARRAY(
-		SELECT b.elem + u.offset
-		FROM unravel u
-		CROSS JOIN LATERAL unnest(e.int_base) WITH ORDINALITY AS b(elem, base_idx)
-		WHERE u.current_dim = array_length(e.shape, 1)
-		ORDER BY u.flat_idx, b.base_idx
-	);
-$$;
-
-
-\echo 'create unpack_enc_float'
-CREATE FUNCTION unpack_enc_float(e enc_typ)
-RETURNS FLOAT[] 
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql 
-AS $$
-  WITH RECURSIVE unravel AS (
-		SELECT 
-			0 AS current_dim,
-			0 AS flat_idx,
-			0.0::FLOAT AS offset
-		UNION ALL
-		SELECT 
-			prev.current_dim + 1,
-			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1),
-			prev.offset + CASE
-			  WHEN e.float_spans[prev.current_dim + 1] IS NOT NULL
-					THEN (s.idx - 1) * e.float_spans[prev.current_dim + 1]
-					ELSE 0.0
-			  END
-		FROM unravel prev
-		JOIN LATERAL generate_series(1, 
-			CASE 
-				WHEN e.float_spans[prev.current_dim + 1] IS NULL THEN 1
-				ELSE e.shape[prev.current_dim + 1]
-			END
-		) AS s(idx) ON true
-		WHERE prev.current_dim < array_length(e.shape, 1)
-	)
-	SELECT ARRAY(
-		SELECT b.elem + u.offset
-		FROM unravel u
-		CROSS JOIN LATERAL unnest(e.float_base) WITH ORDINALITY AS b(elem, base_idx)
-		WHERE u.current_dim = array_length(e.shape, 1)
-		ORDER BY u.flat_idx, b.base_idx
-	);
-$$;
-
-
-\echo 'create unpack_enc_bool'
-CREATE FUNCTION unpack_enc_bool(e enc_typ)
-RETURNS BOOLEAN[] 
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql 
-AS $$
-  WITH RECURSIVE unravel AS (
-		SELECT 
-			0 AS current_dim,
-			0 AS flat_idx
-		UNION ALL
-		SELECT 
-			prev.current_dim + 1,
-			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1)
-		FROM unravel prev
-		JOIN LATERAL generate_series(1, 
-			CASE 
-				WHEN e.bcast[prev.current_dim + 1] THEN e.shape[prev.current_dim + 1]
-				ELSE 1
-			END
-		) AS s(idx) ON true
-		WHERE prev.current_dim < array_length(e.shape, 1)
-	)
-	SELECT ARRAY(
-		SELECT b.elem
-		FROM unravel u
-		CROSS JOIN LATERAL unnest(e.bool_base) WITH ORDINALITY AS b(elem, base_idx)
-		WHERE u.current_dim = array_length(e.shape, 1)
-		ORDER BY u.flat_idx, b.base_idx
-	);
-$$;
-
-
-\echo 'create unpack_enc_text'
-CREATE FUNCTION unpack_enc_text(e enc_typ)
-RETURNS TEXT[] 
-IMMUTABLE PARALLEL SAFE
-LANGUAGE sql 
-AS $$
-  WITH RECURSIVE unravel AS (
-		SELECT 
-			0 AS current_dim,
-			0 AS flat_idx
-		UNION ALL
-		SELECT 
-			prev.current_dim + 1,
-			prev.flat_idx * e.shape[prev.current_dim + 1] + (s.idx - 1)
-		FROM unravel prev
-		JOIN LATERAL generate_series(1, 
-			CASE 
-				WHEN e.bcast[prev.current_dim + 1] THEN e.shape[prev.current_dim + 1]
-				ELSE 1
-			END
-		) AS s(idx) ON true
-		WHERE prev.current_dim < array_length(e.shape, 1)
-	)
-	SELECT ARRAY(
-		SELECT b.elem
-		FROM unravel u
-		CROSS JOIN LATERAL unnest(e.text_base) WITH ORDINALITY AS b(elem, base_idx)
-		WHERE u.current_dim = array_length(e.shape, 1)
-		ORDER BY u.flat_idx, b.base_idx
-	);
+  SELECT 
+    CASE e.data_type
+    WHEN 'int' THEN
+      (
+        e.floats IS NULL
+        AND e.bools IS NULL
+        AND e.texts IS NULL
+        AND e.base IS NOT NULL 
+        AND e.diff IS NOT NULL 
+        AND e.size IS NOT NULL
+      )
+    WHEN 'float' THEN
+      (
+        e.floats IS NOT NULL
+        AND e.bools IS NULL
+        AND e.texts IS NULL
+        AND e.base IS NULL
+        AND e.diff IS NULL
+        AND e.size IS NULL
+      )
+    WHEN 'bool' THEN
+      (
+        e.floats IS NULL
+        AND e.bools IS NOT NULL
+        AND e.texts IS NULL
+      )
+    WHEN 'text' THEN
+      (
+        e.floats IS NULL
+        AND e.bools IS NULL
+        AND e.texts IS NOT NULL
+        AND e.base IS NOT NULL
+        AND e.diff IS NOT NULL
+        AND e.size IS NOT NULL
+      )
+    END CASE;
 $$;
 
 

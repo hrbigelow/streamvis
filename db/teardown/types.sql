@@ -3,30 +3,6 @@
 \echo 'drop valid_attr_value'
 DROP FUNCTION IF EXISTS valid_attr_value;
 
-\echo 'drop unpack_enc_int'
-DROP FUNCTION IF EXISTS unpack_enc_int;
-
-\echo 'drop unpack_enc_float'
-DROP FUNCTION IF EXISTS unpack_enc_float;
-
-\echo 'drop unpack_enc_bool'
-DROP FUNCTION IF EXISTS unpack_enc_bool;
-
-\echo 'drop unpack_enc_text'
-DROP FUNCTION IF EXISTS unpack_enc_text;
-
-\echo 'drop pack_int_enc'
-DROP FUNCTION IF EXISTS pack_int_enc;
-
-\echo 'drop pack_float_enc'
-DROP FUNCTION IF EXISTS pack_float_enc;
-
-\echo 'drop pack_bool_enc'
-DROP FUNCTION IF EXISTS pack_bool_enc;
-
-\echo 'drop pack_text_enc'
-DROP FUNCTION IF EXISTS pack_text_enc;
-
 \echo 'drop valid_enc_typ'
 DROP FUNCTION IF EXISTS valid_enc_typ;
 

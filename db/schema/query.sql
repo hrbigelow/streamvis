@@ -278,6 +278,7 @@ $$;
 
 
 
+/*
 \echo 'create get_coord_data_windowed_impl'
 CREATE function get_coord_data_windowed_impl(
   p_run_ids INT[],
@@ -422,6 +423,7 @@ AS $$
     WITH ORDINALITY AS ch(handle, ord) ON ch.handle = co.handle
   GROUP BY r.handle;
 $$;
+*/
 
 
 /* Get data from runs identified by p_run_ids with chunk_id in [p_begin_chunk_id,
@@ -431,6 +433,8 @@ $$;
  * coordinate p_order_coord_handle.
  * Return packaged enc_vals in order of p_coord_handles || p_group_coord_handles
 */
+
+/*
 \echo 'create get_coord_data_windowed'
 CREATE FUNCTION get_coord_data_windowed(
   p_run_ids INT[],
@@ -475,8 +479,10 @@ BEGIN
 	);
 END;
 $$;
+*/
 
 
+/*
 \echo 'create query_run_data_windowed'
 CREATE OR REPLACE FUNCTION query_run_data_windowed(
   IN p_coord_handles UUID[], -- handles from coord table
@@ -517,6 +523,7 @@ AS $$
     p_end_chunk_id
   ) AS gd;
 $$;
+*/
 
 
 \echo 'create function list_common_attributes'

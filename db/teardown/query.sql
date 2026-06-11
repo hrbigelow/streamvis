@@ -2,18 +2,6 @@
 \echo 'drop query_run_data'
 DROP FUNCTION IF EXISTS query_run_data;
 
-\echo 'drop query_run_data_windowed'
-DROP FUNCTION IF EXISTS query_run_data_windowed;
-
-\echo 'drop get_coord_data'
-DROP FUNCTION IF EXISTS get_coord_data;
-
-\echo 'drop get_coord_data_windowed'
-DROP FUNCTION IF EXISTS get_coord_data_windowed;
-
-\echo 'drop get_coord_data_windowed_impl'
-DROP FUNCTION IF EXISTS get_coord_data_windowed_impl;
-
 \echo 'drop validate_coord_data_args'
 DROP FUNCTION IF EXISTS validate_coord_data_args;
 
