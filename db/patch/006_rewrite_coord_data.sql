@@ -50,6 +50,7 @@ BEGIN;
     END;
   $$;
 
+  /*
   \echo 'create pg_temp.check_equal'
   CREATE OR REPLACE FUNCTION pg_temp.check_equal(e_new enc_typ, e_old enc_typ_old)
   RETURNS BOOLEAN
@@ -62,6 +63,7 @@ BEGIN;
     WHEN 'text' THEN decode_text_enc(e_new) = pg_temp.decode_text_enc_v1(e_old)
     END;
   $$;
+  */
 
   \echo 'alter coord_data'
   ALTER TABLE coord_data
@@ -113,17 +115,14 @@ BEGIN;
   $$;
   */
 
-  \echo 'drop enc_typ'
-  DROP TYPE enc_typ;
-
-  \echo 'rename enc_typ_old -> enc_typ'
-  ALTER TYPE enc_typ_old RENAME TO enc_typ;
-
   -- needed to release postgres' dependency on patch_helpers.so
   DROP FUNCTION pg_temp.decode_int_enc_v1;
   DROP FUNCTION pg_temp.decode_float_enc_v1;
   DROP FUNCTION pg_temp.decode_text_enc_v1;
   DROP FUNCTION pg_temp.migrate_enc_val;
+
+  \echo 'drop enc_typ_old'
+  DROP TYPE enc_typ_old;
 
   \ir ../schema/types.sql
   \ir ../schema/triggers.sql
