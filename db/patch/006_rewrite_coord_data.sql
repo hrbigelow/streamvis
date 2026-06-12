@@ -57,12 +57,18 @@ BEGIN;
   PARALLEL SAFE
   AS $$
     SELECT CASE e_new.data_type
-    WHEN 'int' THEN public.decode_int_enc(e_new) = pg_temp.decode_int_enc_v1(e_old)
-    WHEN 'float' THEN public.decode_float_enc(e_new) = pg_temp.decode_float_enc_v1(e_old)
-    WHEN 'text' THEN public.decode_text_enc(e_new) = pg_temp.decode_text_enc_v1(e_old)
+    WHEN 'int' THEN decode_int_enc(e_new) = pg_temp.decode_int_enc_v1(e_old)
+    WHEN 'float' THEN decode_float_enc(e_new) = pg_temp.decode_float_enc_v1(e_old)
+    WHEN 'text' THEN decode_text_enc(e_new) = pg_temp.decode_text_enc_v1(e_old)
     END;
   $$;
 
+  \echo 'alter coord_data'
+  ALTER TABLE coord_data
+    ALTER COLUMN enc_vals TYPE enc_typ
+    USING pg_temp.migrate_enc_val(enc_vals);
+
+  /*
   \echo 'run check_equal on all rows'
   DO $$
     DECLARE
@@ -70,18 +76,26 @@ BEGIN;
       n_total BIGINT;
     BEGIN
       CREATE TABLE tmp_compare AS
-      WITH q AS (
-        SELECT enc_vals e_old, pg_temp.migrate_enc_val(enc_vals) e_new
+      WITH base AS (
+        SELECT 
+        coord_id, chunk_id,
+        enc_vals e_old, pg_temp.migrate_enc_val(enc_vals) e_new
         FROM coord_data
       )
-      SELECT e_old, e_new, pg_temp.check_equal(e_new, e_old) is_equal
-      FROM q;
-
-      /*
+      SELECT
+      coord_id,
+      chunk_id,
+      (e_new).data_type,
+      CASE WHEN (e_new).data_type = 'int' THEN pg_temp.decode_int_enc_v1(e_old) END old_ints,
+      CASE WHEN (e_new).data_type = 'int' THEN decode_int_enc(e_new) END new_ints,
+      CASE WHEN (e_new).data_type = 'float' THEN pg_temp.decode_float_enc_v1(e_old) END old_floats,
+      CASE WHEN (e_new).data_type = 'float' THEN decode_float_enc(e_new) END new_floats,
+      CASE WHEN (e_new).data_type = 'text' THEN pg_temp.decode_text_enc_v1(e_old) END old_texts,
+      CASE WHEN (e_new).data_type = 'text' THEN decode_text_enc(e_new) END new_texts
+      FROM base;
       WITH q AS (
         SELECT enc_vals e_old, migrate_enc_val(enc_vals) e_new
         FROM coord_data
-        LIMIT 1000
       )
       SELECT count(*) INTO n_equal
       FROM q
@@ -95,28 +109,21 @@ BEGIN;
       ELSE
         RAISE NOTICE 'Found % passing rows', n_equal;
       END IF;
-      */
     END;
   $$;
+  */
 
-  /*
   \echo 'drop enc_typ'
   DROP TYPE enc_typ;
 
   \echo 'rename enc_typ_old -> enc_typ'
   ALTER TYPE enc_typ_old RENAME TO enc_typ;
-  */
 
   -- needed to release postgres' dependency on patch_helpers.so
   DROP FUNCTION pg_temp.decode_int_enc_v1;
   DROP FUNCTION pg_temp.decode_float_enc_v1;
   DROP FUNCTION pg_temp.decode_text_enc_v1;
-
-  /*
-  ALTER TABLE coord_data
-    ALTER COLUMN enc_vals TYPE enc_typ
-    USING migrate_enc_val(enc_vals);
-  */
+  DROP FUNCTION pg_temp.migrate_enc_val;
 
   \ir ../schema/types.sql
   \ir ../schema/triggers.sql
