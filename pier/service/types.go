@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ToProtobuffer[B any] interface {
@@ -21,105 +19,65 @@ func MakeToProtobufFunc[A ToProtobuffer[B], B any]() func(A) (B, error) {
 	}
 }
 
-type EncTypValue struct {
-	Shape      []uint32         `db:"shape"`
-	IntBase    *[]int32         `db:"int_base"`
-	FloatBase  *[]float32       `db:"float_base"`
-	BoolBase   *[]bool          `db:"bool_base"`
-	StringBase *[]string        `db:"text_base"`
-	IntSpans   *[]pgtype.Int4   `db:"int_spans"`
-	FloatSpans *[]pgtype.Float4 `db:"float_spans"`
-	Bcast      *[]bool          `db:"bcast"`
+type DiffArrayValue struct {
+	Base int32   `db:"base"`
+	Diff []int32 `db:"diff"`
+	Size int32   `db:"size"`
 }
 
+type EncTypValue struct {
+	DataType string    `db:"data_type"`
+	Floats   []float32 `db:"floats"`
+	Bools    []bool    `db:"bools"`
+	Texts    []string  `db:"texts"`
+	Base     *int32    `db:"base"`
+	Diff     []int32   `db:"diff"`
+	Size     *int32    `db:"size"`
+}
+
+func orEmpty[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
+// does not validate
 func NewEncTypValue(msg *pb.EncTyp) (*EncTypValue, error) {
+	field_data_type := NewFieldDataType(msg.DataType)
 	v := &EncTypValue{
-		Shape: msg.Shape,
+		DataType: field_data_type,
+		Floats:   msg.GetFloats(),
+		Bools:    msg.GetBools(),
+		Texts:    msg.GetTexts(),
 	}
-	switch b := msg.Base.Value.(type) {
-	case *pb.AnyArray_Ints:
-		v.IntBase = &b.Ints.Values
-	case *pb.AnyArray_Floats:
-		v.FloatBase = &b.Floats.Values
-	case *pb.AnyArray_Strings:
-		v.StringBase = &b.Strings.Values
-	case *pb.AnyArray_Bools:
-		v.BoolBase = &b.Bools.Values
+	if dmsg := msg.GetDiffArray(); dmsg != nil {
+		v.Base = &dmsg.Base
+		v.Diff = orEmpty(dmsg.Diff)
+		v.Size = &dmsg.Size
 	}
-
-	if msg.GetIntSpans() != nil {
-		vals := msg.GetIntSpans().GetValues()
-		spans := make([]pgtype.Int4, len(vals))
-		v.IntSpans = &spans
-		for i, opt := range vals {
-			if opt.Value != nil {
-				spans[i] = pgtype.Int4{Int32: *opt.Value, Valid: true}
-			}
-		}
-	}
-
-	if msg.GetFloatSpans() != nil {
-		vals := msg.GetFloatSpans().GetValues()
-		spans := make([]pgtype.Float4, len(vals))
-		v.FloatSpans = &spans
-		for i, opt := range vals {
-			if opt.Value != nil {
-				spans[i] = pgtype.Float4{Float32: *opt.Value, Valid: true}
-			}
-		}
-	}
-
-	if msg.GetBcast() != nil {
-		bcast := msg.GetBcast().GetValues()
-		v.Bcast = &bcast
-	}
-
 	return v, nil
 }
 
-func (ev *EncTypValue) toProtobuf() pb.EncTyp {
+func (ev *EncTypValue) toProtobuf() (pb.EncTyp, error) {
+	data_type_msg, err := dataTypeToProtobuf(ev.DataType)
+	if err != nil {
+		return pb.EncTyp{}, err
+	}
 	msg := pb.EncTyp{
-		Shape: ev.Shape,
-		Base:  &pb.AnyArray{},
+		DataType: data_type_msg,
+		Floats:   ev.Floats,
+		Bools:    ev.Bools,
+		Texts:    ev.Texts,
 	}
-	if ev.IntBase != nil {
-		msg.Base.Value = &pb.AnyArray_Ints{Ints: &pb.IntArray{Values: *ev.IntBase}}
-	}
-	if ev.FloatBase != nil {
-		msg.Base.Value = &pb.AnyArray_Floats{Floats: &pb.FloatArray{Values: *ev.FloatBase}}
-	}
-	if ev.BoolBase != nil {
-		msg.Base.Value = &pb.AnyArray_Bools{Bools: &pb.BoolArray{Values: *ev.BoolBase}}
-	}
-	if ev.StringBase != nil {
-		msg.Base.Value = &pb.AnyArray_Strings{Strings: &pb.StringArray{Values: *ev.StringBase}}
-	}
-
-	if ev.IntSpans != nil {
-		ivals := make([]*pb.OptionalInt, len(*ev.IntSpans))
-		for i, i4 := range *ev.IntSpans {
-			if i4.Valid {
-				ivals[i] = &pb.OptionalInt{Value: &i4.Int32}
-			}
+	if size := ev.Size; size != nil {
+		msg.DiffArray = &pb.DiffArray{
+			Base: *ev.Base,
+			Diff: ev.Diff,
+			Size: *ev.Size,
 		}
-		msg.Spans = &pb.EncTyp_IntSpans{IntSpans: &pb.IntValues{Values: ivals}}
 	}
-	if ev.FloatSpans != nil {
-		fvals := make([]*pb.OptionalFloat, len(*ev.FloatSpans))
-		for i, f4 := range *ev.FloatSpans {
-			if f4.Valid {
-				fvals[i] = &pb.OptionalFloat{Value: &f4.Float32}
-			}
-			// else {
-			// 	fvals[i] = &pb.OptionalFloat{Value: nil}
-			// }
-		}
-		msg.Spans = &pb.EncTyp_FloatSpans{FloatSpans: &pb.FloatValues{Values: fvals}}
-	}
-	if ev.Bcast != nil {
-		msg.Spans = &pb.EncTyp_Bcast{Bcast: &pb.BoolArray{Values: *ev.Bcast}}
-	}
-	return msg
+	return msg, nil
 }
 
 type AttributeFilterValue struct {
@@ -238,6 +196,21 @@ func NewFieldValue(msg *pb.FieldValue) (FieldValue, error) {
 		ret.TextVal = &v.TextVal
 	}
 	return ret, nil
+}
+
+func NewFieldDataType(msg pb.FieldDataType) string {
+	switch msg {
+	case pb.FieldDataType_FIELD_DATA_TYPE_INT:
+		return "int"
+	case pb.FieldDataType_FIELD_DATA_TYPE_FLOAT:
+		return "float"
+	case pb.FieldDataType_FIELD_DATA_TYPE_TEXT:
+		return "text"
+	case pb.FieldDataType_FIELD_DATA_TYPE_BOOL:
+		return "bool"
+	default:
+		return ""
+	}
 }
 
 func dataTypeToProtobuf(data_type string) (pb.FieldDataType, error) {
@@ -495,7 +468,10 @@ type ChunkData struct {
 func (cd ChunkData) toProtobuf() (pb.ChunkData, error) {
 	encVals := make([]*pb.EncTyp, len(cd.EncVals))
 	for i, encVal := range cd.EncVals {
-		val := encVal.toProtobuf()
+		val, err := encVal.toProtobuf()
+		if err != nil {
+			return pb.ChunkData{}, err
+		}
 		encVals[i] = &val
 	}
 

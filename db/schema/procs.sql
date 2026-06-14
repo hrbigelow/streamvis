@@ -124,6 +124,22 @@ BEGIN
 END;
 $$;
 
+\echo 'get_enc_size'
+CREATE OR REPLACE FUNCTION get_enc_size(e enc_typ)
+RETURNS INT
+IMMUTABLE
+LANGUAGE sql
+AS $$
+  SELECT 
+    CASE e.data_type
+    WHEN 'int' THEN e.size
+    WHEN 'float' THEN cardinality(e.floats)
+    WHEN 'bool' THEN coalesce(e.size, cardinality(e.bools))
+    WHEN 'text' THEN e.size
+    END;
+$$;
+
+
 
 /*
 Append data to an existing series
@@ -182,17 +198,8 @@ BEGIN
     FROM unnest(p_field_handles) WITH ORDINALITY AS h(fh, i)
     JOIN field f ON f.handle = h.fh
   LOOP
-    IF NOT valid_enc_typ(rec.field_val, rec.data_type) THEN
-      RAISE EXCEPTION 'enc_typ invalid: % for data_type %', (
-        (rec.field_val).shape,
-        (rec.field_val).int_base,
-        (rec.field_val).float_base,
-        (rec.field_val).bool_base,
-        (rec.field_val).text_base,
-        (rec.field_val).int_spans,
-        (rec.field_val).float_spans,
-        (rec.field_val).bcast
-      ), rec.data_type;
+    IF NOT valid_enc_typ(rec.field_val) THEN
+      RAISE EXCEPTION 'append_to_series: enc_typ invalid: %', to_json(rec.field_val);
     ELSIF rec.field_handle <> ALL(v_series_field_handles) THEN
       RAISE EXCEPTION 'Field %s not found in series %s', 
         rec.field_handle, p_series_handle;
@@ -200,7 +207,7 @@ BEGIN
   END LOOP;
 
   INSERT INTO chunk (series_id, run_id, num_points)
-  VALUES (v_series_id, v_run_id, array_product(p_field_vals[1].shape))
+  VALUES (v_series_id, v_run_id, get_enc_size(p_field_vals[1]))
   RETURNING id INTO v_chunk_id;
 
   INSERT INTO coord_data (coord_id, chunk_id, enc_vals)

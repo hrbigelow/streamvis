@@ -25,15 +25,19 @@ message CreateSeriesRequest {
 message CreateSeriesResponse {
 }
 
+
 message EncTyp {
-  string field_handle = 1;
-  repeated uint32 shape = 2;
-  AnyArray base = 3;
-  oneof spans {
-    IntValues int_spans = 4;
-    FloatValues float_spans = 5;
-    BoolArray bcast = 6;
-  }
+  FieldDataType data_type = 1;
+  repeated float floats = 2;
+  repeated bool bools = 3;
+  repeated string texts = 4;
+  optional DiffArray diff_array = 5;
+}
+
+message DiffArray {
+  int32 base = 1;
+  repeated int32 diff = 2;
+  int32 size = 3;
 }
 
 message FullEncTyp {

@@ -27,6 +27,9 @@ DROP PROCEDURE IF EXISTS set_run_attributes;
 \echo 'drop array_product'
 DROP FUNCTION IF EXISTS array_product;
 
+\echo 'drop get_enc_size'
+DROP FUNCTION IF EXISTS get_enc_size;
+
 \echo 'drop add_run_tags'
 DROP PROCEDURE IF EXISTS add_run_tags;
 

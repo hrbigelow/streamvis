@@ -5,162 +5,133 @@ import io
 import numpy as np
 from .v1 import data_pb2 as pb
 
-def slice_in_dim(ary: np.array, _slice: slice | int, dim: int):
-    indices = [slice(None)] * ary.ndim
-    indices[dim] = _slice 
-    return ary[tuple(indices)]
+@dataclass
+class DiffArray:
+    base: int
+    size: int
+    diff: np.ndarray 
 
-def encode_numeric_array(
-    field_handle: str,
-    ary: np.array, 
-    dim_threshold: int = 5, 
-    rtol: float = 1e-10
-) -> pb.FullEncTyp:
+    def __post_init__(self):
+        self.diff = np.array(self.diff)
+
+    @classmethod
+    def from_array(cls, ary: np.ndarray) -> 'DiffArray':
+        base = int(ary[0])
+        size = ary.size
+        d = np.diff(ary)
+
+        # find smallest repeat
+        L = len(d)
+        if L == 0:
+            m = 0
+        else:
+            pi = np.zeros(L, dtype=np.int32)
+            k = 0
+            for i in range(1, L):
+                while k > 0 and d[i] != d[k]:
+                    k = pi[k-1]
+                if d[i] == d[k]:
+                    k += 1
+                pi[i] = k
+            m = L - int(pi[-1])
+
+        return cls(base, size, d[:m])
+
+    @property
+    def array(self) -> np.ndarray:
+        buf = np.empty(self.size, dtype=np.int32)
+        buf[0] = self.base
+        for i in range(1, self.size):
+            buf[i] = buf[i-1] + self.diff[(i-1) % self.diff.size]
+        return buf
+
+    @classmethod
+    def from_msg(cls, msg: pb.DiffArray) -> 'DiffArray':
+        return cls(msg.base, msg.size, msg.diff)
+
+    def to_msg(self) -> pb.DiffArray:
+        return pb.DiffArray(base=self.base, diff=self.diff.tolist(), size=self.size)
+
+def encode_array(field_handle: str, ary: np.array) -> pb.FullEncTyp:
     """
-    Converts the ary into a normal form using broadcast / increment checks
+    Convert an np.array to the FullEncTyp
     """
-    if ary.dtype not in (np.dtype('float32'), np.dtype('int32')):
-        raise RuntimeError(
-                f"Array has dtype {ary.dtype} but expected 'int32' or 'float32'")
+    data_type = get_element_type(ary)
+    if data_type == pb.FIELD_DATA_TYPE_FLOAT:
+        enc = pb.EncTyp(data_type=data_type, floats=ary.ravel().tolist())
 
-    # import pdb
-    # pdb.set_trace()
-    shape = tuple(ary.shape)
-    range_spans = [None] * ary.ndim
+    elif data_type == pb.FIELD_DATA_TYPE_INT:
+        diff_ary = DiffArray.from_array(ary.ravel())
+        enc = pb.EncTyp(data_type=data_type, diff_array=diff_ary.to_msg())
 
-    for d in range(ary.ndim):
-        if ary.shape[d] < dim_threshold:
-            continue
-        diffs = slice_in_dim(ary, slice(0, -1), d) - slice_in_dim(ary, slice(1, None), d)
-        lo, hi = diffs.min(), diffs.max()
-        if (hi - lo) <= rtol * max(np.abs(lo), np.abs(hi)):
-            spans = slice_in_dim(ary, -1, d) - slice_in_dim(ary, 0, d)
-            span = spans.flatten()[0].item()
-            range_spans[d] = span 
+    elif data_type == pb.FIELD_DATA_TYPE_TEXT:
+        inds = np.empty(ary.size, np.int32)
+        words = {}
+        for i, word in enumerate(ary.ravel()):
+            inds[i] = words.setdefault(word, len(words))
+        diff_ary = DiffArray.from_array(inds)
+        base_words = np.empty(len(words), ary.dtype)
+        for word, idx in words.items():
+            base_words[idx] = word
 
-    indices = tuple(slice(None) if s is None else 0 for s in range_spans)
-    slice_data = ary[indices].ravel().tolist()
+        enc = pb.EncTyp(
+            data_type=data_type,
+            texts=base_words.tolist(),
+            diff_array=diff_ary.to_msg())
 
-    if ary.dtype == np.dtype('int32'):
-        base = pb.AnyArray(ints=pb.IntArray(values=slice_data))
-        enc = pb.EncTyp(base=base, shape=shape)
-        range_spans = tuple(pb.OptionalInt(value=sp) for sp in range_spans)
-        enc.int_spans.values.extend(range_spans)
+    elif data_type == pb.FIELD_DATA_TYPE_BOOL:
+        inds = np.empty(ary.size, np.int32)
+        bools = {}
+        for i, flag in enumerate(ary.ravel()):
+            inds[i] = bools.setdefault(flag, len(bools))
+        diff_ary = DiffArray.from_array(inds)
+        if len(diff_ary.diff) * 4 < ary.size:
+            # use diff encoding
+            base_bools = np.empty(len(bools), ary.dtype)
+            for flag, idx in bools.items():
+                base_bools[idx] = flag 
+            enc = pb.EncTyp(
+                data_type=data_type,
+                bools=base_bools,
+                diff_array=diff_ary.to_msg())
+        else:
+            enc = pb.EncTyp(data_type=data_type, bools=ary.ravel().tolist())
     else:
-        base = pb.AnyArray(floats=pb.FloatArray(values=slice_data))
-        enc = pb.EncTyp(base=base, shape=shape)
-        range_spans = tuple(pb.OptionalFloat(value=sp) for sp in range_spans)
-        enc.float_spans.values.extend(range_spans)
-    msg = pb.FullEncTyp(field_handle=field_handle, enc=enc)
-    return msg
-
-def encode_non_numeric_array(
-    field_handle: str,
-    ary: np.ndarray
-) -> pb.FullEncTyp: 
-    if not (np.issubdtype(ary.dtype, np.bool) or np.issubdtype(ary.dtype, np.str_)):
-        raise RuntimeError(f"Array has dtype {ary.dtype}, but expected 'bool' or 'str_'")
-    bcast = [None] * ary.ndim
-    for d in range(ary.ndim):
-        slices = tuple(slice(0,1) if i == d else slice(None) for i in range(ary.ndim))
-        bcast[d] = np.all(ary[slices] == ary).item()
-    indices = tuple(0 if bc else slice(None) for bc in bcast)
-    slice_data = ary[indices].ravel().tolist()
-    if ary.dtype == np.dtype('bool'):
-        base = pb.AnyArray(bools=pb.BoolArray(values=slice_data))
-    else:
-        base = pb.AnyArray(strings=pb.StringArray(values=slice_data))
-    enc = pb.EncTyp(shape=ary.shape, base=base)
-    enc.bcast.values.extend(bcast)
-    msg = pb.FullEncTyp(field_handle=field_handle, enc=enc)
-    return msg
-
-def encode_array(field_handle: str, ary: np.ndarray) -> pb.FullEncTyp:
-    if ary.dtype in (np.dtype('int32'), np.dtype('float32')):
-        return encode_numeric_array(field_handle, ary)
-    elif ary.dtype == np.dtype('bool') or np.issubdtype(ary.dtype, np.dtype('str_')):
-        return encode_non_numeric_array(field_handle, ary)
-    else:
         raise RuntimeError(
-                f"ary must have a dtype of int32, float32, bool, or str_. Got {ary.dtype}")
+            f"data type {ary.dtype} not supported. "  
+            f"Must be one of {', '.join(str(k) for k in DTYPE_TO_SIG.keys())}")
 
-def decode_numeric_array(enc: pb.EncTyp) -> np.array:
-    """
-    Converts the normalized data back into a plain np.array.  The original shape
-    of the array is preserved, to satisfy the invariant:
-
-    ary == decode_array(encode_array(ary))
-    """
-    span_field = enc.WhichOneof('spans')
-    match enc.base.WhichOneof('value'):
-        case 'ints':
-            base = np.array(enc.base.ints.values, dtype=np.int32)
-            if span_field != 'int_spans':
-                raise RuntimeError(
-                    f"enc.base was 'ints' but span_field was {span_field}")
-            range_spans = enc.int_spans.values
-
-        case 'floats':
-            base = np.array(enc.base.floats.values, dtype=np.float32)
-            if span_field != 'float_spans':
-                raise RuntimeError(
-                    f"enc.base was 'floats' but span_field was {span_field}")
-            range_spans = enc.float_spans.values
-
-        case other:
-            raise RuntimeError(
-                f"enc.base set field was '{other}' but must be one of 'ints', 'floats'")
-
-    N = len(enc.shape)
-    shape = tuple(1 if sp.HasField('value') else sz for sz, sp in zip(enc.shape, range_spans))
-    base = base.reshape(*shape)
-    ranges = []
-    for i, (sz, sp) in enumerate(zip(enc.shape, range_spans)):
-        if not sp.HasField('value'):
-            continue
-        rng = np.linspace(0, sp.value, sz)
-        rng = np.expand_dims(rng, axis=tuple(j for j in range(N) if j != i))
-        ranges.append(rng)
-    terms = np.broadcast_arrays(base, *ranges)
-    # print(tuple(r.shape for r in terms))
-    return np.add.reduce(terms).astype(base.dtype)
-
-def decode_non_numeric_array(enc: pb.EncTyp) -> np.array:
-    """
-    Converts the normalized data back into a plain np.array.
-    """
-    set_field = enc.WhichOneof('spans')
-    if set_field != 'bcast':
-        raise RuntimeError(
-            f"The active spans field is {set_field}, but expected bcast")
-    bcast_flags = enc.bcast.values
-
-    match enc.base.WhichOneof('value'):
-        case 'strings':
-            base = np.array(enc.base.strings.values)
-        case 'bools':
-            base = np.array(enc.base.bools.values)
-        case other:
-            raise RuntimeError(
-                f"enc.base set field was '{other}' but must be one of 'strings', 'bools'")
-
-    shape = tuple(1 if fl else sz for sz, fl in zip(enc.shape, bcast_flags))
-    base = base.reshape(*shape)
-    return np.broadcast_to(base, enc.shape)
+    return pb.FullEncTyp(field_handle=field_handle, enc=enc)
 
 def decode_array(enc: pb.EncTyp) -> np.array:
-    match enc.base.WhichOneof('value'):
-        case 'ints' | 'floats':
-            return decode_numeric_array(enc)
-        case 'bools' | 'strings':
-            return decode_non_numeric_array(enc)
-        case other:
-            raise RuntimeError(
-                f"enc.base set field was '{other}' but must be one of 'ints', "
-                f"'floats', 'bools' or 'strings'")
+    if enc.data_type == pb.FIELD_DATA_TYPE_INT:
+        diff_ary = DiffArray.from_msg(enc.diff_array)
+        return diff_ary.array
 
-def decode_array_flat(enc: pb.EncTyp) -> np.array:
-    return decode_array(enc).ravel()
+    elif enc.data_type == pb.FIELD_DATA_TYPE_FLOAT:
+        return np.array(enc.floats)
+
+    elif enc.data_type == pb.FIELD_DATA_TYPE_TEXT:
+        diff_ary = DiffArray.from_msg(enc.diff_array)
+        base = np.array(enc.texts)
+        texts = np.empty_like(base, shape=(diff_ary.size,))
+        for i, idx in enumerate(diff_ary.array):
+            texts[i] = base[idx]
+        return texts
+
+    elif enc.data_type == pb.FIELD_DATA_TYPE_BOOL:
+        if enc.HasField('diff_array'):
+            diff_ary = DiffArray.from_msg(enc.diff_array)
+            base = np.array(enc.bools)
+            bools = np.empty_like(base, shape=(diff_ary.size,))
+            for i, idx in enumerate(diff_ary.array):
+                bools[i] = base[idx]
+            return bools
+        else:
+            return np.array(enc.bools)
+    else:
+        raise RuntimeError(f"Unknown enc.data_type: {enc.data_type}")
+
 
 def decode_runchunk(rc: pb.RunChunks) -> tuple[np.array]:
     chunks = [] # chunks[chunk][coord] = np.array
@@ -170,7 +141,7 @@ def decode_runchunk(rc: pb.RunChunks) -> tuple[np.array]:
     first_chunk = rc.chunks[0]
     offsets = [(0,) * len(first_chunk.enc_vals)]
     for chunk in rc.chunks: 
-        arrays = tuple(decode_array_flat(enc) for enc in chunk.enc_vals)
+        arrays = tuple(decode_array(enc) for enc in chunk.enc_vals)
         chunks.append(arrays)
         new_offsets = tuple(off + ary.size for off, ary in zip(offsets[-1], arrays))
         offsets.append(new_offsets)
@@ -412,5 +383,4 @@ def stack_series_values(
         raise RuntimeError(f"Couldn't find broadcast shape for shapes: {shapes}") from ve
 
     return SeriesValues(tuple(stacked_fields), bcast_shape)
-
 
