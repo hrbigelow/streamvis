@@ -17,14 +17,6 @@ message CreateFieldRequest {
 message CreateFieldResponse {
 }
 
-message CreateSeriesRequest {
-  string series_name = 1;
-  repeated string field_names = 2;
-}
-
-message CreateSeriesResponse {
-}
-
 
 message EncTyp {
   FieldDataType data_type = 1;
@@ -78,13 +70,12 @@ message StringArray {
 }
 
 
-message AppendToSeriesRequest {
-  string series_handle = 1;
-  string run_handle = 2;
-  repeated FullEncTyp field_vals = 3;
+message AppendToRunRequest {
+  string run_handle = 1;
+  repeated FullEncTyp field_vals = 2;
 }
 
-message AppendToSeriesResponse {
+message AppendToRunResponse {
 }
 
 message CreateRunRequest { }
@@ -133,13 +124,6 @@ message SetRunAttributesRequest {
 message SetRunAttributesResponse {
 }
 
-message DeleteEmptySeriesRequest {
-  string series_name = 1;
-}
-
-message DeleteEmptySeriesResponse {
-}
-
 message AddRunTagsRequest {
   string run_handle = 1;
   repeated string tags = 2;
@@ -161,14 +145,6 @@ message Field {
   string description = 4;
 }
 
-message Coord {
-  string coord_handle = 1;
-  string field_handle = 2;
-  string name = 3;
-  FieldDataType data_type = 4;
-  string description = 5;
-}
-
 message ListAttributeValuesRequest {}
 
 message AnyArray {
@@ -186,14 +162,6 @@ message AttributeValues {
 }
 
 
-message Series {
-  string handle = 1;
-  string name = 2;
-  repeated Coord coords = 3;
-}
-
-message ListSeriesRequest {}
-
 message ListFieldsRequest {}
 
 message RunFilter {
@@ -208,7 +176,6 @@ message Run {
   repeated string tags = 2;
   google.protobuf.Timestamp started_at = 3;
   map<string, FieldValue> attrs = 4;
-  map<string, Series> series = 5;
 }
 
 message RunId {
@@ -228,12 +195,12 @@ message TagValue {
 }
 
 message ChunkData {
-  /* ordered collection of coords */
+  /* ordered collection of field data */
   repeated EncTyp enc_vals = 1;
 }
 
 message RunChunks {
-  /* chunks belonging to the same query. each chunk has the same coords in the same
+  /* chunks belonging to the same query. each chunk has the same fields in the same
    * order, specified by QueryRunDataRequest */
   string run_handle = 1;
   repeated ChunkData chunks = 2;
@@ -291,7 +258,9 @@ message GetEndChunkIdResponse {
 }
 
 message QueryRunDataRequest {
-  repeated string coord_handles = 1;
+  // will retrieve chunk data for any chunks containing all of the requested fields
+  // and passing the given filters
+  repeated string field_handles = 1;
   optional int64 begin_chunk_id = 2;
   optional int64 end_chunk_id = 3;
   RunFilter run_filter = 4;
@@ -299,8 +268,8 @@ message QueryRunDataRequest {
 }
 
 message WindowSpec {
-  repeated string group_coord_handles = 1;
-  string order_coord_handle = 2;
+  repeated string group_field_handles = 1;
+  string order_field_handle = 2;
   uint32 size = 3;
   uint32 stride = 4;
 }
@@ -310,29 +279,21 @@ message ListCommonAttributesRequest {
   RunFilter run_filter = 1;
 }
 
-message ListCommonSeriesRequest {
-  RunFilter run_filter = 1;
-}
-
 
 service Service {
   rpc CreateField (CreateFieldRequest) returns (CreateFieldResponse);
-  rpc CreateSeries (CreateSeriesRequest) returns (CreateSeriesResponse);
-  rpc AppendToSeries (AppendToSeriesRequest) returns (AppendToSeriesResponse);
+  rpc AppendToRun (AppendToRunRequest) returns (AppendToRunResponse);
   rpc CreateRun (CreateRunRequest) returns (CreateRunResponse);
   rpc ReplaceRun (ReplaceRunRequest) returns (ReplaceRunResponse);
   rpc DeleteRun (DeleteRunRequest) returns (DeleteRunResponse);
   rpc SetRunAttributes (SetRunAttributesRequest) returns (SetRunAttributesResponse);
-  rpc DeleteEmptySeries (DeleteEmptySeriesRequest) returns (DeleteEmptySeriesResponse);
   rpc AddRunTags (AddRunTagsRequest) returns (AddRunTagsResponse);
   rpc DeleteRunTag (DeleteRunTagRequest) returns (DeleteRunTagResponse);
-  rpc ListSeries (ListSeriesRequest) returns (stream Series);
   rpc ListFields (ListFieldsRequest) returns (stream Field);
   rpc ListRuns (ListRunsRequest) returns (stream Run);
   rpc GetEndChunkId (GetEndChunkIdRequest) returns (GetEndChunkIdResponse);
   rpc QueryRunData (QueryRunDataRequest) returns (stream RunChunks);
   rpc ListCommonAttributes (ListCommonAttributesRequest) returns (stream Field);
-  rpc ListCommonSeries (ListCommonSeriesRequest) returns (stream Series);
   rpc ListStartedAt (ListStartedAtRequest) returns (stream RunStartTime);
   rpc ListTags (ListTagsRequest) returns (stream TagValue);
   rpc ListAttributeValues (ListAttributeValuesRequest) returns (stream AttributeValues);

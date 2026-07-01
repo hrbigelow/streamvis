@@ -37,10 +37,6 @@ def get_service_stub() -> ServiceStub:
     chan = get_channel()
     return pb_grpc.ServiceStub(chan)
 
-def list_series(stub: ServiceStub) -> Iterable[pb.Series]:
-    req = pb.ListSeriesRequest()
-    yield from stub.ListSeries(req)
-
 def list_fields(stub: ServiceStub) -> Iterable[pb.Field]:
     req = pb.ListFieldsRequest()
     return stub.ListFields(req)
@@ -69,27 +65,26 @@ def get_oneof(pbmsg) -> Any:
 @dataclass
 class QueryRunInfo:
     attrs: list[pb.Field]
-    coords: list[pb.Coord]
+    fields: list[pb.Field]
 
     @property
-    def field_names(self):
-        return tuple(a.name for a in self.attrs) + tuple(c.name for c in self.coords)
+    def all_field_names(self):
+        return tuple(a.name for a in self.attrs) + tuple(f.name for f in self.fields)
 
     @property
     def attr_names(self):
         return tuple(a.name for a in self.attrs)
 
     @property
-    def coord_names(self):
-        return tuple(c.name for c in self.coords)
+    def field_names(self):
+        return tuple(f.name for f in self.fields)
 
     @property
     def field_name_map(self):
-        return { f.name: f for f in (*self.attrs, *self.coords) }
+        return { f.name: f for f in (*self.attrs, *self.fields) }
 
 def get_data_columns(
         stub: ServiceStub,
-        series_name: str,
         field_names: list[str],
         ) -> QueryRunInfo:
     """
@@ -97,17 +92,7 @@ def get_data_columns(
     """
     attrs = []
     coords = []
-
-    series = None
-    for ser in list_series(stub):
-        if ser.name == series_name:
-            series = ser
-            break
-    if series is None:
-        raise RuntimeError(f"Series {series_name} not found")
-
     field_map = { f.name: f for f in list_fields(stub) }
-    field_map.update({ c.name: c for c in series.coords })
 
     for fname in field_names:
         msg = field_map.get(fname)
@@ -139,58 +124,65 @@ def get_run_filter(
     msg.tag_filter.neg_match_all = neg_match_all_tags
     return msg
 
+
+"""
 def get_window_spec(
     info: QueryRunInfo,
-    group_coords: list[str],
-    order_coord: str,
+    group_fields: list[str],
+    order_field: str,
     window_size: int,
     stride: int,
 ) -> pb.WindowSpec:
-    for gc in group_coords:
-        if gc not in info.coord_names:
+    for gc in group_fields:
+        if gc not in info.field_names:
             raise RuntimeError(
-                f"`{gc}` given in group_coords is not a coord name. "
-                f"Valid coord names are {', '.join(info.coord_names)}")
-    if order_coord not in info.coord_names:
+                f"`{gc}` given in group_fields is not a field name. "
+                f"Valid field names are {', '.join(info.field_names)}")
+    if order_field not in info.field_names:
         raise RuntimeError(
-            f"order_coord `{order_coord}` not a valid coord name. "
-            f"Valid names are {', '.join(info.coord_names)}")
+            f"order_field `{order_field}` not a valid field name. "
+            f"Valid names are {', '.join(info.field_names)}")
     if window_size == 0 or stride == 0:
         raise RuntimeError(
             f"window_size and stride must both be > 0. "
             f"Got {window_size=}, {stride=}")
-    group_handles = tuple(info.field_name_map[gc].coord_handle for gc in group_coords)
-    order_handle = info.field_name_map[order_coord].coord_handle
+    group_handles = tuple(info.field_name_map[gc].field_handle for gc in group_fields)
+    order_handle = info.field_name_map[order_field].field_handle
     return pb.WindowSpec(
-        group_coord_handles=group_handles,
-        order_coord_handle=order_handle,
+        group_field_handles=group_handles,
+        order_field_handle=order_handle,
         size=window_size,
         stride=stride
     )
+"""
+
 
 def get_query_run_data_request(
-        stub: ServiceStub,
-        series: str,
-        fields: list[str],
-        pos_tags: list[str],
-        pos_match_all: bool,
-        neg_tags: list[str],
-        neg_match_all: bool,
-        min_started_at: datetime|None, 
-        max_started_at: datetime|None,
-        ) -> tuple[pb.QueryRunDataRequest, QueryRunInfo]:
+    stub: ServiceStub,
+    field_names: list[str],
+    pos_tags: list[str],
+    pos_match_all: bool,
+    neg_tags: list[str],
+    neg_match_all: bool,
+    min_started_at: datetime|None, 
+    max_started_at: datetime|None,
+) -> pb.QueryRunDataRequest:
     """
-    Resolves `fields` into handles for attrs and series coords, then
+    Resolves `fields` into handles for attrs and pb.fields, then
     constructs the QueryRunDataRequest from that.
     """
-    info = get_data_columns(stub, series, fields)
     req = pb.QueryRunDataRequest()
-    req.coord_handles.extend((c.coord_handle for c in info.coords))
+    field_map = { f.name: f for f in list_fields(stub) }
+    for fname in field_names:
+        msg = field_map.get(fname)
+        if msg is None:
+            raise RuntimeError(f"Could not find field name `{fname}`")
+        req.field_handles.append(msg.handle)
 
     req.run_filter.CopyFrom(get_run_filter(
         pos_tags, pos_match_all, neg_tags, neg_match_all, min_started_at, max_started_at)
     )
-    return req, info
+    return req
 
 def get_attribute_filter(
         stub: ServiceStub,

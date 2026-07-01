@@ -31,40 +31,6 @@ OR (
 $$;
 
 
-/*
-DECLARE
-	v_pos_match BOOLEAN;
-	v_neg_match BOOLEAN;
-BEGIN
-	IF p_tag_filter IS NULL THEN
-		RETURN TRUE;
-	END IF;
-
-	-- v_neg_match
-	IF cardinality(p_tag_filter.neg_tags) = 0 THEN
-		v_neg_match := FALSE;
-	ELSIF p_tag_filter.neg_match_all THEN
-		v_neg_match := (p_run_tags @> p_tag_filter.neg_tags);
-	ELSE
-		v_neg_match := (p_run_tags && p_tag_filter.neg_tags);
-	END IF;
-
-	-- v_pos_match
-  IF cardinality(p_tag_filter.pos_tags) = 0 THEN
-		v_pos_match := TRUE;
-  ELSIF p_tag_filter.pos_match_all THEN
-    v_pos_match := (p_run_tags @> p_tag_filter.pos_tags);
-  ELSE
-    v_pos_match := (p_run_tags && p_tag_filter.pos_tags);
-  END IF;
-
-	RETURN v_pos_match AND NOT v_neg_match;
-
-END;
-$$;
-*/
-
-
 \echo 'create filter_by_attribute'
 /* Return TRUE if the value should be included 
 */

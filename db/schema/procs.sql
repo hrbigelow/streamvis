@@ -1,4 +1,3 @@
-\set QUIET 1
 \echo 'add_data_lock'
 CREATE OR REPLACE PROCEDURE add_data_lock(
   IN p_handle UUID,
@@ -33,78 +32,6 @@ AS $$
 $$;
 
 
-/* Create a new series.
-*/
-\echo 'create_series'
-CREATE OR REPLACE PROCEDURE create_series(
-  IN p_series_name TEXT,
-  IN p_field_names TEXT[]
-)
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  v_series_id INT;
-  v_missing_names TEXT[];
-BEGIN
-  IF p_series_name IS NULL OR p_series_name = '' THEN
-    RAISE EXCEPTION 'p_series_name must be a non-empty string';
-  END IF;
-
-  SELECT array_agg(field_name) INTO v_missing_names
-  FROM unnest(p_field_names) AS n(field_name)
-  WHERE NOT EXISTS (
-    SELECT 1 FROM field f WHERE f.name = n.field_name
-  );
-
-  IF array_length(v_missing_names, 1) != 0 THEN
-    RAISE EXCEPTION 'Some field names are not registered fields: %', 
-    array_to_string(v_missing_names, ', ');
-  END IF;
-
-  INSERT INTO series (name)
-  VALUES (p_series_name)
-  RETURNING id INTO v_series_id;
-
-  INSERT INTO coord (series_id, field_id)
-  SELECT v_series_id, f.id 
-  FROM field f 
-  JOIN unnest(p_field_names) AS n(field_name)
-  ON f.name = n.field_name;
-
-  -- TODO: check number inserted
-END;
-$$;
-
-\echo 'delete_empty_series'
-CREATE OR REPLACE PROCEDURE delete_empty_series(
-  IN p_series_name TEXT
-)
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  v_handle UUID;
-BEGIN
-  SELECT handle into v_handle
-  FROM series
-  WHERE name = p_series_name;
-
-  IF v_handle IS NULL THEN
-    RAISE EXCEPTION 'delete_empty_series: a series named `%` does not exist', p_series_name;
-  END IF;
-
-  DELETE FROM series s
-  WHERE s.handle = v_handle
-  AND NOT EXISTS (
-    SELECT 1
-    FROM chunk c
-    WHERE s.id = c.series_id
-  );
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'delete_empty_series: series `%` is not empty; cannot delete', p_series_name;
-  END IF;
-END;
-$$;
 
 \echo 'array_product'
 CREATE OR REPLACE FUNCTION array_product(vals INT[])
@@ -144,9 +71,8 @@ $$;
 /*
 Append data to an existing series
 */
-\echo 'append_to_series'
-CREATE OR REPLACE PROCEDURE append_to_series(
-  IN p_series_handle UUID,
+\echo 'append_to_run'
+CREATE OR REPLACE PROCEDURE append_to_run(
   IN p_run_handle UUID,
   IN p_field_handles UUID[],
   IN p_field_vals enc_typ[]
@@ -160,19 +86,26 @@ DECLARE
   v_series_id INT;
   v_run_id INT;
   v_chunk_id BIGINT;
-  v_series_field_handles UUID[];
 BEGIN
   IF cardinality(p_field_handles) IS DISTINCT FROM cardinality(p_field_vals) THEN
     RAISE EXCEPTION 'append_to_series: field_handles (%) and field_vals (%) length mismatch',
     cardinality(p_field_handles), cardinality(p_field_vals);
   END IF;
 
-  SELECT id INTO v_series_id
-  FROM series
-  WHERE handle = p_series_handle;
+  SELECT fs.series_id INTO v_series_id
+  FROM field_series fs
+  JOIN field f ON f.id = fs.field_id
+  WHERE f.handle = ANY(p_field_handles)
+  GROUP BY series_id
+  HAVING COUNT(*) = cardinality(p_field_handles)
+  AND COUNT(*) = (SELECT COUNT(*) FROM field_series fs2 WHERE fs2.series_id = fs.series_id);
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Series with handle % not found', p_series_handle;
+    INSERT INTO series DEFAULT VALUES RETURNING id INTO v_series_id;
+    INSERT INTO field_series (field_id, series_id)
+    SELECT f.id, v_series_id
+    FROM field f
+    JOIN unnest(p_field_handles) AS h(fh) ON h.fh = f.handle;
   END IF;
 
   SELECT id INTO v_run_id
@@ -183,26 +116,13 @@ BEGIN
     RAISE EXCEPTION 'Run with handle % not found', p_run_handle;
   END IF;
 
-  SELECT array_agg(f.handle) INTO v_series_field_handles
-  FROM field f
-  JOIN coord c ON c.field_id = f.id
-  WHERE c.series_id = v_series_id; 
-
-  IF cardinality(p_field_handles) IS DISTINCT FROM cardinality(v_series_field_handles) THEN
-    RAISE EXCEPTION 'append_to_series: field_handles (%) and series fields (%) length mismatch',
-    cardinality(p_field_handles), cardinality(v_series_field_handles);
-  END IF;
-
   FOR rec IN
     SELECT h.fh AS field_handle, p_field_vals[h.i] AS field_val, f.data_type
     FROM unnest(p_field_handles) WITH ORDINALITY AS h(fh, i)
     JOIN field f ON f.handle = h.fh
   LOOP
     IF NOT valid_enc_typ(rec.field_val) THEN
-      RAISE EXCEPTION 'append_to_series: enc_typ invalid: %', to_json(rec.field_val);
-    ELSIF rec.field_handle <> ALL(v_series_field_handles) THEN
-      RAISE EXCEPTION 'Field %s not found in series %s', 
-        rec.field_handle, p_series_handle;
+      RAISE EXCEPTION 'append_to_run: enc_typ invalid: %', to_json(rec.field_val);
     END IF;
   END LOOP;
 
@@ -210,12 +130,10 @@ BEGIN
   VALUES (v_series_id, v_run_id, get_enc_size(p_field_vals[1]))
   RETURNING id INTO v_chunk_id;
 
-  INSERT INTO coord_data (coord_id, chunk_id, enc_vals)
-  SELECT c.id, v_chunk_id, p_field_vals[h.i] 
+  INSERT INTO chunk_data (chunk_id, field_id, enc_vals)
+  SELECT v_chunk_id, f.id, p_field_vals[h.i] 
   FROM unnest(p_field_handles) WITH ORDINALITY AS h(fh, i)
-  JOIN field f ON f.handle = h.fh 
-  JOIN coord c ON c.field_id = f.id
-  WHERE c.series_id = v_series_id;
+  JOIN field f ON f.handle = h.fh;
 
 END;
 $$;
@@ -352,6 +270,3 @@ BEGIN
   WHERE handle = p_run_handle;
 END;
 $$;
-
-
-\set QUIET 0

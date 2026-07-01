@@ -67,12 +67,8 @@ func registerCustomTypes(
 		"field_data_typ",
 		"field_typ",
 		"field_typ[]",
-		"coord_typ",
-		"coord_typ[]",
 		"enc_typ",
 		"enc_typ[]",
-		"series_typ",
-		"series_typ[]",
 		"field_value_typ",
 		"field_value_typ[]",
 		"full_field_value_typ",
@@ -105,28 +101,17 @@ func (st *Store) CreateField(
 	return err
 }
 
-func (st *Store) CreateSeries(
+func (st *Store) AppendToRun(
 	ctx context.Context,
-	seriesName string,
-	attrNames []string,
-) error {
-	sql := `CALL create_series($1, $2)`
-	_, err := st.pool.Exec(ctx, sql, seriesName, attrNames)
-	return err
-}
-
-func (st *Store) AppendToSeries(
-	ctx context.Context,
-	seriesHandle uuid.UUID,
 	runHandle uuid.UUID,
 	fieldVals []*pb.FullEncTyp,
 ) error {
 	var err error
 	encs := make([]*EncTypValue, len(fieldVals))
-	handles := make([]uuid.UUID, len(fieldVals))
+	fieldHandles := make([]uuid.UUID, len(fieldVals))
 
 	for i, et := range fieldVals {
-		handles[i], err = uuid.Parse(et.FieldHandle)
+		fieldHandles[i], err = uuid.Parse(et.FieldHandle)
 		if err != nil {
 			return err
 		}
@@ -135,8 +120,8 @@ func (st *Store) AppendToSeries(
 			return err
 		}
 	}
-	sql := `CALL append_to_series($1, $2, $3, $4)`
-	_, err = st.pool.Exec(ctx, sql, seriesHandle, runHandle, handles, encs)
+	sql := `CALL append_to_run($1, $2, $3)`
+	_, err = st.pool.Exec(ctx, sql, runHandle, fieldHandles, encs)
 	return err
 }
 
@@ -247,23 +232,6 @@ func queryItemsConvert[Row, Item any](
 	args ...any,
 ) (<-chan *Item, <-chan error) {
 	return queryItemsInternal(ctx, pool, sql, convert, args...)
-}
-
-func (st *Store) ListSeries(
-	ctx context.Context,
-) (<-chan *pb.Series, <-chan error) {
-	sql := `SELECT * from series_vw`
-	convert := MakeToProtobufFunc[Series, pb.Series]()
-	return queryItemsConvert(ctx, st.pool, sql, convert)
-}
-
-func (st *Store) DeleteEmptySeries(
-	ctx context.Context,
-	seriesName string,
-) error {
-	sql := `CALL delete_empty_series($1)`
-	_, err := st.pool.Exec(ctx, sql, seriesName)
-	return err
 }
 
 func (st *Store) AddRunTags(
@@ -396,7 +364,7 @@ func (st *Store) packRunChunks(
 
 func (st *Store) QueryRunData(
 	ctx context.Context,
-	coordHandles []uuid.UUID,
+	fieldHandles []uuid.UUID,
 	minChunkId *int64,
 	maxChunkId *int64,
 	runFilter RunFilter,
@@ -406,7 +374,7 @@ func (st *Store) QueryRunData(
 		sql := `SELECT * from query_run_data($1, $2, $3, $4, $5, $6, $7)`
 		dataCh, queryErrCh := queryItems[ChunkData](
 			ctx, st.pool, sql,
-			coordHandles,
+			fieldHandles,
 			minChunkId,
 			maxChunkId,
 			runFilter.AttributeFilters,
@@ -420,9 +388,9 @@ func (st *Store) QueryRunData(
 	sql := `SELECT * from query_run_data_windowed($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 	dataCh, queryErrCh := queryItems[ChunkData](
 		ctx, st.pool, sql,
-		coordHandles,
-		windowSpec.GroupCoordHandles,
-		windowSpec.OrderCoordHandle,
+		fieldHandles,
+		windowSpec.GroupFieldHandles,
+		windowSpec.OrderFieldHandle,
 		windowSpec.Size,
 		windowSpec.Stride,
 		minChunkId,
@@ -441,21 +409,6 @@ func (st *Store) ListCommonAttributes(
 ) (<-chan *pb.Field, <-chan error) {
 	sql := `SELECT * from list_common_attributes($1, $2, $3, $4)`
 	convert := MakeToProtobufFunc[Field, pb.Field]()
-	return queryItemsConvert(
-		ctx, st.pool, sql, convert,
-		runFilter.AttributeFilters,
-		runFilter.TagFilter,
-		runFilter.MinStartedAt,
-		runFilter.MaxStartedAt,
-	)
-}
-
-func (st *Store) ListCommonSeries(
-	ctx context.Context,
-	runFilter RunFilter,
-) (<-chan *pb.Series, <-chan error) {
-	sql := `SELECT * from list_common_series($1, $2, $3, $4)`
-	convert := MakeToProtobufFunc[Series, pb.Series]()
 	return queryItemsConvert(
 		ctx, st.pool, sql, convert,
 		runFilter.AttributeFilters,

@@ -363,9 +363,7 @@ class SeriesValues:
         return "\n".join(str(f) for f in self.fields)
 
 
-def stack_series_values(
-    series_values_list: list[SeriesValues]
-) -> SeriesValues:
+def stack_series_values(series_values_list: list[SeriesValues]) -> SeriesValues:
     fields_list = tuple(sv.fields for sv in series_values_list) # series, field
     by_field = tuple(zip(*fields_list)) # field, series
     array_types = tuple(get_array_type(f[0]) for f in by_field)

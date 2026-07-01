@@ -19,9 +19,9 @@ dpi: 300
 legend_at: 'best'
 
 ty: scatter
-series: null
 x: null
 y: null
+y2: null
 color_main: []
 color_sub: []
 add_group: []

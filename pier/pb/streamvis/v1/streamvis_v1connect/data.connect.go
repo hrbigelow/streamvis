@@ -35,10 +35,8 @@ const (
 const (
 	// ServiceCreateFieldProcedure is the fully-qualified name of the Service's CreateField RPC.
 	ServiceCreateFieldProcedure = "/streamvis.v1.Service/CreateField"
-	// ServiceCreateSeriesProcedure is the fully-qualified name of the Service's CreateSeries RPC.
-	ServiceCreateSeriesProcedure = "/streamvis.v1.Service/CreateSeries"
-	// ServiceAppendToSeriesProcedure is the fully-qualified name of the Service's AppendToSeries RPC.
-	ServiceAppendToSeriesProcedure = "/streamvis.v1.Service/AppendToSeries"
+	// ServiceAppendToRunProcedure is the fully-qualified name of the Service's AppendToRun RPC.
+	ServiceAppendToRunProcedure = "/streamvis.v1.Service/AppendToRun"
 	// ServiceCreateRunProcedure is the fully-qualified name of the Service's CreateRun RPC.
 	ServiceCreateRunProcedure = "/streamvis.v1.Service/CreateRun"
 	// ServiceReplaceRunProcedure is the fully-qualified name of the Service's ReplaceRun RPC.
@@ -48,15 +46,10 @@ const (
 	// ServiceSetRunAttributesProcedure is the fully-qualified name of the Service's SetRunAttributes
 	// RPC.
 	ServiceSetRunAttributesProcedure = "/streamvis.v1.Service/SetRunAttributes"
-	// ServiceDeleteEmptySeriesProcedure is the fully-qualified name of the Service's DeleteEmptySeries
-	// RPC.
-	ServiceDeleteEmptySeriesProcedure = "/streamvis.v1.Service/DeleteEmptySeries"
 	// ServiceAddRunTagsProcedure is the fully-qualified name of the Service's AddRunTags RPC.
 	ServiceAddRunTagsProcedure = "/streamvis.v1.Service/AddRunTags"
 	// ServiceDeleteRunTagProcedure is the fully-qualified name of the Service's DeleteRunTag RPC.
 	ServiceDeleteRunTagProcedure = "/streamvis.v1.Service/DeleteRunTag"
-	// ServiceListSeriesProcedure is the fully-qualified name of the Service's ListSeries RPC.
-	ServiceListSeriesProcedure = "/streamvis.v1.Service/ListSeries"
 	// ServiceListFieldsProcedure is the fully-qualified name of the Service's ListFields RPC.
 	ServiceListFieldsProcedure = "/streamvis.v1.Service/ListFields"
 	// ServiceListRunsProcedure is the fully-qualified name of the Service's ListRuns RPC.
@@ -68,9 +61,6 @@ const (
 	// ServiceListCommonAttributesProcedure is the fully-qualified name of the Service's
 	// ListCommonAttributes RPC.
 	ServiceListCommonAttributesProcedure = "/streamvis.v1.Service/ListCommonAttributes"
-	// ServiceListCommonSeriesProcedure is the fully-qualified name of the Service's ListCommonSeries
-	// RPC.
-	ServiceListCommonSeriesProcedure = "/streamvis.v1.Service/ListCommonSeries"
 	// ServiceListStartedAtProcedure is the fully-qualified name of the Service's ListStartedAt RPC.
 	ServiceListStartedAtProcedure = "/streamvis.v1.Service/ListStartedAt"
 	// ServiceListTagsProcedure is the fully-qualified name of the Service's ListTags RPC.
@@ -83,22 +73,18 @@ const (
 // ServiceClient is a client for the streamvis.v1.Service service.
 type ServiceClient interface {
 	CreateField(context.Context, *v1.CreateFieldRequest) (*v1.CreateFieldResponse, error)
-	CreateSeries(context.Context, *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error)
-	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
+	AppendToRun(context.Context, *v1.AppendToRunRequest) (*v1.AppendToRunResponse, error)
 	CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error)
 	ReplaceRun(context.Context, *v1.ReplaceRunRequest) (*v1.ReplaceRunResponse, error)
 	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
 	SetRunAttributes(context.Context, *v1.SetRunAttributesRequest) (*v1.SetRunAttributesResponse, error)
-	DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error)
 	AddRunTags(context.Context, *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error)
 	DeleteRunTag(context.Context, *v1.DeleteRunTagRequest) (*v1.DeleteRunTagResponse, error)
-	ListSeries(context.Context, *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListFields(context.Context, *v1.ListFieldsRequest) (*connect.ServerStreamForClient[v1.Field], error)
 	ListRuns(context.Context, *v1.ListRunsRequest) (*connect.ServerStreamForClient[v1.Run], error)
 	GetEndChunkId(context.Context, *v1.GetEndChunkIdRequest) (*v1.GetEndChunkIdResponse, error)
 	QueryRunData(context.Context, *v1.QueryRunDataRequest) (*connect.ServerStreamForClient[v1.RunChunks], error)
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest) (*connect.ServerStreamForClient[v1.Field], error)
-	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error)
 	ListStartedAt(context.Context, *v1.ListStartedAtRequest) (*connect.ServerStreamForClient[v1.RunStartTime], error)
 	ListTags(context.Context, *v1.ListTagsRequest) (*connect.ServerStreamForClient[v1.TagValue], error)
 	ListAttributeValues(context.Context, *v1.ListAttributeValuesRequest) (*connect.ServerStreamForClient[v1.AttributeValues], error)
@@ -121,16 +107,10 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("CreateField")),
 			connect.WithClientOptions(opts...),
 		),
-		createSeries: connect.NewClient[v1.CreateSeriesRequest, v1.CreateSeriesResponse](
+		appendToRun: connect.NewClient[v1.AppendToRunRequest, v1.AppendToRunResponse](
 			httpClient,
-			baseURL+ServiceCreateSeriesProcedure,
-			connect.WithSchema(serviceMethods.ByName("CreateSeries")),
-			connect.WithClientOptions(opts...),
-		),
-		appendToSeries: connect.NewClient[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse](
-			httpClient,
-			baseURL+ServiceAppendToSeriesProcedure,
-			connect.WithSchema(serviceMethods.ByName("AppendToSeries")),
+			baseURL+ServiceAppendToRunProcedure,
+			connect.WithSchema(serviceMethods.ByName("AppendToRun")),
 			connect.WithClientOptions(opts...),
 		),
 		createRun: connect.NewClient[v1.CreateRunRequest, v1.CreateRunResponse](
@@ -157,12 +137,6 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("SetRunAttributes")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteEmptySeries: connect.NewClient[v1.DeleteEmptySeriesRequest, v1.DeleteEmptySeriesResponse](
-			httpClient,
-			baseURL+ServiceDeleteEmptySeriesProcedure,
-			connect.WithSchema(serviceMethods.ByName("DeleteEmptySeries")),
-			connect.WithClientOptions(opts...),
-		),
 		addRunTags: connect.NewClient[v1.AddRunTagsRequest, v1.AddRunTagsResponse](
 			httpClient,
 			baseURL+ServiceAddRunTagsProcedure,
@@ -173,12 +147,6 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			httpClient,
 			baseURL+ServiceDeleteRunTagProcedure,
 			connect.WithSchema(serviceMethods.ByName("DeleteRunTag")),
-			connect.WithClientOptions(opts...),
-		),
-		listSeries: connect.NewClient[v1.ListSeriesRequest, v1.Series](
-			httpClient,
-			baseURL+ServiceListSeriesProcedure,
-			connect.WithSchema(serviceMethods.ByName("ListSeries")),
 			connect.WithClientOptions(opts...),
 		),
 		listFields: connect.NewClient[v1.ListFieldsRequest, v1.Field](
@@ -211,12 +179,6 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 			connect.WithSchema(serviceMethods.ByName("ListCommonAttributes")),
 			connect.WithClientOptions(opts...),
 		),
-		listCommonSeries: connect.NewClient[v1.ListCommonSeriesRequest, v1.Series](
-			httpClient,
-			baseURL+ServiceListCommonSeriesProcedure,
-			connect.WithSchema(serviceMethods.ByName("ListCommonSeries")),
-			connect.WithClientOptions(opts...),
-		),
 		listStartedAt: connect.NewClient[v1.ListStartedAtRequest, v1.RunStartTime](
 			httpClient,
 			baseURL+ServiceListStartedAtProcedure,
@@ -241,22 +203,18 @@ func NewServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...con
 // serviceClient implements ServiceClient.
 type serviceClient struct {
 	createField          *connect.Client[v1.CreateFieldRequest, v1.CreateFieldResponse]
-	createSeries         *connect.Client[v1.CreateSeriesRequest, v1.CreateSeriesResponse]
-	appendToSeries       *connect.Client[v1.AppendToSeriesRequest, v1.AppendToSeriesResponse]
+	appendToRun          *connect.Client[v1.AppendToRunRequest, v1.AppendToRunResponse]
 	createRun            *connect.Client[v1.CreateRunRequest, v1.CreateRunResponse]
 	replaceRun           *connect.Client[v1.ReplaceRunRequest, v1.ReplaceRunResponse]
 	deleteRun            *connect.Client[v1.DeleteRunRequest, v1.DeleteRunResponse]
 	setRunAttributes     *connect.Client[v1.SetRunAttributesRequest, v1.SetRunAttributesResponse]
-	deleteEmptySeries    *connect.Client[v1.DeleteEmptySeriesRequest, v1.DeleteEmptySeriesResponse]
 	addRunTags           *connect.Client[v1.AddRunTagsRequest, v1.AddRunTagsResponse]
 	deleteRunTag         *connect.Client[v1.DeleteRunTagRequest, v1.DeleteRunTagResponse]
-	listSeries           *connect.Client[v1.ListSeriesRequest, v1.Series]
 	listFields           *connect.Client[v1.ListFieldsRequest, v1.Field]
 	listRuns             *connect.Client[v1.ListRunsRequest, v1.Run]
 	getEndChunkId        *connect.Client[v1.GetEndChunkIdRequest, v1.GetEndChunkIdResponse]
 	queryRunData         *connect.Client[v1.QueryRunDataRequest, v1.RunChunks]
 	listCommonAttributes *connect.Client[v1.ListCommonAttributesRequest, v1.Field]
-	listCommonSeries     *connect.Client[v1.ListCommonSeriesRequest, v1.Series]
 	listStartedAt        *connect.Client[v1.ListStartedAtRequest, v1.RunStartTime]
 	listTags             *connect.Client[v1.ListTagsRequest, v1.TagValue]
 	listAttributeValues  *connect.Client[v1.ListAttributeValuesRequest, v1.AttributeValues]
@@ -271,18 +229,9 @@ func (c *serviceClient) CreateField(ctx context.Context, req *v1.CreateFieldRequ
 	return nil, err
 }
 
-// CreateSeries calls streamvis.v1.Service.CreateSeries.
-func (c *serviceClient) CreateSeries(ctx context.Context, req *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error) {
-	response, err := c.createSeries.CallUnary(ctx, connect.NewRequest(req))
-	if response != nil {
-		return response.Msg, err
-	}
-	return nil, err
-}
-
-// AppendToSeries calls streamvis.v1.Service.AppendToSeries.
-func (c *serviceClient) AppendToSeries(ctx context.Context, req *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error) {
-	response, err := c.appendToSeries.CallUnary(ctx, connect.NewRequest(req))
+// AppendToRun calls streamvis.v1.Service.AppendToRun.
+func (c *serviceClient) AppendToRun(ctx context.Context, req *v1.AppendToRunRequest) (*v1.AppendToRunResponse, error) {
+	response, err := c.appendToRun.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -325,15 +274,6 @@ func (c *serviceClient) SetRunAttributes(ctx context.Context, req *v1.SetRunAttr
 	return nil, err
 }
 
-// DeleteEmptySeries calls streamvis.v1.Service.DeleteEmptySeries.
-func (c *serviceClient) DeleteEmptySeries(ctx context.Context, req *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error) {
-	response, err := c.deleteEmptySeries.CallUnary(ctx, connect.NewRequest(req))
-	if response != nil {
-		return response.Msg, err
-	}
-	return nil, err
-}
-
 // AddRunTags calls streamvis.v1.Service.AddRunTags.
 func (c *serviceClient) AddRunTags(ctx context.Context, req *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error) {
 	response, err := c.addRunTags.CallUnary(ctx, connect.NewRequest(req))
@@ -350,11 +290,6 @@ func (c *serviceClient) DeleteRunTag(ctx context.Context, req *v1.DeleteRunTagRe
 		return response.Msg, err
 	}
 	return nil, err
-}
-
-// ListSeries calls streamvis.v1.Service.ListSeries.
-func (c *serviceClient) ListSeries(ctx context.Context, req *v1.ListSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error) {
-	return c.listSeries.CallServerStream(ctx, connect.NewRequest(req))
 }
 
 // ListFields calls streamvis.v1.Service.ListFields.
@@ -386,11 +321,6 @@ func (c *serviceClient) ListCommonAttributes(ctx context.Context, req *v1.ListCo
 	return c.listCommonAttributes.CallServerStream(ctx, connect.NewRequest(req))
 }
 
-// ListCommonSeries calls streamvis.v1.Service.ListCommonSeries.
-func (c *serviceClient) ListCommonSeries(ctx context.Context, req *v1.ListCommonSeriesRequest) (*connect.ServerStreamForClient[v1.Series], error) {
-	return c.listCommonSeries.CallServerStream(ctx, connect.NewRequest(req))
-}
-
 // ListStartedAt calls streamvis.v1.Service.ListStartedAt.
 func (c *serviceClient) ListStartedAt(ctx context.Context, req *v1.ListStartedAtRequest) (*connect.ServerStreamForClient[v1.RunStartTime], error) {
 	return c.listStartedAt.CallServerStream(ctx, connect.NewRequest(req))
@@ -409,22 +339,18 @@ func (c *serviceClient) ListAttributeValues(ctx context.Context, req *v1.ListAtt
 // ServiceHandler is an implementation of the streamvis.v1.Service service.
 type ServiceHandler interface {
 	CreateField(context.Context, *v1.CreateFieldRequest) (*v1.CreateFieldResponse, error)
-	CreateSeries(context.Context, *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error)
-	AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error)
+	AppendToRun(context.Context, *v1.AppendToRunRequest) (*v1.AppendToRunResponse, error)
 	CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error)
 	ReplaceRun(context.Context, *v1.ReplaceRunRequest) (*v1.ReplaceRunResponse, error)
 	DeleteRun(context.Context, *v1.DeleteRunRequest) (*v1.DeleteRunResponse, error)
 	SetRunAttributes(context.Context, *v1.SetRunAttributesRequest) (*v1.SetRunAttributesResponse, error)
-	DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error)
 	AddRunTags(context.Context, *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error)
 	DeleteRunTag(context.Context, *v1.DeleteRunTagRequest) (*v1.DeleteRunTagResponse, error)
-	ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error
 	ListRuns(context.Context, *v1.ListRunsRequest, *connect.ServerStream[v1.Run]) error
 	GetEndChunkId(context.Context, *v1.GetEndChunkIdRequest) (*v1.GetEndChunkIdResponse, error)
 	QueryRunData(context.Context, *v1.QueryRunDataRequest, *connect.ServerStream[v1.RunChunks]) error
 	ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error
-	ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error
 	ListStartedAt(context.Context, *v1.ListStartedAtRequest, *connect.ServerStream[v1.RunStartTime]) error
 	ListTags(context.Context, *v1.ListTagsRequest, *connect.ServerStream[v1.TagValue]) error
 	ListAttributeValues(context.Context, *v1.ListAttributeValuesRequest, *connect.ServerStream[v1.AttributeValues]) error
@@ -443,16 +369,10 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("CreateField")),
 		connect.WithHandlerOptions(opts...),
 	)
-	serviceCreateSeriesHandler := connect.NewUnaryHandlerSimple(
-		ServiceCreateSeriesProcedure,
-		svc.CreateSeries,
-		connect.WithSchema(serviceMethods.ByName("CreateSeries")),
-		connect.WithHandlerOptions(opts...),
-	)
-	serviceAppendToSeriesHandler := connect.NewUnaryHandlerSimple(
-		ServiceAppendToSeriesProcedure,
-		svc.AppendToSeries,
-		connect.WithSchema(serviceMethods.ByName("AppendToSeries")),
+	serviceAppendToRunHandler := connect.NewUnaryHandlerSimple(
+		ServiceAppendToRunProcedure,
+		svc.AppendToRun,
+		connect.WithSchema(serviceMethods.ByName("AppendToRun")),
 		connect.WithHandlerOptions(opts...),
 	)
 	serviceCreateRunHandler := connect.NewUnaryHandlerSimple(
@@ -479,12 +399,6 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("SetRunAttributes")),
 		connect.WithHandlerOptions(opts...),
 	)
-	serviceDeleteEmptySeriesHandler := connect.NewUnaryHandlerSimple(
-		ServiceDeleteEmptySeriesProcedure,
-		svc.DeleteEmptySeries,
-		connect.WithSchema(serviceMethods.ByName("DeleteEmptySeries")),
-		connect.WithHandlerOptions(opts...),
-	)
 	serviceAddRunTagsHandler := connect.NewUnaryHandlerSimple(
 		ServiceAddRunTagsProcedure,
 		svc.AddRunTags,
@@ -495,12 +409,6 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		ServiceDeleteRunTagProcedure,
 		svc.DeleteRunTag,
 		connect.WithSchema(serviceMethods.ByName("DeleteRunTag")),
-		connect.WithHandlerOptions(opts...),
-	)
-	serviceListSeriesHandler := connect.NewServerStreamHandlerSimple(
-		ServiceListSeriesProcedure,
-		svc.ListSeries,
-		connect.WithSchema(serviceMethods.ByName("ListSeries")),
 		connect.WithHandlerOptions(opts...),
 	)
 	serviceListFieldsHandler := connect.NewServerStreamHandlerSimple(
@@ -533,12 +441,6 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		connect.WithSchema(serviceMethods.ByName("ListCommonAttributes")),
 		connect.WithHandlerOptions(opts...),
 	)
-	serviceListCommonSeriesHandler := connect.NewServerStreamHandlerSimple(
-		ServiceListCommonSeriesProcedure,
-		svc.ListCommonSeries,
-		connect.WithSchema(serviceMethods.ByName("ListCommonSeries")),
-		connect.WithHandlerOptions(opts...),
-	)
 	serviceListStartedAtHandler := connect.NewServerStreamHandlerSimple(
 		ServiceListStartedAtProcedure,
 		svc.ListStartedAt,
@@ -561,10 +463,8 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 		switch r.URL.Path {
 		case ServiceCreateFieldProcedure:
 			serviceCreateFieldHandler.ServeHTTP(w, r)
-		case ServiceCreateSeriesProcedure:
-			serviceCreateSeriesHandler.ServeHTTP(w, r)
-		case ServiceAppendToSeriesProcedure:
-			serviceAppendToSeriesHandler.ServeHTTP(w, r)
+		case ServiceAppendToRunProcedure:
+			serviceAppendToRunHandler.ServeHTTP(w, r)
 		case ServiceCreateRunProcedure:
 			serviceCreateRunHandler.ServeHTTP(w, r)
 		case ServiceReplaceRunProcedure:
@@ -573,14 +473,10 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceDeleteRunHandler.ServeHTTP(w, r)
 		case ServiceSetRunAttributesProcedure:
 			serviceSetRunAttributesHandler.ServeHTTP(w, r)
-		case ServiceDeleteEmptySeriesProcedure:
-			serviceDeleteEmptySeriesHandler.ServeHTTP(w, r)
 		case ServiceAddRunTagsProcedure:
 			serviceAddRunTagsHandler.ServeHTTP(w, r)
 		case ServiceDeleteRunTagProcedure:
 			serviceDeleteRunTagHandler.ServeHTTP(w, r)
-		case ServiceListSeriesProcedure:
-			serviceListSeriesHandler.ServeHTTP(w, r)
 		case ServiceListFieldsProcedure:
 			serviceListFieldsHandler.ServeHTTP(w, r)
 		case ServiceListRunsProcedure:
@@ -591,8 +487,6 @@ func NewServiceHandler(svc ServiceHandler, opts ...connect.HandlerOption) (strin
 			serviceQueryRunDataHandler.ServeHTTP(w, r)
 		case ServiceListCommonAttributesProcedure:
 			serviceListCommonAttributesHandler.ServeHTTP(w, r)
-		case ServiceListCommonSeriesProcedure:
-			serviceListCommonSeriesHandler.ServeHTTP(w, r)
 		case ServiceListStartedAtProcedure:
 			serviceListStartedAtHandler.ServeHTTP(w, r)
 		case ServiceListTagsProcedure:
@@ -612,12 +506,8 @@ func (UnimplementedServiceHandler) CreateField(context.Context, *v1.CreateFieldR
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.CreateField is not implemented"))
 }
 
-func (UnimplementedServiceHandler) CreateSeries(context.Context, *v1.CreateSeriesRequest) (*v1.CreateSeriesResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.CreateSeries is not implemented"))
-}
-
-func (UnimplementedServiceHandler) AppendToSeries(context.Context, *v1.AppendToSeriesRequest) (*v1.AppendToSeriesResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AppendToSeries is not implemented"))
+func (UnimplementedServiceHandler) AppendToRun(context.Context, *v1.AppendToRunRequest) (*v1.AppendToRunResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AppendToRun is not implemented"))
 }
 
 func (UnimplementedServiceHandler) CreateRun(context.Context, *v1.CreateRunRequest) (*v1.CreateRunResponse, error) {
@@ -636,20 +526,12 @@ func (UnimplementedServiceHandler) SetRunAttributes(context.Context, *v1.SetRunA
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.SetRunAttributes is not implemented"))
 }
 
-func (UnimplementedServiceHandler) DeleteEmptySeries(context.Context, *v1.DeleteEmptySeriesRequest) (*v1.DeleteEmptySeriesResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.DeleteEmptySeries is not implemented"))
-}
-
 func (UnimplementedServiceHandler) AddRunTags(context.Context, *v1.AddRunTagsRequest) (*v1.AddRunTagsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.AddRunTags is not implemented"))
 }
 
 func (UnimplementedServiceHandler) DeleteRunTag(context.Context, *v1.DeleteRunTagRequest) (*v1.DeleteRunTagResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.DeleteRunTag is not implemented"))
-}
-
-func (UnimplementedServiceHandler) ListSeries(context.Context, *v1.ListSeriesRequest, *connect.ServerStream[v1.Series]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListSeries is not implemented"))
 }
 
 func (UnimplementedServiceHandler) ListFields(context.Context, *v1.ListFieldsRequest, *connect.ServerStream[v1.Field]) error {
@@ -670,10 +552,6 @@ func (UnimplementedServiceHandler) QueryRunData(context.Context, *v1.QueryRunDat
 
 func (UnimplementedServiceHandler) ListCommonAttributes(context.Context, *v1.ListCommonAttributesRequest, *connect.ServerStream[v1.Field]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListCommonAttributes is not implemented"))
-}
-
-func (UnimplementedServiceHandler) ListCommonSeries(context.Context, *v1.ListCommonSeriesRequest, *connect.ServerStream[v1.Series]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("streamvis.v1.Service.ListCommonSeries is not implemented"))
 }
 
 func (UnimplementedServiceHandler) ListStartedAt(context.Context, *v1.ListStartedAtRequest, *connect.ServerStream[v1.RunStartTime]) error {

@@ -1,6 +1,3 @@
-\set QUIET 1
-
-
 \echo 'create field_typ'
 CREATE TYPE field_typ AS (
   handle UUID,
@@ -8,23 +5,6 @@ CREATE TYPE field_typ AS (
   data_type field_data_typ,
   description TEXT
 );
-
-\echo 'create coord_typ'
-CREATE TYPE coord_typ AS (
-  coord_handle UUID,
-  field_handle UUID,
-  name TEXT,
-  data_type field_data_typ,
-  description TEXT
-);
-
-\echo 'create series_typ'
-CREATE TYPE series_typ AS (
-	handle UUID,
-	name TEXT,
-	coords coord_typ[]
-);
-
 
 \echo 'create full_field_value_typ'
 CREATE TYPE full_field_value_typ AS (
@@ -154,7 +134,4 @@ BEGIN
   END CASE;
 END;
 $$;
-
-
-\set QUIET 0
 

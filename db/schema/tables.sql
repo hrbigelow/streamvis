@@ -1,13 +1,17 @@
 \set QUIET 1
-/* A series is conceptually an unordered set of points, each point having the same
- * set of coordinates.
- */
+
 \echo 'create table series'
 CREATE TABLE series (
-  id SERIAL PRIMARY KEY,
-  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  name TEXT NOT NULL UNIQUE
+  id SERIAL PRIMARY KEY
 );
+
+\echo 'create table field_series'
+CREATE TABLE field_series (
+  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
+  series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE, 
+  PRIMARY KEY (field_id, series_id)
+);
+
 
 \echo 'create field_data_typ'
 CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'text', 'bool');
@@ -25,17 +29,6 @@ CREATE TABLE field (
   description TEXT 
 );
 
-/* Represents a member of a conceptual 'Point', which is the data type of a given
- * series
-*/
-\echo 'create table coord'
-CREATE TABLE coord (
-  id SERIAL PRIMARY KEY,
-  handle UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
-  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
-  UNIQUE (series_id, field_id)
-);
 
 /*
 An entry in the run table describes the notion of a "run" in the sense of
@@ -84,7 +77,7 @@ CREATE TABLE chunk (
   num_points INT NOT NULL
 );
 
-CREATE INDEX idx_chunk_series_run ON chunk(series_id, run_id);
+CREATE INDEX idx_chunk_run_series ON chunk(run_id, series_id);
 
 /* enc_typ encodes an array of values of one type - either FLOAT, INT, BOOLEAN, or
  * TEXT, with the following index decoding:
@@ -116,17 +109,15 @@ CREATE TYPE enc_typ AS (
 );
 
 
-/* Holds one chunk of data for a given coordinate
- */
-\echo 'create table coord_data'
-CREATE TABLE coord_data (
-  coord_id INT NOT NULL REFERENCES coord(id) ON DELETE CASCADE,
+-- Holds one chunk of data for a given field 
+\echo 'create table chunk_data'
+CREATE TABLE chunk_data (
   chunk_id BIGINT NOT NULL REFERENCES chunk(id) ON DELETE CASCADE,
+  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
   enc_vals enc_typ NOT NULL,
-  PRIMARY KEY (coord_id, chunk_id)
+  PRIMARY KEY (chunk_id, field_id)
 );
 
-CREATE INDEX idx_coord_data__chunk ON coord_data(chunk_id); 
 
 /*
 Holds locks to prevent resource contention

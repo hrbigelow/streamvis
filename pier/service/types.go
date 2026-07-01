@@ -253,58 +253,11 @@ func (ft Field) toProtobuf() (pb.Field, error) {
 	return msg, nil
 }
 
-type Coord struct {
-	CoordHandle uuid.UUID `db:"coord_handle"`
-	FieldHandle uuid.UUID `db:"field_handle"`
-	Name        string    `db:"name"`
-	DataType    string    `db:"data_type"`
-	Description string    `db:"description"`
-}
-
-func (co Coord) toProtobuf() (pb.Coord, error) {
-	dataType, err := dataTypeToProtobuf(co.DataType)
-	if err != nil {
-		return pb.Coord{}, err
-	}
-
-	msg := pb.Coord{
-		CoordHandle: co.CoordHandle.String(),
-		FieldHandle: co.FieldHandle.String(),
-		Name:        co.Name,
-		DataType:    dataType,
-		Description: co.Description,
-	}
-	return msg, nil
-}
-
-type Series struct {
-	Handle uuid.UUID `db:"handle"`
-	Name   string    `db:"name"`
-	Coords []*Coord  `db:"coords"`
-}
-
-func (sr Series) toProtobuf() (pb.Series, error) {
-	msg := pb.Series{
-		Name:   sr.Name,
-		Handle: sr.Handle.String(),
-	}
-	msg.Coords = make([]*pb.Coord, len(sr.Coords))
-	for i, coord := range sr.Coords {
-		pbcoord, err := coord.toProtobuf()
-		if err != nil {
-			return msg, err
-		}
-		msg.Coords[i] = &pbcoord
-	}
-	return msg, nil
-}
-
 type Run struct {
 	Handle    uuid.UUID         `db:"handle"`
 	Tags      []string          `db:"tags"`
 	StartedAt time.Time         `db:"started_at"`
 	Attrs     []*FullFieldValue `db:"attrs"`
-	Series    []*Series         `db:"series"`
 }
 
 func (rr Run) toProtobuf() (pb.Run, error) {
@@ -321,15 +274,6 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 		}
 		msg.Attrs[attr.Name] = &pbvalue
 	}
-	msg.Series = make(map[string]*pb.Series)
-	for _, series := range rr.Series {
-		pbvalue, err := series.toProtobuf()
-		if err != nil {
-			return pb.Run{}, err
-		}
-		msg.Series[series.Name] = &pbvalue
-	}
-
 	return msg, nil
 }
 
@@ -430,8 +374,8 @@ func NewRunFilter(msg *pb.RunFilter) (*RunFilter, error) {
 }
 
 type WindowSpec struct {
-	GroupCoordHandles []uuid.UUID
-	OrderCoordHandle  uuid.UUID
+	GroupFieldHandles []uuid.UUID
+	OrderFieldHandle  uuid.UUID
 	Size              uint32
 	Stride            uint32
 }
@@ -440,20 +384,20 @@ func NewWindowSpec(msg *pb.WindowSpec) (*WindowSpec, error) {
 	if msg == nil {
 		return nil, nil
 	}
-	groupCoordHandles, err := parseUUIDs(msg.GroupCoordHandles, "GroupCoordHandles")
+	groupFieldHandles, err := parseUUIDs(msg.GroupFieldHandles, "GroupFieldHandles")
 	if err != nil {
 		return nil, fmt.Errorf("Invalid UUIDs: %v", err)
 	}
-	orderCoordHandle, err := uuid.Parse(msg.OrderCoordHandle)
+	orderFieldHandle, err := uuid.Parse(msg.OrderFieldHandle)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid orderCoordHandle: %v", err)
+		return nil, fmt.Errorf("Invalid orderFieldHandle: %v", err)
 	}
 	if msg.Size == 0 || msg.Stride == 0 {
 		return nil, fmt.Errorf("Size (=%d) and Stride (=%d) must be > 0", msg.Size, msg.Stride)
 	}
 	ws := WindowSpec{
-		GroupCoordHandles: groupCoordHandles,
-		OrderCoordHandle:  orderCoordHandle,
+		GroupFieldHandles: groupFieldHandles,
+		OrderFieldHandle:  orderFieldHandle,
 		Size:              msg.Size,
 		Stride:            msg.Stride,
 	}

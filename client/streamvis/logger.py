@@ -14,32 +14,19 @@ from . import rpc_client
 
 
 class BaseLogger:
-    def __init__(
-        self,
-        max_chunk_size: int,
-        flush_every: float,
-        dry_run: bool,
-    ):
+    def __init__(self, max_chunk_size: int, flush_every: float, dry_run: bool):
         self.dry_run = dry_run
-        self.queues = {} # series_name => Queue
-        self.array_types = {} # series_name => tuple(field_type, ...)
+        self.queues = {} # frozenset[field_name, ...] => Queue
+        self.array_types = {} # frozenset[field_name, ...] => dict[field_name, array_type] 
+        self.field_handles = {} # frozenset[field_name, ...] => tuple([field_name, handle), ...]
         self.chan = rpc_client.get_channel()
         self.stub = pb_grpc.ServiceStub(self.chan)
         self.max_chunk_size = max_chunk_size
         self.flush_every = flush_every
         self.run_handle = None
 
-    def _get_series(self):
-        self.all_series = {}
-        req = pb.ListSeriesRequest()
-        for msg in self.stub.ListSeries(req):
-            self.all_series[msg.name] = msg
-
     def _get_fields(self):
-        self.all_fields = {}
-        req = pb.ListFieldsRequest()
-        for msg in self.stub.ListFields(req):
-            self.all_fields[msg.name] = msg
+        self.all_fields = { f.name: f for f in rpc_client.list_fields(self.stub) }
 
     def _create_or_replace_run(self):
         if self.run_handle is not None:
@@ -98,91 +85,94 @@ class BaseLogger:
         req = pb.AddRunTagsRequest(run_handle=self.run_handle, tags=tags)
         _ = self.stub.AddRunTags(req)
 
-    def write(self, series_name: str, /, **field_values):
+    def write(self, **field_values):
         """
-        Append data to a series.
-        series_name: the name of the Series to be appended.  This must
-          exist in the database.  See streamvis list-series / create-series
-        fields: a dict containing values matching the field data type of Field in the Series 
-        shapes must be broadcastable to a common shape.
+        Append data to a run.
+        field_values: each key must be the name of an existing field in the database,
+        and each value must match the data type.  See:
+        streamvis list-fields | jq
+
+        Values can be Python, numpy, pytorch, jax and can be scalars, lists, or
+        multi-dimensional.  All values must be broadcastable together to one shape.
         """
         if self.dry_run:
             return
 
-        series = self.all_series.get(series_name)
-        if series is None:
-            raise RuntimeError(
-                f"Unknown series: {series_name}\n"
-                f"To see available series, run\n"
-                "streamvis list-series")
+        # check field names exist
+        for fname in field_values.keys():
+            if fname not in self.all_fields:
+                raise RuntimeError(
+                    f"attempted to write field name `{fname}`, which is not a "
+                    f"registered field.  Use streamvis list-fields | jq "
+                    f"and streamvis create-field ...")
 
-        if series_name not in self.array_types:
-            self.array_types[series_name] = names = {}
-            for arg, val in field_values.items():
-                names[arg] = dbutil.get_array_type(val)
+        fieldset = frozenset(field_values.keys())
+        _types = self.array_types.get(fieldset, None)
+        if _types is None:
+            self.array_types[fieldset] = _types = { 
+                k: dbutil.get_array_type(v) for k, v in field_values.items() 
+            }
+            self.field_handles[fieldset] = tuple((f, self.all_fields[f].handle) for f in fieldset)
 
         # check consistent types
-        _types = self.array_types[series_name]
         for arg, val in field_values.items():
             target_type = _types.get(arg, None)
             if target_type != dbutil.get_array_type(val):
                 raise RuntimeError(
-                        f"Argument {arg} previously had type {target_type}"
-                        f"but now has type {dbutil.get_array_type(val)}. "
-                        f"write must use consistent types across calls")
+                    f"Argument {arg} had array type {target_type} in previous call"
+                    f"but now has type {dbutil.get_array_type(val)}. "
+                    f"write must use consistent types across calls")
 
         # append data
         # each entry in arrays is one of (np.ndarray, jax.Array, or torch.Tensor)
-        arrays = [] # field values in Series.Field order.
-        array_types = [] # numpy, torch, or jax
+        arrays = [] 
         shapes = []
-        for coord in series.coords:
-            val = field_values.pop(coord.name, None) 
+        fnames = []
+
+        for fname, _ in self.field_handles[fieldset]:
+            val = field_values.get(fname, None)
             if val is None:
                 raise RuntimeError(
-                    f"Series {series_name} coord {coord.name} value missing from input.  "
+                    f"value for field {fname} missing from input.  "
                     f"Values given are: {', '.join(field_values.keys())}")
             try:
                 ary = dbutil.convert_to_array(val)
-                field_type = dbutil.get_element_type(ary)
-                if field_type != coord.data_type:
+                elem_type = dbutil.get_element_type(ary)
+                target_elem_type = self.all_fields.get(fname).data_type
+                if elem_type != target_elem_type:
                     raise ValueError(
-                        f"Series field type is {coord.data_type} but given {field_type}") 
+                        f"field `{fname}` is registered with element type "
+                        f"{target_elem_type} but was provided `{elem_type}`") 
 
             except ValueError as ve:
-                raise ValueError(f"Error processing value for field {coord.name}: {ve}")
+                raise ValueError(f"Error processing value for field {fname}: {ve}")
+            fnames.append(fname)
             shapes.append(dbutil.array_shape(ary))
             arrays.append(ary) 
-
-        if len(field_values) != 0:
-            raise RuntimeError(
-                f"Value provided for field names {', '.join(field_values.keys())} "
-                f"which are not fields of series {series_name}")
 
         try:
             bcast_shape = np.broadcast_shapes(*shapes)
         except ValueError as ve:
-            z = zip(series.coords, shapes)
             raise RuntimeError(
-                    f"Field data were not broadcastable: "
-                    ", ".join(f"{c.name}: {sh}" for c, sh in z))
+                f"Field data were not broadcastable: "
+                ", ".join(f"{fname}: {sh}" for fname, sh in zip(fnames, shapes)))
 
-        if series_name not in self.queues:
-            self.queues[series_name] = asyncio.Queue() 
+        queue = self.queues.get(fieldset, None)
+        if queue is None:
+            self.queues[fieldset] = queue = asyncio.Queue() 
 
         points = SeriesValues(tuple(arrays), bcast_shape)
-        self.queues[series_name].put_nowait(points)
+        queue.put_nowait(points)
 
-    def _flush_all_series(self) -> bool:
+    def _flush_all(self) -> bool:
         all_done = True 
-        for series_name in self.queues.keys():
-            queue = self.queues[series_name]
-            series = self.all_series[series_name]
-            done = self._flush_series(series, queue)
+        for fieldset, queue in self.queues.items():
+            handles = tuple(h for _, h in self.field_handles[fieldset])
+            done = self._flush(handles, queue)
             all_done = all_done and done
         return all_done 
 
-    def _flush_series(self, series: pb.Series, queue: asyncio.Queue) -> bool:
+    def _flush(self, handles: tuple[str], queue: asyncio.Queue) -> bool:
         current_chunk = []
         current_shape = None
         current_size = 0
@@ -199,7 +189,7 @@ class BaseLogger:
                     or (current_size + item.num_points() > self.max_chunk_size))
 
             """
-            print(f"in _flush_series with {series.name} and "
+            print(f"in _flush with "
                   f"current_shape: {current_shape}, "
                   f"item.shape(): {item.shape()}, "
                   f"current_size: {current_size}, "
@@ -208,7 +198,7 @@ class BaseLogger:
             """
 
             if should_process and current_chunk:
-                self._process_chunk(current_chunk, series)
+                self._process_chunk(handles, current_chunk)
                 current_chunk = []
                 current_shape = None
                 current_size = 0
@@ -221,18 +211,14 @@ class BaseLogger:
             current_size += item.num_points() 
 
         # now, process if anything is there to process
-        # print(f"{series.name}: {len(current_chunk)}")
+        # print(f"{len(current_chunk)}")
         if len(current_chunk) > 0:
-            self._process_chunk(current_chunk, series)
+            self._process_chunk(handles, current_chunk)
 
         return finished 
 
-    def _process_chunk(
-            self, 
-            chunk: list[SeriesValues], 
-            series: pb.Series,
-            ):
-        req = pb.AppendToSeriesRequest(series_handle=series.handle, run_handle=self.run_handle)
+    def _process_chunk(self, handles: tuple[str], chunk: list[SeriesValues]):
+        req = pb.AppendToRunRequest(run_handle=self.run_handle)
         # print("before stack_series_values:")
         # for s in chunk:
             # print(s)
@@ -241,14 +227,14 @@ class BaseLogger:
         # print(chunk)
         field_datas = chunk.to_exported()
 
-        for coord, ary in zip(series.coords, field_datas):
-            msg = dbutil.encode_array(coord.field_handle, ary)
+        for handle, ary in zip(handles, field_datas):
+            msg = dbutil.encode_array(handle, ary)
             req.field_vals.append(msg)
 
         try:
-            resp = self.stub.AppendToSeries(req)
+            resp = self.stub.AppendToRun(req)
         except Exception as ex:
-            print(f"Got exception {ex} calling AppendToSeries. Ignoring!")
+            print(f"Got exception {ex} calling AppendToRun. Ignoring!")
 
 
 class AsyncDataLogger(BaseLogger):
@@ -267,7 +253,7 @@ class AsyncDataLogger(BaseLogger):
         if self.dry_run:
             return
         while True:
-            if not self._flush_all_series():
+            if not self._flush_all():
                 if self.exiting:
                     break
             try:
@@ -282,7 +268,6 @@ class AsyncDataLogger(BaseLogger):
         self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
         self._create_or_replace_run()
-        self._get_series()
         self._get_fields()
         self._task_group.create_task(self.flush_buffer())
         return self
@@ -297,20 +282,20 @@ class AsyncDataLogger(BaseLogger):
         self.chan.close()
         self._task_group = None
 
-    async def write(self, series_name: str, /, **data):
+    async def write(self, **data):
         """The default write function for the async logger.
 
         If using this instead of write_sync, there is no need to call yield_to_flush"""
-        super().write(series_name, **data)
+        super().write(**data)
         await asyncio.sleep(0) # explicit yield
 
-    def write_sync(self, series_name: str, /, **data):
+    def write_sync(self, **data):
         """A convenience function to avoid making every function async.
 
         If using write_sync, you must periodically call yield_to_flush() to allow
         the flush task to wake up.
         """
-        super().write(series_name, **data)
+        super().write(**data)
 
     async def yield_to_flush(self):
         """An explicit yield function to allow buffer flush.
@@ -337,7 +322,6 @@ class DataLogger(BaseLogger):
         if self.dry_run:
             return
         self._create_or_replace_run()
-        self._get_series()
         self._get_fields()
         self._flush_thread.start()
 
@@ -345,7 +329,7 @@ class DataLogger(BaseLogger):
         if self.dry_run:
             return
         while True:
-            if not super()._flush_all_series():
+            if not super()._flush_all():
                 if self.exiting:
                     break
             time.sleep(self.flush_every)
@@ -358,6 +342,6 @@ class DataLogger(BaseLogger):
             queue.put_nowait(None)
         self._flush_thread.join()
 
-    def write(self, series_name: str, /, **data):
-        super().write(series_name, **data)
+    def write(self, **data):
+        super().write(**data)
 

@@ -18,10 +18,4 @@ DROP TYPE IF EXISTS full_field_value_typ;
 \echo 'drop field_typ'
 DROP TYPE IF EXISTS field_typ;
 
-\echo 'drop series_typ'
-DROP TYPE IF EXISTS series_typ;
-
-\echo 'drop coord_typ'
-DROP TYPE IF EXISTS coord_typ;
-
 \set QUIET 0

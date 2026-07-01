@@ -59,22 +59,21 @@ class ColumnFilter:
 class PlotOpts:
     """
     Specifies how series data (a set of points of with the same structure) is to be
-    plotted.  This process consists of:
-    1.  Partitioning the points into distinct glyphs (lines, for now)
-    2.  Ordering the points within a glyph (neighbor points connected by line segment)
-    3.  Assigning the main and secondary shade of color
-    4.  
+    plotted.  Some rules: 
+    1. series (and series2) each get their own DataFrame
+    2. both DataFrames are augmented with the run attributes
+    3. all non-spatial axes (non x, y, y2) to bind the same columns for every DataFrame
     """
     ty: PlotType 
-    series: str
 
     fig_width: int
     fig_height: int
     dpi: int
     legend_at: str
 
-    x: str # x-axis field name
-    y: str # y-axis field name
+    x: str # x-axis field name (must be present in series and series2 if provided)
+    y: str # y-axis field name (must be present in series)
+    y2: str | None # y-axis field name (bound to series2 if provided, otherwise bound to series)
 
     # fields to assign the main color group
     color_main: list[str] = field(default_factory=list) 
@@ -121,6 +120,26 @@ class PlotOpts:
     c4: ColumnFilter = None
     c5: ColumnFilter = None
 
+    series_fields = set()
+
+    def _normalize_prop(self, prop: str):
+        propval = getattr(self, prop)
+        if propval is None:
+            return
+
+        def maybe_convert(propval):
+            if propval.startswith("s:"):
+                self.series_fields.add(propval[2:])
+                return propval[2:]
+            return propval
+
+        if isinstance(propval, str):
+            propval = maybe_convert(propval)
+            setattr(self, prop, propval)
+        else:
+            propval = [maybe_convert(pv) for pv in propval]
+            setattr(self, prop, propval)
+
     def __post_init__(self):
         self.ty = PlotType(self.ty)
         if self.after is not None:
@@ -131,12 +150,22 @@ class PlotOpts:
         if self.order is None:
             self.order = self.x
 
+        for p in ("x", "y", "y2", "add_group", "order", "color_main", "color_sub",
+                  "label", "slider", "tooltip"): 
+            self._normalize_prop(p)
+
+
+
     @property
     def field_names(self):
         s = set((self.x, self.y, *self.color_main, *self.color_sub, 
                  *self.add_group, *self.label, self.order, *self.slider))
         s.discard(None)
         return list(s)
+
+    @property
+    def attr_fields(self):
+        return tuple(af for af in self.field_names if af not in self.series_fields)
 
     @property
     def glyph_fields(self):
@@ -236,7 +265,7 @@ class PlotManager:
     def __init__(self, opts: PlotOpts):
         self.opts = opts
         self.data_req: pb.QueryRunDataRequest = None
-        self.data_info: rpc_client.QueryRunInfo = None
+        self.all_fields: dict[str, pb.Field] = None
         self.df: pd.DataFrame = None
 
         self.runs = {} # handle => pb.Run
@@ -258,9 +287,7 @@ class PlotManager:
                    pb.FIELD_DATA_TYPE_TEXT: "string",
                    pb.FIELD_DATA_TYPE_BOOL: "boolean" }
 
-        series_types = {
-                name: pbmap[f.data_type] for name, f in
-                self.data_info.field_name_map.items() }
+        series_types = { name: pbmap[f.data_type] for name, f in self.all_fields.items() }
         series_types[STARTED_AT] = "Int64"
         series_types[RUN_HANDLE] = "category"
 
@@ -287,8 +314,6 @@ class PlotManager:
         run_req = pb.ListRunsRequest(run_filter=self.data_req.run_filter)
         runs = { run.handle: run for run in stub.ListRuns(run_req) }
         frames = []
-        # import pdb
-        # pdb.set_trace()
 
         for data in stub.QueryRunData(self.data_req):
             run = runs.get(data.run_handle)
@@ -296,8 +321,8 @@ class PlotManager:
                 raise RuntimeError(f"Couldn't get run metadata")
 
             arrays = dbutil.decode_runchunk(data)
-            d = dict(zip(self.data_info.coord_names, arrays))
-            attrs = { n: rpc_client.get_oneof(run.attrs[n]) for n in self.data_info.attr_names }
+            d = dict(zip(self.opts.series_fields, arrays))
+            attrs = { n: rpc_client.get_oneof(run.attrs[n]) for n in self.opts.attr_fields }
             d[STARTED_AT] = run.started_at.seconds
             d[RUN_HANDLE] = run.handle
             d.update(attrs)
@@ -308,13 +333,9 @@ class PlotManager:
 
     def prepare(self, stub: ServiceStub):
         o = self.opts
-        req, info = rpc_client.get_query_run_data_request(
-            stub, o.series, o.field_names, o.tags, o.match_all, o.neg_tags,
-            o.neg_match_all, o.after, o.until)
-        if o.use_win_query:
-            win_spec = rpc_client.get_window_spec(
-                info, o.win_groups, o.order, o.win_size, o.stride)
-            req.window_spec.CopyFrom(win_spec)
+        req = rpc_client.get_query_run_data_request(
+            stub, o.series_fields, o.tags, o.match_all, o.neg_tags, o.neg_match_all,
+            o.after, o.until)
 
         for f in self.opts.filters:
             if f.name is None:
@@ -323,11 +344,12 @@ class PlotManager:
             req.run_filter.attribute_filters.append(af)
 
         self.data_req = req
-        self.data_info = info 
+        self.all_fields = { f.name: f for f in rpc_client.list_fields(stub) }
+
         self.df = self.new_dataframe()
 
-        xdesc = info.field_name_map[self.opts.x].description
-        ydesc = info.field_name_map[self.opts.y].description
+        xdesc = self.all_fields[self.opts.x].description
+        ydesc = self.all_fields[self.opts.y].description
 
         plt.ion()
         self.fig, self.ax = plt.subplots(
@@ -380,8 +402,9 @@ class PlotManager:
             else:
                 self.df = self.df[self.df[cf.name].isin(cf.vals)]
 
-        self.df.sort_values(by=[STARTED_AT, *self.opts.glyph_fields, self.opts.order],
-                            ascending=True, inplace=True)
+        self.df.sort_values(
+            by=[STARTED_AT, *self.opts.glyph_fields, self.opts.order],
+            ascending=True, inplace=True)
 
         self.group_df = DataFrameWrapper(self.df, RUN_HANDLE, *self.opts.glyph_fields)
 
@@ -398,7 +421,6 @@ class PlotManager:
 
     def _refresh_glyphs(self):
         # update
-        plot_groups = list(self.glyphs.keys())
         color_df = DataFrameWrapper(self.df, *self.opts.color_main, *self.opts.color_sub)
         base_inds = tuple(self.group_df.fields.index(f) for f in self.opts.color_main)
         sub_inds = tuple(self.group_df.fields.index(f) for f in self.opts.color_sub)
@@ -426,7 +448,7 @@ class PlotManager:
             self._cursor.remove()
 
         for glyph_id, data in self.group_df:
-            if glyph_id not in plot_groups:
+            if glyph_id not in self.glyphs:
                 color = get_glyph_color(glyph_id)
                 tooltip_label = ' '.join(glyph_id[l] for l in tooltip_label_inds)
                 self.glyphs[glyph_id], = self.ax.plot(

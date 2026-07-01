@@ -39,15 +39,10 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.CreateFieldRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateFieldResponse.FromString,
                 _registered_method=True)
-        self.CreateSeries = channel.unary_unary(
-                '/streamvis.v1.Service/CreateSeries',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesResponse.FromString,
-                _registered_method=True)
-        self.AppendToSeries = channel.unary_unary(
-                '/streamvis.v1.Service/AppendToSeries',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.FromString,
+        self.AppendToRun = channel.unary_unary(
+                '/streamvis.v1.Service/AppendToRun',
+                request_serializer=streamvis_dot_v1_dot_data__pb2.AppendToRunRequest.SerializeToString,
+                response_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToRunResponse.FromString,
                 _registered_method=True)
         self.CreateRun = channel.unary_unary(
                 '/streamvis.v1.Service/CreateRun',
@@ -69,11 +64,6 @@ class ServiceStub(object):
                 request_serializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesResponse.FromString,
                 _registered_method=True)
-        self.DeleteEmptySeries = channel.unary_unary(
-                '/streamvis.v1.Service/DeleteEmptySeries',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.FromString,
-                _registered_method=True)
         self.AddRunTags = channel.unary_unary(
                 '/streamvis.v1.Service/AddRunTags',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.AddRunTagsRequest.SerializeToString,
@@ -83,11 +73,6 @@ class ServiceStub(object):
                 '/streamvis.v1.Service/DeleteRunTag',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagResponse.FromString,
-                _registered_method=True)
-        self.ListSeries = channel.unary_stream(
-                '/streamvis.v1.Service/ListSeries',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.Series.FromString,
                 _registered_method=True)
         self.ListFields = channel.unary_stream(
                 '/streamvis.v1.Service/ListFields',
@@ -113,11 +98,6 @@ class ServiceStub(object):
                 '/streamvis.v1.Service/ListCommonAttributes',
                 request_serializer=streamvis_dot_v1_dot_data__pb2.ListCommonAttributesRequest.SerializeToString,
                 response_deserializer=streamvis_dot_v1_dot_data__pb2.Field.FromString,
-                _registered_method=True)
-        self.ListCommonSeries = channel.unary_stream(
-                '/streamvis.v1.Service/ListCommonSeries',
-                request_serializer=streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.SerializeToString,
-                response_deserializer=streamvis_dot_v1_dot_data__pb2.Series.FromString,
                 _registered_method=True)
         self.ListStartedAt = channel.unary_stream(
                 '/streamvis.v1.Service/ListStartedAt',
@@ -145,13 +125,7 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def CreateSeries(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def AppendToSeries(self, request, context):
+    def AppendToRun(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -181,12 +155,6 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def DeleteEmptySeries(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def AddRunTags(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -194,12 +162,6 @@ class ServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def DeleteRunTag(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ListSeries(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -235,12 +197,6 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ListCommonSeries(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def ListStartedAt(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -267,15 +223,10 @@ def add_ServiceServicer_to_server(servicer, server):
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateFieldRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.CreateFieldResponse.SerializeToString,
             ),
-            'CreateSeries': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateSeries,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.CreateSeriesResponse.SerializeToString,
-            ),
-            'AppendToSeries': grpc.unary_unary_rpc_method_handler(
-                    servicer.AppendToSeries,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.SerializeToString,
+            'AppendToRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.AppendToRun,
+                    request_deserializer=streamvis_dot_v1_dot_data__pb2.AppendToRunRequest.FromString,
+                    response_serializer=streamvis_dot_v1_dot_data__pb2.AppendToRunResponse.SerializeToString,
             ),
             'CreateRun': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateRun,
@@ -297,11 +248,6 @@ def add_ServiceServicer_to_server(servicer, server):
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.SetRunAttributesResponse.SerializeToString,
             ),
-            'DeleteEmptySeries': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteEmptySeries,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.SerializeToString,
-            ),
             'AddRunTags': grpc.unary_unary_rpc_method_handler(
                     servicer.AddRunTags,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.AddRunTagsRequest.FromString,
@@ -311,11 +257,6 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.DeleteRunTag,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.DeleteRunTagResponse.SerializeToString,
-            ),
-            'ListSeries': grpc.unary_stream_rpc_method_handler(
-                    servicer.ListSeries,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.Series.SerializeToString,
             ),
             'ListFields': grpc.unary_stream_rpc_method_handler(
                     servicer.ListFields,
@@ -341,11 +282,6 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.ListCommonAttributes,
                     request_deserializer=streamvis_dot_v1_dot_data__pb2.ListCommonAttributesRequest.FromString,
                     response_serializer=streamvis_dot_v1_dot_data__pb2.Field.SerializeToString,
-            ),
-            'ListCommonSeries': grpc.unary_stream_rpc_method_handler(
-                    servicer.ListCommonSeries,
-                    request_deserializer=streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.FromString,
-                    response_serializer=streamvis_dot_v1_dot_data__pb2.Series.SerializeToString,
             ),
             'ListStartedAt': grpc.unary_stream_rpc_method_handler(
                     servicer.ListStartedAt,
@@ -401,7 +337,7 @@ class Service(object):
             _registered_method=True)
 
     @staticmethod
-    def CreateSeries(request,
+    def AppendToRun(request,
             target,
             options=(),
             channel_credentials=None,
@@ -414,36 +350,9 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/streamvis.v1.Service/CreateSeries',
-            streamvis_dot_v1_dot_data__pb2.CreateSeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.CreateSeriesResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def AppendToSeries(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/streamvis.v1.Service/AppendToSeries',
-            streamvis_dot_v1_dot_data__pb2.AppendToSeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.AppendToSeriesResponse.FromString,
+            '/streamvis.v1.Service/AppendToRun',
+            streamvis_dot_v1_dot_data__pb2.AppendToRunRequest.SerializeToString,
+            streamvis_dot_v1_dot_data__pb2.AppendToRunResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -563,33 +472,6 @@ class Service(object):
             _registered_method=True)
 
     @staticmethod
-    def DeleteEmptySeries(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/streamvis.v1.Service/DeleteEmptySeries',
-            streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.DeleteEmptySeriesResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
     def AddRunTags(request,
             target,
             options=(),
@@ -633,33 +515,6 @@ class Service(object):
             '/streamvis.v1.Service/DeleteRunTag',
             streamvis_dot_v1_dot_data__pb2.DeleteRunTagRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.DeleteRunTagResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListSeries(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_stream(
-            request,
-            target,
-            '/streamvis.v1.Service/ListSeries',
-            streamvis_dot_v1_dot_data__pb2.ListSeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.Series.FromString,
             options,
             channel_credentials,
             insecure,
@@ -795,33 +650,6 @@ class Service(object):
             '/streamvis.v1.Service/ListCommonAttributes',
             streamvis_dot_v1_dot_data__pb2.ListCommonAttributesRequest.SerializeToString,
             streamvis_dot_v1_dot_data__pb2.Field.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListCommonSeries(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_stream(
-            request,
-            target,
-            '/streamvis.v1.Service/ListCommonSeries',
-            streamvis_dot_v1_dot_data__pb2.ListCommonSeriesRequest.SerializeToString,
-            streamvis_dot_v1_dot_data__pb2.Series.FromString,
             options,
             channel_credentials,
             insecure,

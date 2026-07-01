@@ -1,19 +1,11 @@
-\set QUIET 1
-
 \echo 'drop add_data_lock'
 DROP PROCEDURE IF EXISTS add_data_lock;
 
 \echo 'drop create_field'
 DROP PROCEDURE IF EXISTS create_field;
 
-\echo 'drop create_series'
-DROP PROCEDURE IF EXISTS create_series;
-
-\echo 'drop delete_empty_series'
-DROP PROCEDURE IF EXISTS delete_empty_series;
-
-\echo 'drop append_to_series'
-DROP PROCEDURE IF EXISTS append_to_series;
+\echo 'drop append_to_run'
+DROP PROCEDURE IF EXISTS append_to_run;
 
 \echo 'drop create_run'
 DROP PROCEDURE IF EXISTS create_run;
@@ -35,7 +27,4 @@ DROP PROCEDURE IF EXISTS add_run_tags;
 
 \echo 'drop delete_run_tag'
 DROP PROCEDURE IF EXISTS delete_run_tag;
-
-\set QUIET 0
-
 

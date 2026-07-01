@@ -85,39 +85,21 @@ func (s *Service) CreateField(
 	return &pb.CreateFieldResponse{}, nil
 }
 
-func (s *Service) CreateSeries(
+func (s *Service) AppendToRun(
 	ctx context.Context,
-	req *pb.CreateSeriesRequest,
-) (*pb.CreateSeriesResponse, error) {
-	err := s.store.CreateSeries(
-		ctx, req.GetSeriesName(), req.GetFieldNames(),
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
-	}
-	return &pb.CreateSeriesResponse{}, nil
-}
-
-func (s *Service) AppendToSeries(
-	ctx context.Context,
-	req *pb.AppendToSeriesRequest,
-) (*pb.AppendToSeriesResponse, error) {
-	seriesHandleUUID, err := uuid.Parse(req.GetSeriesHandle())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "SeriesHandle invalid UUID: %v", err)
-	}
+	req *pb.AppendToRunRequest,
+) (*pb.AppendToRunResponse, error) {
 	runHandleUUID, err := uuid.Parse(req.GetRunHandle())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "RunHandle invalid UUID: %v", err)
 	}
-
-	err = s.store.AppendToSeries(
-		ctx, seriesHandleUUID, runHandleUUID, req.GetFieldVals(),
+	err = s.store.AppendToRun(
+		ctx, runHandleUUID, req.GetFieldVals(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "database store error: %v", err)
 	}
-	return &pb.AppendToSeriesResponse{}, nil
+	return &pb.AppendToRunResponse{}, nil
 
 }
 
@@ -172,23 +154,6 @@ func (s *Service) SetRunAttributes(
 		return nil, err
 	}
 	return &pb.SetRunAttributesResponse{}, nil
-}
-
-func (s *Service) ListSeries(
-	ctx context.Context,
-	req *pb.ListSeriesRequest,
-	stream *connect.ServerStream[pb.Series],
-) error {
-	dataCh, errCh := s.store.ListSeries(ctx)
-	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
-}
-
-func (s *Service) DeleteEmptySeries(
-	ctx context.Context,
-	req *pb.DeleteEmptySeriesRequest,
-) (*pb.DeleteEmptySeriesResponse, error) {
-	err := s.store.DeleteEmptySeries(ctx, req.GetSeriesName())
-	return &pb.DeleteEmptySeriesResponse{}, err
 }
 
 func (s *Service) AddRunTags(
@@ -256,9 +221,9 @@ func (s *Service) QueryRunData(
 	req *pb.QueryRunDataRequest,
 	stream *connect.ServerStream[pb.RunChunks],
 ) error {
-	coordHandles, err := parseUUIDs(req.CoordHandles, "CoordHandles")
+	fieldHandles, err := parseUUIDs(req.FieldHandles, "FieldHandles")
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "CoordHandles invalid: %v", err)
+		return status.Errorf(codes.InvalidArgument, "FieldHandles invalid: %v", err)
 	}
 	windowSpec, err := NewWindowSpec(req.GetWindowSpec())
 	if err != nil {
@@ -272,7 +237,7 @@ func (s *Service) QueryRunData(
 		return status.Errorf(codes.InvalidArgument, "RunFilter is required")
 	}
 	dataCh, errCh := s.store.QueryRunData(
-		ctx, coordHandles, req.BeginChunkId, req.EndChunkId, *runFilter, windowSpec,
+		ctx, fieldHandles, req.BeginChunkId, req.EndChunkId, *runFilter, windowSpec,
 	)
 	return streamRecords[pb.RunChunks](ctx, *stream, dataCh, errCh)
 }
@@ -291,22 +256,6 @@ func (s *Service) ListCommonAttributes(
 	}
 	dataCh, errCh := s.store.ListCommonAttributes(ctx, *runFilter)
 	return streamRecords[pb.Field](ctx, *stream, dataCh, errCh)
-}
-
-func (s *Service) ListCommonSeries(
-	ctx context.Context,
-	req *pb.ListCommonSeriesRequest,
-	stream *connect.ServerStream[pb.Series],
-) error {
-	runFilter, err := NewRunFilter(req.GetRunFilter())
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "RunFilter invalid: %v", err)
-	}
-	if runFilter == nil {
-		return status.Errorf(codes.InvalidArgument, "RunFilter is required")
-	}
-	dataCh, errCh := s.store.ListCommonSeries(ctx, *runFilter)
-	return streamRecords[pb.Series](ctx, *stream, dataCh, errCh)
 }
 
 func (s *Service) ListStartedAt(
