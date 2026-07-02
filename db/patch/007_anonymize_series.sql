@@ -92,11 +92,11 @@ BEGIN;
   DROP INDEX IF EXISTS idx_chunk_series_run;
   CREATE INDEX IF NOT EXISTS idx_chunk_run_series ON chunk(run_id, series_id);
 
-  -- \echo 'drop coord_data'
-  -- DROP TABLE coord_data;
+  \echo 'drop coord_data'
+  DROP TABLE coord_data;
 
-  -- \echo 'drop coord'
-  -- DROP TABLE coord;
+  \echo 'drop coord'
+  DROP TABLE coord;
 
   \ir ../schema/types.sql
   \ir ../schema/triggers.sql
