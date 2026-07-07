@@ -49,10 +49,16 @@ BEGIN;
 
 	\ir ../teardown/types.sql
 
-  /*
+  -- These run before `DROP TABLE coord` below, so `coord` is still available
+  -- to seed field_series. The rebuilt stateless layer (append_to_run,
+  -- get_chunk_data, list_common_attributes) queries field_series, and
+  -- append_to_run does `INSERT INTO series DEFAULT VALUES`, which requires
+  -- series to have no NOT-NULL columns without defaults -- hence dropping
+  -- handle/name here. Leaving this block commented out lets the patch COMMIT
+  -- (PL/pgSQL defers name resolution) but breaks pier at runtime.
   \echo 'dropping columns from series'
-  ALTER TABLE series 
-  DROP COLUMN handle, 
+  ALTER TABLE series
+  DROP COLUMN handle,
   DROP COLUMN name;
 
   \echo 'create field_series'
@@ -66,7 +72,6 @@ BEGIN;
   INSERT INTO field_series (field_id, series_id)
   SELECT field_id, series_id
   FROM coord;
-  */
 
   \echo 'create chunk_data'
   CREATE TABLE chunk_data (
