@@ -28,6 +28,7 @@ add_group: []
 order: null
 slider: []
 label: []
+show_run_handle: false
 tooltip: []
 
 tags: []

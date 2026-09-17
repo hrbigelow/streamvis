@@ -87,6 +87,9 @@ class PlotOpts:
 
     label: list[str] = field(default_factory=list) # label field_name
 
+    # show the run handle in the label
+    show_run_handle: bool = False
+
     # additional fields besides color_main, color_sub, label for grouping
     # points into glyphs
     add_group: list[str] = field(default_factory=list) 
@@ -154,12 +157,11 @@ class PlotOpts:
                   "label", "slider", "tooltip"): 
             self._normalize_prop(p)
 
-
-
     @property
     def field_names(self):
-        s = set((self.x, self.y, *self.color_main, *self.color_sub, 
-                 *self.add_group, *self.label, self.order, *self.slider))
+        s = set((self.x, self.y, self.y2, *self.color_main, *self.color_sub, 
+                 *self.add_group, *self.label, self.order, *self.slider,
+                 *self.tooltip))
         s.discard(None)
         return list(s)
 
@@ -356,6 +358,18 @@ class PlotManager:
             figsize=(self.opts.fig_width, self.opts.fig_height), 
             dpi=self.opts.dpi)
 
+        def on_key(event):
+            if event.key == 'l':  # Press 'l' to toggle Y-axis
+                current = self.ax.get_yscale()
+                self.ax.set_yscale('log' if current == 'linear' else 'linear')
+                self.fig.canvas.draw_idle()
+            elif event.key == 'k':  # Press 'k' to toggle X-axis 
+                current = self.ax.get_xscale()
+                self.ax.set_xscale('log' if current == 'linear' else 'linear')
+                self.fig.canvas.draw_idle() 
+
+        self.fig.canvas.mpl_connect('key_press_event', on_key)
+
         self.ax.set_xlabel(xdesc, fontsize=10)
         self.ax.set_ylabel(ydesc, fontsize=10)
 
@@ -441,6 +455,10 @@ class PlotManager:
             return get_color(base_idx, sub_idx, num_sub)
 
         legend_label_inds = tuple(self.group_df.fields.index(l) for l in self.opts.label)
+        if self.opts.show_run_handle:
+            idx = self.group_df.fields.index('_run_handle')
+            legend_label_inds = (idx,) + legend_label_inds
+
         tooltip_label_inds = tuple(self.group_df.fields.index(t) for t in self.opts.tooltip)
         legend_labels = {} # label => glyph 
 

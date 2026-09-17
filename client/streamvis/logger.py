@@ -165,6 +165,8 @@ class BaseLogger:
         queue.put_nowait(points)
 
     def _flush_all(self) -> bool:
+        # Call under a lock.  This will either be threading.Lock or asyncio.Lock
+        # depending on derived class
         all_done = True 
         for fieldset, queue in self.queues.items():
             handles = tuple(h for _, h in self.field_handles[fieldset])
@@ -248,14 +250,16 @@ class AsyncDataLogger(BaseLogger):
     ):
         super().__init__(max_chunk_size, flush_every, dry_run)
         self.exiting = False
+        self.lock = asyncio.Lock()
 
     async def flush_buffer(self):
         if self.dry_run:
             return
         while True:
-            if not self._flush_all():
-                if self.exiting:
-                    break
+            async with self.lock:
+                if not self._flush_all():
+                    if self.exiting:
+                        break
             try:
                 await asyncio.sleep(self.flush_every)
             except asyncio.CancelledError:
@@ -286,23 +290,9 @@ class AsyncDataLogger(BaseLogger):
         """The default write function for the async logger.
 
         If using this instead of write_sync, there is no need to call yield_to_flush"""
-        super().write(**data)
+        async with self.lock:
+            super().write(**data)
         await asyncio.sleep(0) # explicit yield
-
-    def write_sync(self, **data):
-        """A convenience function to avoid making every function async.
-
-        If using write_sync, you must periodically call yield_to_flush() to allow
-        the flush task to wake up.
-        """
-        super().write(**data)
-
-    async def yield_to_flush(self):
-        """An explicit yield function to allow buffer flush.
-
-        If you only use write_sync, call this periodically.
-        """
-        await asyncio.sleep(0)
 
 class DataLogger(BaseLogger):
     """The synchronous data logger."""
@@ -317,6 +307,7 @@ class DataLogger(BaseLogger):
         super().__init__(max_chunk_size, flush_every, dry_run)
         self.exiting = False
         self._flush_thread = threading.Thread(target=self.flush_buffer, daemon=True)
+        self.lock = threading.Lock()
 
     def start(self):
         if self.dry_run:
@@ -329,9 +320,10 @@ class DataLogger(BaseLogger):
         if self.dry_run:
             return
         while True:
-            if not super()._flush_all():
-                if self.exiting:
-                    break
+            with self.lock:
+                if not super()._flush_all():
+                    if self.exiting:
+                        break
             time.sleep(self.flush_every)
 
     def stop(self):
@@ -343,5 +335,6 @@ class DataLogger(BaseLogger):
         self._flush_thread.join()
 
     def write(self, **data):
-        super().write(**data)
+        with self.lock:
+            super().write(**data)
 
