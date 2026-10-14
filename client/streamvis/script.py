@@ -4,7 +4,7 @@ import grpc
 import dateparser
 from streamvis.v1 import data_pb2 as pb
 from streamvis.v1 import data_pb2_grpc as pb_grpc
-from . import dbutil, rpc_client
+from . import dbutil, rpc_client, logger
 from google.protobuf import json_format 
 from typing import Any
 import json
@@ -164,6 +164,39 @@ def list_tags():
     for msg in stub.ListTags(req):
         print(msg_to_json(msg))
 
+def test_logging(*fields: str, keep: bool=False):
+    if len(fields) == 0:
+        raise RuntimeError(f"Must have at least one field")
+
+    stub = rpc_client.get_service_stub()
+    req = pb.ListFieldsRequest()
+    all_fields = { f.name: f for f in stub.ListFields(req) }
+    for field in fields:
+        if field not in all_fields:
+            raise RuntimeError(
+                f"field {field} not registered.\n"
+                f"Use one of streamvis list-fields|create-field")
+
+    defaults = {
+        pb.FieldDataType.FIELD_DATA_TYPE_INT: 0,
+        pb.FieldDataType.FIELD_DATA_TYPE_FLOAT: 0.0,
+        pb.FieldDataType.FIELD_DATA_TYPE_BOOL: False,
+        pb.FieldDataType.FIELD_DATA_TYPE_TEXT: "none"
+    }
+
+    l = logger.DataLogger()
+    l.start()
+
+    data = { fn: defaults[all_fields[fn].data_type] for fn in fields }
+
+    for _ in range(100):
+        l.write(**data)
+    l.stop()
+
+    if not keep:
+        req = pb.DeleteRunRequest(run_handle=l.run_handle)
+        res = stub.DeleteRun(req)
+
 
 COMMANDS = { 
             "create-field": create_field,
@@ -176,6 +209,7 @@ COMMANDS = {
             "list-attribute-values": list_attribute_values,
             "list-run-starts": list_run_starts,
             "list-tags": list_tags,
+            "test-logging": test_logging
             }
 
 def main():

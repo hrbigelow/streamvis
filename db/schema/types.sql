@@ -1,3 +1,6 @@
+/* types that are not persisted in tables
+*/
+
 \echo 'create field_typ'
 CREATE TYPE field_typ AS (
   handle UUID,
@@ -16,6 +19,10 @@ CREATE TYPE full_field_value_typ AS (
   text_val TEXT
 );
 
+\echo 'create field_set_typ'
+CREATE TYPE field_set_typ AS (
+  handles UUID[]
+);
 
 \echo 'create attribute_filter_typ'
 CREATE TYPE attribute_filter_typ AS (

@@ -88,7 +88,7 @@ DECLARE
   v_chunk_id BIGINT;
 BEGIN
   IF cardinality(p_field_handles) IS DISTINCT FROM cardinality(p_field_vals) THEN
-    RAISE EXCEPTION 'append_to_series: field_handles (%) and field_vals (%) length mismatch',
+    RAISE EXCEPTION 'append_to_run: field_handles (%) and field_vals (%) length mismatch',
     cardinality(p_field_handles), cardinality(p_field_vals);
   END IF;
 
@@ -101,7 +101,8 @@ BEGIN
   AND COUNT(*) = (SELECT COUNT(*) FROM field_series fs2 WHERE fs2.series_id = fs.series_id);
 
   IF NOT FOUND THEN
-    INSERT INTO series DEFAULT VALUES RETURNING id INTO v_series_id;
+    INSERT INTO series DEFAULT VALUES
+    RETURNING id into v_series_id;
     INSERT INTO field_series (field_id, series_id)
     SELECT f.id, v_series_id
     FROM field f
@@ -134,6 +135,10 @@ BEGIN
   SELECT v_chunk_id, f.id, p_field_vals[h.i] 
   FROM unnest(p_field_handles) WITH ORDINALITY AS h(fh, i)
   JOIN field f ON f.handle = h.fh;
+
+  INSERT INTO run_series (run_id, series_id)
+  VALUES (v_run_id, v_series_id)
+  ON CONFLICT DO NOTHING;
 
 END;
 $$;

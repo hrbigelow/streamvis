@@ -70,7 +70,8 @@ CREATE OR REPLACE FUNCTION list_runs(
   handle UUID,
   tags TEXT[],
   started_at TIMESTAMPTZ,
-  attrs full_field_value_typ[]
+  attrs full_field_value_typ[],
+  field_sets field_set_typ[]
 ) 
 LANGUAGE plpgsql
 AS $$
@@ -96,7 +97,8 @@ BEGIN
 		r.handle,
 		r.tags,
 		r.started_at,
-		attr_agg.attrs
+		attr_agg.attrs,
+    series_agg.field_sets
 	FROM run r
 	JOIN list_runs_internal(
 		p_attribute_filters,
@@ -117,6 +119,18 @@ BEGIN
     JOIN field f ON ra.field_id = f.id
     WHERE ra.run_id = r.id
 	) attr_agg ON true
+  LEFT JOIN LATERAL (
+    SELECT array_agg(per_series.field_set ORDER by per_series.series_id) AS field_sets
+    FROM (
+      SELECT fs.series_id, 
+             ROW(array_agg(f.handle ORDER BY f.handle))::field_set_typ field_set
+      FROM run_series rs
+      JOIN field_series fs ON rs.series_id = fs.series_id
+      JOIN field f ON fs.field_id = f.id
+      WHERE rs.run_id = r.id
+      GROUP BY fs.series_id
+    ) per_series
+  ) series_agg ON TRUE
 	ORDER BY r.started_at;
 END;
 $$;

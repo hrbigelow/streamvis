@@ -67,6 +67,8 @@ func registerCustomTypes(
 		"field_data_typ",
 		"field_typ",
 		"field_typ[]",
+		"field_set_typ",
+		"field_set_typ[]",
 		"enc_typ",
 		"enc_typ[]",
 		"field_value_typ",

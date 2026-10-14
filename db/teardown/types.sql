@@ -12,6 +12,9 @@ DROP TYPE IF EXISTS tag_filter_typ;
 \echo 'drop attribute_filter_typ'
 DROP TYPE IF EXISTS attribute_filter_typ;
 
+\echo 'drop field_set_typ'
+DROP TYPE IF EXISTS field_set_typ;
+
 \echo 'drop full_field_value_typ'
 DROP TYPE IF EXISTS full_field_value_typ;
 

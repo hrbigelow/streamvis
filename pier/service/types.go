@@ -253,11 +253,26 @@ func (ft Field) toProtobuf() (pb.Field, error) {
 	return msg, nil
 }
 
+type FieldSet struct {
+	Handles []uuid.UUID `db:"handles"`
+}
+
+func (fs FieldSet) toProtobuf() (pb.FieldSet, error) {
+	msg := pb.FieldSet{}
+	msg.Handles = make([]string, len(fs.Handles))
+
+	for i, handle := range fs.Handles {
+		msg.Handles[i] = handle.String()
+	}
+	return msg, nil
+}
+
 type Run struct {
 	Handle    uuid.UUID         `db:"handle"`
 	Tags      []string          `db:"tags"`
 	StartedAt time.Time         `db:"started_at"`
 	Attrs     []*FullFieldValue `db:"attrs"`
+	FieldSets []*FieldSet       `db:"field_sets"`
 }
 
 func (rr Run) toProtobuf() (pb.Run, error) {
@@ -273,6 +288,14 @@ func (rr Run) toProtobuf() (pb.Run, error) {
 			return pb.Run{}, err
 		}
 		msg.Attrs[attr.Name] = &pbvalue
+	}
+	msg.FieldSets = make([]*pb.FieldSet, len(rr.FieldSets))
+	for i, fieldSet := range rr.FieldSets {
+		fs, err := fieldSet.toProtobuf()
+		if err != nil {
+			return pb.Run{}, err
+		}
+		msg.FieldSets[i] = &fs
 	}
 	return msg, nil
 }

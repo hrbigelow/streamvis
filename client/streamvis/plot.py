@@ -108,6 +108,7 @@ class PlotOpts:
     stride: int = None
     win_groups: list[str] = field(default_factory=list)
 
+    # filter which records are retrieved
     f1: AttrFilter = None
     f2: AttrFilter = None
     f3: AttrFilter = None
@@ -117,6 +118,7 @@ class PlotOpts:
     after: Optional[str] = None
     until: Optional[str] = None
 
+    # filter which columns are retrieved for each record
     c1: ColumnFilter = None
     c2: ColumnFilter = None
     c3: ColumnFilter = None
@@ -125,23 +127,20 @@ class PlotOpts:
 
     series_fields = set()
 
-    def _normalize_prop(self, prop: str):
-        propval = getattr(self, prop)
-        if propval is None:
+    def _normalize_prop(self, field: str):
+        if field is None:
             return
+        def maybe_convert(field):
+            if field.startswith("s:"):
+                self.series_fields.add(field[2:])
+                return field[2:]
+            return field
 
-        def maybe_convert(propval):
-            if propval.startswith("s:"):
-                self.series_fields.add(propval[2:])
-                return propval[2:]
-            return propval
-
-        if isinstance(propval, str):
-            propval = maybe_convert(propval)
-            setattr(self, prop, propval)
+        # handle properties that take either a single identifier or a list
+        if isinstance(field, str):
+            return maybe_convert(field)
         else:
-            propval = [maybe_convert(pv) for pv in propval]
-            setattr(self, prop, propval)
+            return [maybe_convert(pv) for pv in field]
 
     def __post_init__(self):
         self.ty = PlotType(self.ty)
@@ -153,15 +152,33 @@ class PlotOpts:
         if self.order is None:
             self.order = self.x
 
-        for p in ("x", "y", "y2", "add_group", "order", "color_main", "color_sub",
-                  "label", "slider", "tooltip"): 
-            self._normalize_prop(p)
+        self.x = self._normalize_prop(self.x)
+        self.y = self._normalize_prop(self.y)
+        self.y2 = self._normalize_prop(self.y2)
+        self.add_group = self._normalize_prop(self.add_group)
+        self.order = self._normalize_prop(self.order)
+        self.color_main = self._normalize_prop(self.color_main)
+        self.color_sub = self._normalize_prop(self.color_sub)
+        self.label = self._normalize_prop(self.label)
+        self.slider = self._normalize_prop(self.slider)
+        self.tooltip = self._normalize_prop(self.tooltip)
+
+        for cf in (self.c1, self.c2, self.c3, self.c4, self.c5):
+            if cf is not None:
+                cf.name = self._normalize_prop(cf.name)
+
+        for f in (self.f1, self.f2, self.f3, self.f4, self.f5):
+            if f is not None:
+                f.name = self._normalize_prop(f.name)
+
 
     @property
     def field_names(self):
         s = set((self.x, self.y, self.y2, *self.color_main, *self.color_sub, 
                  *self.add_group, *self.label, self.order, *self.slider,
-                 *self.tooltip))
+                 *self.tooltip,
+                 *(cf.name for cf in self.cfilters),
+                 *(f.name for f in self.filters)))
         s.discard(None)
         return list(s)
 
@@ -263,6 +280,9 @@ class CategoricalRangeSlider:
 STARTED_AT = '_run_started_at'
 RUN_HANDLE = '_run_handle'
 
+def key_with_na(k):
+    return tuple((isinstance(x, pd.api.typing.NAType), x) for x in k)
+
 class PlotManager:
     def __init__(self, opts: PlotOpts):
         self.opts = opts
@@ -275,6 +295,7 @@ class PlotManager:
         self.filters = {} # name => plt.Widget 
         self.visibility_event = asyncio.Event()
         self._cursor = None
+        self.series_types = None
 
         self.legend_opts = dict(
             title=textwrap.fill(', '.join(opts.label), width=80), 
@@ -283,15 +304,6 @@ class PlotManager:
             title_fontsize=6)
 
     def new_dataframe(self, data=None):
-        pbmap = { 
-                   pb.FIELD_DATA_TYPE_INT: "Int64",
-                   pb.FIELD_DATA_TYPE_FLOAT: "Float64",
-                   pb.FIELD_DATA_TYPE_TEXT: "string",
-                   pb.FIELD_DATA_TYPE_BOOL: "boolean" }
-
-        series_types = { name: pbmap[f.data_type] for name, f in self.all_fields.items() }
-        series_types[STARTED_AT] = "Int64"
-        series_types[RUN_HANDLE] = "category"
 
         if data is None:
             data = {}
@@ -306,16 +318,18 @@ class PlotManager:
 
         cols = { 
                 name: pd.Series(data=data.get(name), index=master_index, dtype=stype)
-                for name, stype in series_types.items() }
+                for name, stype in self.series_types.items() }
         return pd.DataFrame(cols)
 
-    def to_dataframes(
+    def collate_new_data(
         self,
         stub: ServiceStub, 
-    ) -> list[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         run_req = pb.ListRunsRequest(run_filter=self.data_req.run_filter)
         runs = { run.handle: run for run in stub.ListRuns(run_req) }
-        frames = []
+
+        col_data: dict[str, list] = {col: [] for col in self.series_types.keys() }
+        has_data = False
 
         for data in stub.QueryRunData(self.data_req):
             run = runs.get(data.run_handle)
@@ -323,15 +337,31 @@ class PlotManager:
                 raise RuntimeError(f"Couldn't get run metadata")
 
             arrays = dbutil.decode_runchunk(data)
-            d = dict(zip(self.opts.series_fields, arrays))
-            attrs = { n: rpc_client.get_oneof(run.attrs[n]) for n in self.opts.attr_fields }
-            d[STARTED_AT] = run.started_at.seconds
-            d[RUN_HANDLE] = run.handle
-            d.update(attrs)
-            df = self.new_dataframe(d)
-            frames.append(df)
+            num_rows = len(arrays[0]) if len(arrays) > 0 else 0
+            if num_rows == 0:
+                continue
+            
+            has_data = True
 
-        return frames
+            for name, arr in zip(self.opts.series_fields, arrays):
+                col_data[name].append(arr)
+
+            for n in self.opts.attr_fields:
+                val = rpc_client.get_oneof(run.attrs[n])
+                col_data[n].append(np.full(num_rows, val))
+
+            col_data[STARTED_AT].append(np.full(num_rows, run.started_at.seconds, dtype=np.int64))
+            col_data[RUN_HANDLE].append(np.full(num_rows, run.handle))
+
+        if not has_data:
+            return None
+
+        flattened_cols = {
+            name: np.concatenate(chunks) if chunks else np.array([])
+            for name, chunks in col_data.items()
+        }
+        return pd.DataFrame(flattened_cols).astype(self.series_types)
+        
 
     def prepare(self, stub: ServiceStub):
         o = self.opts
@@ -347,6 +377,19 @@ class PlotManager:
 
         self.data_req = req
         self.all_fields = { f.name: f for f in rpc_client.list_fields(stub) }
+
+        pbmap = { 
+                   pb.FIELD_DATA_TYPE_INT: "Int64",
+                   pb.FIELD_DATA_TYPE_FLOAT: "Float64",
+                   pb.FIELD_DATA_TYPE_TEXT: "string",
+                   pb.FIELD_DATA_TYPE_BOOL: "boolean" }
+
+        self.series_types = { 
+            name: pbmap[self.all_fields[name].data_type] 
+            for name in self.opts.field_names
+        }
+        self.series_types[STARTED_AT] = "Int64"
+        self.series_types[RUN_HANDLE] = "category"
 
         self.df = self.new_dataframe()
 
@@ -390,6 +433,9 @@ class PlotManager:
         pbruns = rpc_client.list_runs(stub, self.data_req.run_filter)
         old_runs = self.runs
         self.runs = { r.handle: r for r in pbruns }
+        if len(self.runs) == 0:
+            return
+
         stale_handles = [
             h for h, r in old_runs.items() 
             if h not in self.runs 
@@ -397,15 +443,16 @@ class PlotManager:
         ]
 
         self.df = self.df[~self.df[RUN_HANDLE].isin(stale_handles)]
-        new_dfs = self.to_dataframes(stub)
+        new_df = self.collate_new_data(stub)
         pre_chunk_id = self.data_req.begin_chunk_id
         self.data_req.begin_chunk_id = cur_chunk_id = rpc_client.get_end_chunk_id(stub) 
         
         self.data_changed = (pre_chunk_id != cur_chunk_id or len(stale_handles) > 0)
 
-        if len(new_dfs) > 0: 
-            self.df = pd.concat([self.df, *new_dfs], ignore_index=True)
-            self.df[RUN_HANDLE] = self.df[RUN_HANDLE].astype('category')
+        if new_df is not None: 
+            self.df = pd.concat([self.df, new_df], ignore_index=True)
+            if not isinstance(self.df[RUN_HANDLE].dtype, pd.CategoricalDtype):
+                self.df[RUN_HANDLE] = self.df[RUN_HANDLE].astype('category')
             # self.df.sort_values(by=STARTED_AT, inplace=True)
 
         for cf in self.opts.cfilters:
@@ -444,13 +491,13 @@ class PlotManager:
         for cg in color_df.groups:
             base, sub = cg[:nbase], cg[nbase:]
             cgroups.setdefault(base, list()).append(sub)
-        base_groups = list(sorted(cgroups.keys()))
+        base_groups = list(sorted(cgroups.keys(), key=key_with_na))
 
         def get_glyph_color(glyph_id):
             base_gr = tuple(glyph_id[i] for i in base_inds)
             sub_gr = tuple(glyph_id[i] for i in sub_inds)
-            base_idx = base_groups.index(base_gr)
-            sub_idx = cgroups[base_gr].index(sub_gr)
+            base_idx = pd.Index(base_groups).get_loc(base_gr)
+            sub_idx = pd.Index(cgroups[base_gr]).get_loc(sub_gr)
             num_sub = len(cgroups[base_gr])
             return get_color(base_idx, sub_idx, num_sub)
 
@@ -475,21 +522,19 @@ class PlotManager:
             legend_label = tuple(glyph_id[l] for l in legend_label_inds)
             legend_labels[legend_label] = self.glyphs[glyph_id]
 
-        self._cursor = mplcursors.cursor(self.ax, hover=True)
-        
         def on_add(sel):
             label_text = sel.artist.get_label()
             sel.annotation.set_text(label_text)
 
-        self._cursor.connect("add", on_add)
+        if len(self.opts.tooltip) > 0:
+            self._cursor = mplcursors.cursor(self.ax, hover=True)
+            self._cursor.connect("add", on_add)
 
         if len(legend_labels) == 0:
             labels, glyphs = [], []
         else:
-            def sort_with_na(kv):
-                return tuple((isinstance(x, pd.api.typing.NAType), x) for x in kv[0])
-                    
-            labels, glyphs = list(zip(*sorted(legend_labels.items(), key=sort_with_na)))
+            labels, glyphs = list(zip(*sorted(legend_labels.items(), 
+                                              key=lambda kv: key_with_na(kv[0]))))
 
         self.ax.legend(handles=glyphs, labels=labels, **self.legend_opts)
         self.ax.relim()

@@ -5,13 +5,6 @@ CREATE TABLE series (
   id SERIAL PRIMARY KEY
 );
 
-\echo 'create table field_series'
-CREATE TABLE field_series (
-  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
-  series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE, 
-  PRIMARY KEY (field_id, series_id)
-);
-
 
 \echo 'create field_data_typ'
 CREATE TYPE field_data_typ AS ENUM ('int', 'float', 'text', 'bool');
@@ -29,6 +22,13 @@ CREATE TABLE field (
   description TEXT 
 );
 
+
+\echo 'create table field_series'
+CREATE TABLE field_series (
+  field_id INT NOT NULL REFERENCES field(id) ON DELETE CASCADE,
+  series_id INT NOT NULL REFERENCES series(id) ON DELETE CASCADE, 
+  PRIMARY KEY (field_id, series_id)
+);
 
 /*
 An entry in the run table describes the notion of a "run" in the sense of
